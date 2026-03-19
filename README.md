@@ -6,8 +6,9 @@ Deploy any full-stack website (Next.js + Convex DB) with **Zero Human Involvemen
 Stop manually setting up VPS, DNS, and Databases. **SI Coder** automates the entire lifecycle:
 1.  **GitHub**: Creates a private repo and pushes your local code via SSH.
 2.  **Hostinger**: Automatically adds `A` records for your main domain and 3 backend subdomains.
-3.  **Dokploy**: Creates the project, sets up the Application (Frontend) and Compose (Backend).
-4.  **Convex**: Automatically deploys the schema, seeds data, and saves the Admin Key to Dokploy envs.
+3.  **Dokploy**: Creates the project, sets up the Application (Frontend) and Compose (Backend), and binds Dockerfile apps to the Dokploy GitHub provider when available.
+4.  **Convex**: Automatically deploys the schema, preserves `INSTANCE_SECRET`, and saves the Admin Key to Dokploy envs.
+5.  **Cleanup**: Removes stale public domains, duplicate hosts, and obsolete `*.traefik.me` domains once a canonical deployment domain exists.
 
 ---
 
@@ -49,6 +50,13 @@ export HOSTINGER_API_TOKEN="your_token" # Optional: For DNS Auto-sync
 - `SKILL.md`: The instruction manual for AI agents.
 - `.env.example`: Template for your credentials.
 
+## Current Deployment Behavior
+- Frontend apps with a `Dockerfile` deploy with `buildType: dockerfile`.
+- When Dokploy has a GitHub provider configured, SI Coder binds the app to that provider instead of leaving it on a raw custom Git URL.
+- Frontend deployments stay on push-triggered auto-deploy for `main`.
+- Convex self-hosted deployments preserve existing `INSTANCE_SECRET` values and persist `CONVEX_ADMIN_KEY` back into Dokploy envs.
+- Dokploy domains are canonicalized so old rollout domains and duplicate hosts do not accumulate over time.
+
 ## ❓ FAQ & Debugging
 
 ### **Q: Why is my site stuck on "Loading"?**
@@ -56,6 +64,9 @@ export HOSTINGER_API_TOKEN="your_token" # Optional: For DNS Auto-sync
 
 ### **Q: Convex Dashboard shows 401/404?**
 **A:** The script automatically generates an `Admin Key`. Check your Dokploy Dashboard -> Compose Service -> Environment Variables to find the `CONVEX_ADMIN_KEY`. Use this key to login.
+
+### **Q: Why does Dokploy still show old domains or `traefik.me` hosts?**
+**A:** Current SI Coder versions clean those up automatically after the canonical public domain is known. If you still see old hosts, the repo likely uses an older `deploy.js`.
 
 ### **Q: DNS not propagating?**
 **A:** Hostinger API changes are usually instant, but global DNS can take 1-5 minutes. The script adds the records, but you might need to wait a moment before the SSL (Let's Encrypt) succeeds in Dokploy.

@@ -1,5 +1,6 @@
 // deploy.js
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
@@ -74,6 +75,163 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 const dns = require('dns');
 const util = require('util');
 const lookup = util.promisify(dns.lookup);
+
+function parseEnvString(envString = '') {
+  const env = {};
+
+  for (const rawLine of envString.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const equalsIndex = line.indexOf('=');
+    if (equalsIndex === -1) continue;
+
+    const key = line.slice(0, equalsIndex).trim();
+    const value = line.slice(equalsIndex + 1);
+    if (!key) continue;
+    env[key] = value;
+  }
+
+  return env;
+}
+
+function mergeEnvString(existingEnv = '', updates = {}) {
+  const lines = existingEnv.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const env = parseEnvString(existingEnv);
+  const order = [];
+
+  for (const line of lines) {
+    const equalsIndex = line.indexOf('=');
+    if (equalsIndex === -1) continue;
+
+    const key = line.slice(0, equalsIndex).trim();
+    if (key && !order.includes(key)) {
+      order.push(key);
+    }
+  }
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined || value === null) continue;
+    if (!order.includes(key)) {
+      order.push(key);
+    }
+    env[key] = String(value);
+  }
+
+  return order.map(key => `${key}=${env[key]}`).join('\n');
+}
+
+async function updateComposeEnv(composeId, updates) {
+  const currentCompose = await fetchDokploy(`/compose.one?composeId=${composeId}`);
+  const nextEnv = mergeEnvString(currentCompose.env || '', updates);
+
+  await fetchDokploy('/compose.update', 'POST', {
+    composeId,
+    env: nextEnv
+  });
+
+  return parseEnvString(nextEnv);
+}
+
+async function deleteDomain(domainId) {
+  return await fetchDokploy('/domain.delete', 'POST', { domainId });
+}
+
+function selectDomainsToDelete(domains = [], desiredHosts = []) {
+  const desired = new Set(desiredHosts.filter(Boolean));
+  const keptDesiredHosts = new Set();
+  const deletions = [];
+
+  for (const domain of domains) {
+    const host = domain.host;
+    const isDesired = desired.has(host);
+    const isTraefik = typeof host === 'string' && host.endsWith('.traefik.me');
+
+    if (isDesired) {
+      if (keptDesiredHosts.has(host)) {
+        deletions.push(domain);
+      } else {
+        keptDesiredHosts.add(host);
+      }
+      continue;
+    }
+
+    if (isTraefik || desired.size > 0) {
+      deletions.push(domain);
+    }
+  }
+
+  return deletions;
+}
+
+async function cleanupComposeDomains(composeId, desiredHosts = []) {
+  const currentCompose = await fetchDokploy(`/compose.one?composeId=${composeId}`);
+  const domains = currentCompose.domains || [];
+  const deletions = selectDomainsToDelete(domains, desiredHosts);
+
+  for (const domain of deletions) {
+    try {
+      await deleteDomain(domain.domainId);
+      console.log(`🧹 Removed compose domain ${domain.host}`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to remove compose domain ${domain.host}: ${error.message}`);
+    }
+  }
+}
+
+async function cleanupApplicationDomains(applicationId, desiredHosts = []) {
+  const currentApplication = await fetchDokploy(`/application.one?applicationId=${applicationId}`);
+  const domains = currentApplication.domains || [];
+  const deletions = selectDomainsToDelete(domains, desiredHosts);
+
+  for (const domain of deletions) {
+    try {
+      await deleteDomain(domain.domainId);
+      console.log(`🧹 Removed application domain ${domain.host}`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to remove application domain ${domain.host}: ${error.message}`);
+    }
+  }
+}
+
+async function getDokployGithubProvider() {
+  const providers = await fetchDokploy('/github.githubProviders');
+  if (!Array.isArray(providers) || providers.length === 0) {
+    return null;
+  }
+
+  return providers[0];
+}
+
+async function configureApplicationGithubProvider({
+  applicationId,
+  githubId,
+  owner,
+  repository,
+  branch,
+  buildPath = '/',
+  enableSubmodules = false
+}) {
+  await fetchDokploy('/application.saveGithubProvider', 'POST', {
+    applicationId,
+    githubId,
+    owner,
+    repository,
+    branch,
+    buildPath,
+    enableSubmodules,
+    triggerType: 'push'
+  });
+}
+
+function extractAdminKey(output = '') {
+  const lines = output
+    .split(/\r?\n/)
+    .map(line => line.replace(/^Admin key:\s*/, '').trim())
+    .filter(Boolean);
+
+  return lines.find(line => line.includes('|')) || lines[lines.length - 1] || '';
+}
 
 async function configureHostingerDNS(fullDomain, apiUrl) {
   const hostingerToken = process.env.HOSTINGER_API_TOKEN;
@@ -161,6 +319,8 @@ async function run() {
     const user = await fetchGitHub('/user');
     const githubUsername = user.login;
     let repoUrl = `git@github.com:${githubUsername}/${appName}.git`;
+    const repoOwner = githubUsername;
+    const repoName = appName;
     
     try {
         await fetchGitHub(`/repos/${githubUsername}/${appName}`);
@@ -213,7 +373,7 @@ async function run() {
     const branch = execSync('git branch --show-current').toString().trim() || 'main';
 
 
-    // --- 2. DOKPLOY PROJECT CREATION (API Specs: ${baseUrl}/swagger) ---
+    // --- 2. DOKPLOY PROJECT CREATION (API Specs: https://backend.rahmanef.com/swagger) ---
     console.log("🔍 Fetching Dokploy projects...");
     const projects = await fetchDokploy('/project.all');
     let project = projects.find(p => p.name === projectName);
@@ -231,7 +391,7 @@ async function run() {
     if (!envId) {
       throw new Error(`No environments found for project ${projectName}`);
     }
-    const secureGitUrl = `https://${githubUsername}:${githubToken}@github.com/${githubUsername}/${appName}.git`;
+    const secureGitUrl = `https://${githubUsername}:${githubToken}@github.com/${repoOwner}/${repoName}.git`;
 
     const hasDockerCompose = fs.existsSync(path.join(process.cwd(), 'docker-compose.yml'));
     const hasDockerfile = fs.existsSync(path.join(process.cwd(), 'Dockerfile'));
@@ -268,10 +428,22 @@ async function run() {
       }
 
       if (composeApp) {
+          let apiDomain = null;
+          let dashDomain = null;
+          let siteDomain = null;
+
+          const currentCompose = await fetchDokploy(`/compose.one?composeId=${composeApp.composeId}`);
+          const currentComposeVars = parseEnvString(currentCompose.env || '');
+          const instanceSecret = currentComposeVars.INSTANCE_SECRET || crypto.randomBytes(32).toString('hex');
+
+          if (currentComposeVars.CONVEX_ADMIN_KEY) {
+              project.tempAdminKey = currentComposeVars.CONVEX_ADMIN_KEY;
+          }
+
           if (domain) {
-              const apiDomain = `api-${domain}`;
-              const dashDomain = `dash-${domain}`;
-              const siteDomain = `site-${domain}`;
+              apiDomain = `api-${domain}`;
+              dashDomain = `dash-${domain}`;
+              siteDomain = `site-${domain}`;
               
               console.log(`\n🌐 Setting up backend domains: ${apiDomain}, ${dashDomain}, ${siteDomain}`);
               
@@ -281,34 +453,51 @@ async function run() {
               await configureHostingerDNS(siteDomain, apiUrl);
 
               // 2. Create Dokploy Domains
-              try {
-                  await fetchDokploy('/domain.create', 'POST', {
-                    composeId: composeApp.composeId, host: apiDomain, port: 3210, serviceName: "backend", https: true, certificateType: "letsencrypt"
-                  });
-                  await fetchDokploy('/domain.create', 'POST', {
-                    composeId: composeApp.composeId, host: siteDomain, port: 3211, serviceName: "backend", https: true, certificateType: "letsencrypt"
-                  });
-                  await fetchDokploy('/domain.create', 'POST', {
-                    composeId: composeApp.composeId, host: dashDomain, port: 6791, serviceName: "dashboard", https: true, certificateType: "letsencrypt"
-                  });
+              const backendDomains = [
+                { host: apiDomain, port: 3210, serviceName: "backend" },
+                { host: siteDomain, port: 3211, serviceName: "backend" },
+                { host: dashDomain, port: 6791, serviceName: "dashboard" }
+              ];
 
-                  // 3. Update Compose Environment Variables
-                  const crypto = require('crypto');
-                  const instanceSecret = crypto.randomBytes(32).toString('hex');
-                  const env = `NEXT_PUBLIC_DEPLOYMENT_URL=https://${apiDomain}\nCONVEX_CLOUD_ORIGIN=https://${apiDomain}\nCONVEX_SITE_ORIGIN=https://${siteDomain}\nINSTANCE_SECRET=${instanceSecret}\nINSTANCE_NAME=${appName}`;
-                  
-                  await fetchDokploy('/compose.update', 'POST', {
-                    composeId: composeApp.composeId,
-                    env
-                  });
-                  console.log(`✅ Backend domains configured successfully in Dokploy.`);
-                  console.log(`\n🔑 IMPORTANT: To deploy your Convex schema, SSH into your Dokploy server and run:`);
-                  console.log(`docker exec <your_compose_project>-backend-1 ./generate_admin_key.sh`);
-                  console.log(`Then run locally: npx convex deploy --url https://${apiDomain} --admin-key "<the_generated_key>"\n`);
-              } catch (e) {
-                  console.warn(`⚠️ Warning setting up backend domains: ${e.message}`);
+              for (const backendDomain of backendDomains) {
+                  try {
+                      await fetchDokploy('/domain.create', 'POST', {
+                        composeId: composeApp.composeId,
+                        host: backendDomain.host,
+                        port: backendDomain.port,
+                        serviceName: backendDomain.serviceName,
+                        https: true,
+                        certificateType: "letsencrypt"
+                      });
+                  } catch (e) {
+                      console.warn(`⚠️ Domain ${backendDomain.host} may already exist or Dokploy rejected it. Skipping.`);
+                  }
               }
+
+              await cleanupComposeDomains(composeApp.composeId, backendDomains.map((entry) => entry.host));
+
+              console.log(`✅ Backend domain configuration checked in Dokploy.`);
+              console.log(`\n🔑 IMPORTANT: To deploy your Convex schema manually if needed, SSH into your Dokploy server and run:`);
+              console.log(`docker exec <your_compose_project>-backend-1 ./generate_admin_key.sh`);
+              console.log(`Then run locally: npx convex deploy --url https://${apiDomain} --admin-key "<the_generated_key>"\n`);
           }
+
+          const composeEnvUpdates = {
+            INSTANCE_SECRET: instanceSecret,
+            INSTANCE_NAME: appName
+          };
+
+          if (apiDomain) {
+            composeEnvUpdates.NEXT_PUBLIC_DEPLOYMENT_URL = `https://${apiDomain}`;
+            composeEnvUpdates.CONVEX_CLOUD_ORIGIN = `https://${apiDomain}`;
+          }
+
+          if (siteDomain) {
+            composeEnvUpdates.CONVEX_SITE_ORIGIN = `https://${siteDomain}`;
+          }
+
+          await updateComposeEnv(composeApp.composeId, composeEnvUpdates);
+          console.log(`✅ Compose environment synchronized without rotating existing Convex secrets.`);
 
           console.log("🚀 Triggering Compose deployment...");
           await fetchDokploy('/compose.deploy', 'POST', { composeId: composeApp.composeId });
@@ -316,46 +505,47 @@ async function run() {
 
           // --- STEP 3: AUTOMATIC SCHEMA DEPLOYMENT ---
           if (fs.existsSync(path.join(process.cwd(), 'convex/schema.ts'))) {
-              console.log("🔑 Convex detected. Waiting for backend to be healthy for schema deployment...");
+              console.log("🔑 Convex detected. Waiting for backend to be healthy for admin-key generation...");
               await delay(15000); // Wait for startup
-              
+
+              let adminKey = project.tempAdminKey;
+
               try {
-                  const containerName = `${composeApp.appName}-backend-1`;
-                  const { execSync } = require('child_process');
-                  const adminKey = execSync(`sudo docker exec ${containerName} ./generate_admin_key.sh | grep -v "Admin key:"`, { stdio: 'pipe' }).toString().trim();
-                  
-                  if (adminKey) {
+                  const latestCompose = await fetchDokploy(`/compose.one?composeId=${composeApp.composeId}`);
+                  const composeRuntimeName = latestCompose.appName || composeApp.appName;
+
+                  if (!composeRuntimeName) {
+                      throw new Error("Compose runtime name unavailable for admin key generation.");
+                  }
+
+                  const containerName = `${composeRuntimeName}-backend-1`;
+                  const rawAdminKey = execSync(`sudo docker exec ${containerName} ./generate_admin_key.sh`, { stdio: 'pipe' }).toString();
+                  adminKey = extractAdminKey(rawAdminKey);
+
+                  if (!adminKey) {
+                      throw new Error("Convex admin key generation returned an empty value.");
+                  }
+
+                  await updateComposeEnv(composeApp.composeId, { CONVEX_ADMIN_KEY: adminKey });
+                  project.tempAdminKey = adminKey;
+                  console.log("✅ Admin Key saved to Compose env.");
+                  console.log(`\n🔑 CONVEX_ADMIN_KEY generated: ${adminKey}`);
+              } catch (err) {
+                  console.warn(`⚠️ Automatic admin-key generation failed: ${err.message}`);
+              }
+
+              if (adminKey && apiDomain) {
+                  try {
                       console.log("📤 Pushing Convex schema automatically...");
                       execSync(`NODE_TLS_REJECT_UNAUTHORIZED=0 npx convex deploy --url https://${apiDomain} --admin-key "${adminKey}"`, { stdio: 'inherit' });
                       console.log("✅ Convex schema deployed successfully.");
-                      
-                      // Save Admin Key to the COMPOSE service env as well
-                      console.log("💾 Saving Admin Key to Dokploy Compose environment...");
-                      try {
-                          // Fetch latest compose data to ensure we have the ID and current env
-                          const updatedProjectsForEnv = await fetchDokploy('/project.all');
-                          const pEnv = updatedProjectsForEnv.find(p => p.name === projectName);
-                          const cApp = pEnv.environments[0]?.compose?.find(c => c.name === composeAppName);
-                          
-                          if (cApp) {
-                              const currentCompose = await fetchDokploy(`/compose.one?composeId=${cApp.composeId}`);
-                              const updatedEnv = `${currentCompose.env}\nCONVEX_ADMIN_KEY=${adminKey}`;
-                              await fetchDokploy('/compose.update', 'POST', {
-                                  composeId: cApp.composeId,
-                                  env: updatedEnv
-                              });
-                              console.log("✅ Admin Key saved to Compose env.");
-                          }
-                      } catch (e) {
-                          console.warn("⚠️ Failed to save admin key to compose env:", e.message);
-                      }
-
-                      // Store for later use in application.update
-                      project.tempAdminKey = adminKey;
-                      console.log(`\n🔑 CONVEX_ADMIN_KEY generated: ${adminKey}`);
+                  } catch (err) {
+                      console.warn(`⚠️ Automatic schema deployment failed: ${err.message}`);
                   }
-              } catch (err) {
-                  console.warn("⚠️ Automatic schema deployment failed. You may need to run it manually later.");
+              } else if (!apiDomain) {
+                  console.log("ℹ️ Skipping automatic Convex schema deploy because no backend domain was provided.");
+              } else if (!adminKey) {
+                  console.log("ℹ️ Skipping automatic Convex schema deploy because admin-key generation did not complete.");
               }
           }
       }
@@ -388,7 +578,7 @@ async function run() {
           if (app) {
           const appId = app.applicationId;
           
-          console.log(`⚙️ Configuring Dokploy application source as raw Git...`);
+          console.log(`⚙️ Configuring Dokploy application source...`);
           try {
             // Set environment variables for the frontend (Next.js build)
             let appEnv = "";
@@ -400,17 +590,54 @@ async function run() {
                 }
             }
 
-            await fetchDokploy('/application.update', 'POST', {
-              applicationId: appId,
-              customGitUrl: secureGitUrl,
-              customGitBranch: branch,
-              buildType: "dockerfile",
-              dockerfile: "Dockerfile",
-              sourceType: "git",
-              env: appEnv,
-              buildArgs: appEnv
-            });
-            console.log(`✅ Dokploy application updated successfully.`);
+            const githubProvider = await getDokployGithubProvider();
+
+            if (githubProvider?.githubId) {
+              console.log(`🔗 Binding Dokploy application to GitHub provider ${githubProvider.githubId}...`);
+              await configureApplicationGithubProvider({
+                applicationId: appId,
+                githubId: githubProvider.githubId,
+                owner: repoOwner,
+                repository: repoName,
+                branch
+              });
+
+              await fetchDokploy('/application.update', 'POST', {
+                applicationId: appId,
+                sourceType: "github",
+                githubId: githubProvider.githubId,
+                owner: repoOwner,
+                repository: repoName,
+                branch,
+                buildPath: "/",
+                buildType: "dockerfile",
+                dockerfile: "Dockerfile",
+                triggerType: "push",
+                autoDeploy: true,
+                customGitUrl: null,
+                customGitBranch: null,
+                customGitBuildPath: null,
+                customGitSSHKeyId: null,
+                env: appEnv,
+                buildArgs: appEnv
+              });
+              console.log(`✅ Dokploy application updated successfully with GitHub provider.`);
+            } else {
+              console.log(`ℹ️ No Dokploy GitHub provider found. Falling back to raw Git source.`);
+              await fetchDokploy('/application.update', 'POST', {
+                applicationId: appId,
+                customGitUrl: secureGitUrl,
+                customGitBranch: branch,
+                buildType: "dockerfile",
+                dockerfile: "Dockerfile",
+                triggerType: "push",
+                autoDeploy: true,
+                sourceType: "git",
+                env: appEnv,
+                buildArgs: appEnv
+              });
+              console.log(`✅ Dokploy application updated successfully with raw Git source.`);
+            }
           } catch(e) {
             console.warn(`⚠️ Warning during application update: ${e.message}`);
           }
@@ -432,6 +659,8 @@ async function run() {
                   // Usually fails if domain exists or is assigned to another app. It's safe to ignore.
                   console.warn(`⚠️ Note on domain creation: Domain may already exist or API rejected it. Skipping.`);
               }
+
+              await cleanupApplicationDomains(appId, [domain]);
           }
 
           console.log("🚀 Triggering Application deployment...");
@@ -468,7 +697,7 @@ async function run() {
               console.log(`🎉 Deployment SUCCESSFUL! App should be live at https://${domain || appName}.`);
           } else {
               console.error(`❌ Deployment ended with status: ${status}.`);
-              console.error(`\n⚠️  DOKPLOY LOGS UNAVAILABLE VIA API. Please log in to your Dokploy Dashboard -> '${projectName}' project -> '${appName}' -> 'Deployments' to see the exact build error.`);
+              console.error(`\n⚠️  DOKPLOY LOGS UNAVAILABLE VIA API. Please log in to your Dokploy Dashboard (https://backend.rahmanef.com) -> 'azzahrah' project -> '${appName}' -> 'Deployments' to see the exact build error.`);
           }
       }
     }

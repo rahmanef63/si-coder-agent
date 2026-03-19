@@ -1,18 +1,6 @@
 ---
 name: si-coder
-description: "Zero-Human full-stack deployment to Dokploy via GitHub and Hostinger DNS."
-version: 1.1.0
-metadata:
-  requires:
-    env:
-      - DOKPLOY_API_URL
-      - DOKPLOY_API_KEY
-      - GITHUB_TOKEN
-      - HOSTINGER_API_TOKEN
-    bins:
-      - node
-      - git
-      - npx
+description: "Zero human involvement full-stack deployment to Dokploy. Automatically create GitHub repositories, push local code via SSH, setup projects, configure Next.js and self-hosted Convex DB (via Docker Compose), and trigger deployments via REST API."
 ---
 
 # SI Coder Auto Deploy
@@ -47,15 +35,15 @@ When the user asks to deploy a project:
 - **Self-Hosted Convex DB**: Automatically deploys a production-ready Convex self-hosted DB using Dokploy templates.
 
 ```bash
-cd <your_project_dir>
-node <path_to_skill>/scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT_NAME>" "<APP_NAME>" "$GITHUB_TOKEN" "[DOMAIN]"
+cd /home/rahman/projects/<app_name>
+node /home/rahman/.agents/skills/si-coder/scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT_NAME>" "<APP_NAME>" "$GITHUB_TOKEN" "[DOMAIN]"
 ```
 
 ### Example
 
 ```bash
-cd ./my-ecommerce-app
-node ./scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "my-store" "my-ecommerce-app" "$GITHUB_TOKEN" "mystore.com"
+cd /home/rahman/projects/azzahrah-site
+node /home/rahman/.agents/skills/si-coder/scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "azzahrah" "azzahrah-site" "$GITHUB_TOKEN" "azzahrah.site"
 ```
 
 ## How the script works
