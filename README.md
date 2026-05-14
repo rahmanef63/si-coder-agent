@@ -1,77 +1,135 @@
-# SI Coder: Zero-Human Full-Stack Deployment 🚀
+# SI Coder Agent — Modular Zero-Human Deployment
 
-Deploy any full-stack website (Next.js + Convex DB) with **Zero Human Involvement** using Dokploy, GitHub, and Hostinger DNS.
+Deploy any full-stack app (Next.js + self-hosted Convex DB) with **zero human involvement** through Dokploy, GitHub, and (optional) Hostinger DNS. Modular per-domain skills, plus a one-shot monolithic deploy script.
 
-## 🌟 The Niche
-Stop manually setting up VPS, DNS, and Databases. **SI Coder** automates the entire lifecycle:
-1.  **GitHub**: Creates a private repo and pushes your local code via SSH.
-2.  **Hostinger**: Automatically adds `A` records for your main domain and 3 backend subdomains.
-3.  **Dokploy**: Creates the project, sets up the Application (Frontend) and Compose (Backend), and binds Dockerfile apps to the Dokploy GitHub provider when available.
-4.  **Convex**: Automatically deploys the schema, preserves `INSTANCE_SECRET`, and saves the Admin Key to Dokploy envs.
-5.  **Cleanup**: Removes stale public domains, duplicate hosts, and obsolete `*.traefik.me` domains once a canonical deployment domain exists.
+## The skill family
 
----
+After running `bash install.sh`, you get four slash commands:
 
-## 🤖 Instructions for AI Agents (Installation)
-If you are an AI agent, you can "ingest" this skill by reading the `SKILL.md` file in this repository.
+| Command | Domain | What it does |
+|---|---|---|
+| `/sc-all` | Orchestrator | End-to-end: repo + DNS + Dokploy + Convex + frontend + verify |
+| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug |
+| `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
+| `/sc-onboarding` | Setup | Scans env, prompts only for missing credentials, writes to `~/.bashrc` |
 
-**Standard Installation Path:**
-- **OpenClaw/Codex**: `~/.openclaw/skills/si-coder/`
-- **Claude**: `~/.claude/agents/si-coder/`
-- **Gemini CLI**: `~/.gemini/skills/si-coder/`
+Future: `/sc-cf` (Cloudflare DNS/CDN), `/sc-supabase`, `/sc-stripe`, etc. Same pattern — drop a folder into `skills/`, re-run `install.sh`.
 
-### How to use this skill:
-Once installed, the user can prompt:
-> *"Use si-coder to deploy my project 'my-app' to 'myapp.com'. Style it like Notion and add a Chat feature. Run it autonomously."*
+The legacy `/use-si-coder` monolith (`scripts/deploy.js`) remains available in parallel for users who prefer one-shot.
 
----
-
-## 🛠 Prerequisites & Setup
-
-### 1. Environment Variables
-Copy `.env.example` to your shell profile (e.g., `~/.bashrc` or `~/.zshrc`):
+## Install
 
 ```bash
-export GITHUB_TOKEN="ghp_..."
-export DOKPLOY_API_URL="https://your-dokploy.com/api"
-export DOKPLOY_API_KEY="your_key"
-export HOSTINGER_API_TOKEN="your_token" # Optional: For DNS Auto-sync
+git clone https://github.com/rahmanef63/si-coder-agent.git
+cd si-coder-agent
+bash install.sh                  # symlinks skills/sc-* into ~/.claude/skills/
+node bin/onboard.js              # interactive credential setup (non-AI)
+source ~/.bashrc
 ```
 
-### 2. Local Requirements
-- **Node.js**: Required to run the deployment script.
-- **SSH Access**: Your machine must have SSH keys registered with GitHub (`git@github.com`).
-- **Project Structure**: Ensure your project has a `Dockerfile` (for frontend) and a `docker-compose.yml` (to trigger Convex backend).
+Or, if you're driving via Claude / OpenClaw / Gemini:
+```
+/sc-onboarding
+```
+The AI will scan your env, ask only for what's missing, and write to `~/.bashrc`.
 
----
+## Quick deploy (legacy one-shot)
 
-## 📦 What's Included?
-- `scripts/deploy.js`: The "brain" of the operation. Handles all API calls.
-- `SKILL.md`: The instruction manual for AI agents.
-- `.env.example`: Template for your credentials.
+```bash
+cd ~/projects/<app_name>
+node ~/projects/opensource/si-coder-agent/scripts/deploy.js \
+  "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT>" "<APP>" "$GITHUB_TOKEN" "<DOMAIN>"
+```
 
-## Current Deployment Behavior
-- Frontend apps with a `Dockerfile` deploy with `buildType: dockerfile`.
-- When Dokploy has a GitHub provider configured, SI Coder binds the app to that provider instead of leaving it on a raw custom Git URL.
-- Frontend deployments stay on push-triggered auto-deploy for `main`.
-- Convex self-hosted deployments preserve existing `INSTANCE_SECRET` values and persist `CONVEX_ADMIN_KEY` back into Dokploy envs.
-- Dokploy domains are canonicalized so old rollout domains and duplicate hosts do not accumulate over time.
+## Modular usage
 
-## ❓ FAQ & Debugging
+```bash
+# Just deploy the Convex backend:
+node skills/sc-convex/scripts/deploy-convex.js --project myproj --app myapp --domain mydomain.com --with-auth-keys
 
-### **Q: Why is my site stuck on "Loading"?**
-**A:** Check your `Dockerfile`. Ensure you are using `ARG` and `ENV` for `NEXT_PUBLIC_CONVEX_URL` so the script can inject the correct URL during the build.
+# Check Convex backend health:
+node skills/sc-convex/scripts/check-backend.js --domain mydomain.com --admin-key "$CONVEX_ADMIN_KEY"
 
-### **Q: Convex Dashboard shows 401/404?**
-**A:** The script automatically generates an `Admin Key`. Check your Dokploy Dashboard -> Compose Service -> Environment Variables to find the `CONVEX_ADMIN_KEY`. Use this key to login.
+# Rotate Convex admin key:
+node skills/sc-convex/scripts/rotate-admin-key.js --compose-name myapp-db --env-file ./.env
 
-### **Q: Why does Dokploy still show old domains or `traefik.me` hosts?**
-**A:** Current SI Coder versions clean those up automatically after the canonical public domain is known. If you still see old hosts, the repo likely uses an older `deploy.js`.
+# Set JWT env on a running backend (CLI breaks on PEM):
+node skills/sc-convex/scripts/set-auth-env.js --domain mydomain.com --admin-key "$CONVEX_ADMIN_KEY" --generate
 
-### **Q: DNS not propagating?**
-**A:** Hostinger API changes are usually instant, but global DNS can take 1-5 minutes. The script adds the records, but you might need to wait a moment before the SSL (Let's Encrypt) succeeds in Dokploy.
+# List all Dokploy projects:
+node skills/sc-dokploy/scripts/projects.js list
 
----
+# Audit stale domains across the whole Dokploy instance:
+node skills/sc-dokploy/scripts/audit.js
+node skills/sc-dokploy/scripts/audit.js --fix    # remove TRAEFIK_ME + DUPLICATE_HOST
+```
 
-## 📜 License
-MIT - Created by Rahman EF.
+## Repo layout
+
+```
+si-coder-agent/
+├── SKILL.md           umbrella; points to sc-*
+├── README.md
+├── .env.example
+├── install.sh         symlinks skills/sc-* into ~/.claude/skills/
+├── lib/
+│   ├── dokploy.js     Dokploy REST client + CRUD helpers
+│   ├── github.js      GitHub REST + git push helpers
+│   ├── hostinger.js   Hostinger DNS A-record sync
+│   ├── convex.js      admin key / schema deploy / JWT keys / probe
+│   └── env.js         env-string parse, merge, .bashrc append
+├── skills/
+│   ├── sc-all/SKILL.md
+│   ├── sc-dokploy/
+│   │   ├── SKILL.md
+│   │   └── scripts/{_shared,projects,apps,compose,domains,audit,debug}.js
+│   ├── sc-convex/
+│   │   ├── SKILL.md
+│   │   └── scripts/{deploy-convex,check-backend,rotate-admin-key,set-auth-env}.js
+│   └── sc-onboarding/
+│       ├── SKILL.md
+│       ├── scripts/scan-env.js
+│       └── steps/{github,dokploy,convex,hostinger}.md
+├── scripts/
+│   └── deploy.js      legacy monolith (still functional)
+└── bin/
+    └── onboard.js     one-shot CLI wizard
+```
+
+## CORE MANDATES (shared across all sc-*)
+
+1. **Self-Hosted Convex by default** — never silently swap to Clerk. Use `@convex-dev/auth`.
+2. **`convex/_generated` committed** — never run codegen inside the Dockerfile.
+3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
+4. **Idempotency** — duplicate domain create = no-op.
+5. **Admin Key Sync** — Dokploy compose env + repo env file always match.
+6. **`backend.rahmanef.com`** is the Dokploy control plane on Rahman's server — never rename.
+7. **Clerk MCP for Clerk apps** — `clerk` at `https://mcp.clerk.com/mcp`.
+8. **Exact cloning** — replicate site layout, not a generic admin dashboard.
+
+## Adding a new `/sc-*` domain
+
+1. `mkdir skills/sc-<name>/{scripts}`
+2. Write `skills/sc-<name>/SKILL.md` with frontmatter `name: sc-<name>` + `description:`
+3. Put scripts under `skills/sc-<name>/scripts/*.js`. Import shared utils from `../../../lib/`.
+4. Add domain-required vars to `skills/sc-onboarding/scripts/scan-env.js` → `DOMAIN_VARS`.
+5. Add validator to `bin/onboard.js` → `VALIDATORS`.
+6. Add a step doc at `skills/sc-onboarding/steps/<name>.md`.
+7. Edit `install.sh` → add `link_skill "sc-<name>"`.
+8. Re-run `bash install.sh`.
+
+## FAQ
+
+**Q: Site stuck loading?** Check your `Dockerfile` uses `ARG NEXT_PUBLIC_CONVEX_URL=<real-url>`, not a dummy.
+
+**Q: Convex dashboard 401/404?** Run `/sc-convex` → `rotate-admin-key.js`. Admin key now lives in Dokploy compose env.
+
+**Q: Dokploy shows old `*.traefik.me` domains?** Run `node skills/sc-dokploy/scripts/audit.js --fix`.
+
+**Q: "Connection lost while action was in flight"?** See `skills/sc-convex/SKILL.md` — five common causes for self-hosted Dokploy.
+
+**Q: `npx convex env set JWT_PRIVATE_KEY` errors on `--`?** Use `skills/sc-convex/scripts/set-auth-env.js` (REST API) instead.
+
+## License
+
+MIT — Created by Rahman EF.

@@ -1,57 +1,85 @@
 ---
 name: si-coder
-description: "Zero human involvement full-stack deployment to Dokploy. Automatically create GitHub repositories, push local code via SSH, setup projects, configure Next.js and self-hosted Convex DB (via Docker Compose), and trigger deployments via REST API."
+description: "Zero human involvement full-stack deployment to Dokploy. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-onboarding) plus the legacy monolithic deploy.js. The user can invoke /sc-all for end-to-end, /sc-convex or /sc-dokploy for narrower domain ops, or /sc-onboarding to set up credentials."
 ---
 
-# SI Coder Auto Deploy
+# si-coder-agent — Umbrella
 
-This skill automates the entire lifecycle of creating a GitHub repository and deploying full-stack apps to a Dokploy server.
+This is the parent skill for the SI Coder family. After installing (see `install.sh`), the following slash commands are available:
 
-## CORE MANDATES FOR THE AI (LEARNED LESSONS)
-To guarantee **Zero Human Involvement** (the user just wants to receive the final working URL):
-1. **Self-Hosted Convex by Default**: NEVER use Clerk unless explicitly asked. ALWAYS use `@convex-dev/auth`. ALWAYS include a `docker-compose.yml` for self-hosting Convex alongside the frontend.
-2. **Build Safety**: Do NOT run `npx convex codegen` inside the `Dockerfile`. You MUST generate the types locally (`npx convex dev --once`) and commit the `convex/_generated` folder to Git before deploying.
-3. **No Prompts / Dependency Hell**: Always use `npm install --yes --legacy-peer-deps`. If a scaffolded template is too complex (bloated), wipe it and start fresh with `npx create-next-app` to avoid endless TypeScript errors.
-4. **Exact Cloning**: If asked to clone a website (e.g., `siata.org`), you MUST replicate its actual layout (e.g., full-screen map with sidebars), not just build a generic admin dashboard. Fetch the website to understand its structure.
-5. **Dokploy Idempotency**: The deployment script handles existing apps, composes, and domains safely. Do NOT delete or recreate existing domains if Dokploy rejects them (it means they are already configured via Hostinger/Dokploy).
+| Command | Domain | Purpose |
+|---|---|---|
+| `/sc-all` | Orchestrator | End-to-end full-stack deploy (replaces legacy `/use-si-coder` monolith) |
+| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug |
+| `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
+| `/sc-onboarding` | Setup | Scan env, prompt only for missing credentials, write to `~/.bashrc` |
+| `/sc-cf` | Cloudflare | (future) DNS + CDN automation |
 
-## Pre-requisites
-1. **Dokploy Credentials**: Environment variables `DOKPLOY_API_URL` and `DOKPLOY_API_KEY` (usually stored in `~/.bashrc`).
-2. **GitHub Credentials**: A GitHub Personal Access Token (PAT) with repository creation permissions, stored in `GITHUB_TOKEN` environment variable.
-3. **Hostinger Credentials**: `HOSTINGER_API_TOKEN` (optional but recommended for DNS automation).
-4. **SSH Keys**: The machine must have SSH access to GitHub (`git@github.com`) configured for pushing code.
+The **legacy `/use-si-coder`** continues to work in parallel — it runs the monolithic `scripts/deploy.js` which still bundles GitHub + Dokploy + Convex + Hostinger DNS.
 
-## Workflow
+## Why modular?
 
-When the user asks to deploy a project:
+- **Surgical ops** — change a Convex admin key without re-deploying the world
+- **Discoverable** — `/sc-dokploy` makes Dokploy CRUD a first-class skill, not buried inside deploy.js
+- **Composable** — `/sc-all` is the only consumer that pulls everything together
+- **Onboarding-aware** — `/sc-onboarding` knows which `/sc-*` you ticked and asks for only what's missing
 
-1. **Verify Credentials**: Check for `DOKPLOY_API_URL`, `DOKPLOY_API_KEY`, and `GITHUB_TOKEN`.
-2. **Docker Compose**: Ensure the project has a `docker-compose.yml` that defines the frontend, backend (Convex DB), etc. (Or at least a Dockerfile for simple apps).
-3. **Execute Deployment Script**: Run the Node.js deployment script from inside the project directory.
+## CORE MANDATES (shared)
 
-## Features
-- **Zero-Human Intervention**: The script creates reops, pushes code, creates projects, and triggers deployments automatically.
-- **Hostinger DNS Automation**: If `HOSTINGER_API_TOKEN` is present, the script automatically adds `A` records for your main domain and Convex backend subdomains (`api-`, `dash-`, `site-`) pointing to your Dokploy server.
-- **Self-Hosted Convex DB**: Automatically deploys a production-ready Convex self-hosted DB using Dokploy templates.
+These apply across every sub-skill:
 
-```bash
-cd /home/rahman/projects/<app_name>
-node /home/rahman/.agents/skills/si-coder/scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT_NAME>" "<APP_NAME>" "$GITHUB_TOKEN" "[DOMAIN]"
+1. **Self-Hosted Convex by default**: never silently swap to Clerk. Use `@convex-dev/auth`.
+2. **`convex/_generated` is committed**: don't run codegen inside Dockerfile.
+3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
+4. **Idempotency**: duplicate domain creation = no-op, not error.
+5. **Admin key sync rule**: Dokploy compose env + repo env file always match.
+6. **Preserve `backend.rahmanef.com`** as the Dokploy control plane host (Rahman's server).
+7. **Clerk MCP for Clerk apps**: if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
+8. **Exact cloning**: if user wants a clone of an existing site, fetch and replicate layout, not a generic dashboard.
+
+## Repo layout
+
+```
+si-coder-agent/
+├── SKILL.md           ← this file
+├── README.md
+├── .env.example
+├── install.sh         ← symlinks each sc-* into ~/.claude/skills/
+├── lib/               ← shared modules (Dokploy, GitHub, Hostinger, Convex, env)
+├── skills/
+│   ├── sc-all/SKILL.md
+│   ├── sc-dokploy/{SKILL.md, scripts/}
+│   ├── sc-convex/{SKILL.md, scripts/}
+│   └── sc-onboarding/{SKILL.md, scripts/, steps/}
+├── scripts/
+│   └── deploy.js      ← legacy monolith, still functional
+└── bin/
+    └── onboard.js     ← one-shot CLI wizard (no AI needed)
 ```
 
-### Example
+## Deployment profile (placeholders only)
 
 ```bash
-cd /home/rahman/projects/azzahrah-site
-node /home/rahman/.agents/skills/si-coder/scripts/deploy.js "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "azzahrah" "azzahrah-site" "$GITHUB_TOKEN" "azzahrah.site"
+# GitHub
+GITHUB_TOKEN=ghp_<your_token>
+
+# Dokploy
+DOKPLOY_API_URL=https://<your-dokploy-host>/api
+DOKPLOY_API_KEY=<your_dokploy_api_key>
+
+# Hostinger DNS (optional)
+HOSTINGER_API_TOKEN=<your_hostinger_token>
+
+# Clerk (only for explicitly-Clerk apps)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_<clerk_publishable_key>
+CLERK_SECRET_KEY=sk_live_<clerk_secret_key>
+NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://<clerk-issuer-domain>
+
+# Convex self-hosted (filled in by deploy)
+CONVEX_SELF_HOSTED_URL=https://<convex-api-domain>
+CONVEX_SELF_HOSTED_ADMIN_KEY=<convex_admin_key>
+NEXT_PUBLIC_CONVEX_URL=https://<convex-api-domain>
+NEXT_PUBLIC_CONVEX_SITE_URL=https://<convex-site-domain>
 ```
 
-## How the script works
-The script will:
-1. Contact the GitHub API using `GITHUB_TOKEN` to create a new private repository named `APP_NAME`.
-2. Initialize local Git, commit files (including `convex/_generated`), and `git push` to GitHub via SSH.
-3. Fetch Dokploy projects to find or create `PROJECT_NAME`.
-4. Auto-detect if `docker-compose.yml` exists. If so, it creates a **Dokploy Compose** service (grouping the Frontend + Convex Self-Hosted DB). If not, it creates a standard **Dokploy Application**.
-5. Update the Dokploy source to point to the new GitHub repository (using PAT embedded in URL).
-6. Create the `DOMAIN` for the application (silently skips if it already exists).
-7. Trigger the deployment and poll for success.
+Never store real keys or live hostnames inside skill examples or agent instructions — always placeholders.
