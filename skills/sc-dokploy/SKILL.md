@@ -16,7 +16,7 @@ If missing, route to `/sc-onboarding`.
 
 1. **Idempotency**: `domain.create` may 4xx on duplicate; treat that as a no-op, not an error.
 2. **Don't delete domains blindly**: only delete domains via `audit.js`'s `selectDomainsToDelete` — keep the desired canonical host, drop `*.traefik.me` and duplicates.
-3. **Never rename `backend.rahmanef.com`**: it is the Dokploy control plane host on Rahman's server.
+3. **Never rename the Dokploy control host**: whatever hostname is in `DOKPLOY_API_URL` is the control plane. Never rewrite it inside scripts — read it from env.
 4. **`x-api-key` header, not Bearer**: Dokploy uses `x-api-key`, NOT `Authorization: Bearer`.
 
 ## Scripts

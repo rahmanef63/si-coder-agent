@@ -4,7 +4,9 @@ Deploy any full-stack app (Next.js + self-hosted Convex DB) with **zero human in
 
 ## The skill family
 
-After running `bash install.sh`, you get four slash commands:
+After running `bash install.sh`, you get the slash commands below. **Implemented** ones do the work; **stub** ones are boilerplate-only and exit with code 2 until someone fills them in.
+
+### Implemented
 
 | Command | Domain | What it does |
 |---|---|---|
@@ -13,7 +15,22 @@ After running `bash install.sh`, you get four slash commands:
 | `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
 | `/sc-onboarding` | Setup | Scans env, prompts only for missing credentials, writes to `~/.bashrc` |
 
-Future: `/sc-cf` (Cloudflare DNS/CDN), `/sc-supabase`, `/sc-stripe`, etc. Same pattern — drop a folder into `skills/`, re-run `install.sh`.
+### Stubs (boilerplate, accepting contributions)
+
+| Command | Domain | Planned scope |
+|---|---|---|
+| `/sc-cf` | Cloudflare | DNS A/CNAME, Workers, Pages, R2, Zero Trust tunnel |
+| `/sc-stripe` | Payments | Products/prices, webhooks, customer portal, restricted keys |
+| `/sc-resend` | Email | Domain verify + auto DKIM/SPF/DMARC, API keys, smoke send |
+| `/sc-clerk` | Auth (alt) | Origins, JWT template `convex`, paired with Clerk MCP for code |
+| `/sc-vercel` | Frontend (alt) | Project + env + domain + deploy, alt to Dokploy app |
+| `/sc-supabase` | Backend (alt) | Project provision, migrations, edge functions, types gen |
+
+### Suggested for the future (not stubbed yet)
+
+`/sc-r2`, `/sc-storage` (generic S3), `/sc-sentry`, `/sc-posthog`, `/sc-monitor` (Uptime Kuma / Better Stack), `/sc-domains` (registrar abstraction over Hostinger/Porkbun/Namecheap), `/sc-mcp` (scaffold MCP server in a project), `/sc-google` (OAuth / Workspace), `/sc-railway`, `/sc-coolify`.
+
+Same pattern always — drop a folder into `skills/`, register vars in `scan-env.js` + `onboard.js`, add `link_skill` to `install.sh`.
 
 The legacy `/use-si-coder` monolith (`scripts/deploy.js`) remains available in parallel for users who prefer one-shot.
 
@@ -86,10 +103,11 @@ si-coder-agent/
 │   ├── sc-convex/
 │   │   ├── SKILL.md
 │   │   └── scripts/{deploy-convex,check-backend,rotate-admin-key,set-auth-env}.js
-│   └── sc-onboarding/
-│       ├── SKILL.md
-│       ├── scripts/scan-env.js
-│       └── steps/{github,dokploy,convex,hostinger}.md
+│   ├── sc-onboarding/
+│   │   ├── SKILL.md
+│   │   ├── scripts/scan-env.js
+│   │   └── steps/{github,dokploy,convex,hostinger,cf,stripe,resend,clerk,vercel,supabase}.md
+│   └── sc-{cf,stripe,resend,clerk,vercel,supabase}/   STUBS — boilerplate only
 ├── scripts/
 │   └── deploy.js      legacy monolith (still functional)
 └── bin/
@@ -103,7 +121,7 @@ si-coder-agent/
 3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
 4. **Idempotency** — duplicate domain create = no-op.
 5. **Admin Key Sync** — Dokploy compose env + repo env file always match.
-6. **`backend.rahmanef.com`** is the Dokploy control plane on Rahman's server — never rename.
+6. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rename it inside any script.
 7. **Clerk MCP for Clerk apps** — `clerk` at `https://mcp.clerk.com/mcp`.
 8. **Exact cloning** — replicate site layout, not a generic admin dashboard.
 

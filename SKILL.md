@@ -33,7 +33,7 @@ These apply across every sub-skill:
 3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
 4. **Idempotency**: duplicate domain creation = no-op, not error.
 5. **Admin key sync rule**: Dokploy compose env + repo env file always match.
-6. **Preserve `backend.rahmanef.com`** as the Dokploy control plane host (Rahman's server).
+6. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rewrite it inside scripts.
 7. **Clerk MCP for Clerk apps**: if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
 8. **Exact cloning**: if user wants a clone of an existing site, fetch and replicate layout, not a generic dashboard.
 

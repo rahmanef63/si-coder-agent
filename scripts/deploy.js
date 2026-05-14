@@ -373,7 +373,7 @@ async function run() {
     const branch = execSync('git branch --show-current').toString().trim() || 'main';
 
 
-    // --- 2. DOKPLOY PROJECT CREATION (API Specs: https://backend.rahmanef.com/swagger) ---
+    // --- 2. DOKPLOY PROJECT CREATION (API Specs: <DOKPLOY_API_URL>/swagger) ---
     console.log("🔍 Fetching Dokploy projects...");
     const projects = await fetchDokploy('/project.all');
     let project = projects.find(p => p.name === projectName);
@@ -697,7 +697,7 @@ async function run() {
               console.log(`🎉 Deployment SUCCESSFUL! App should be live at https://${domain || appName}.`);
           } else {
               console.error(`❌ Deployment ended with status: ${status}.`);
-              console.error(`\n⚠️  DOKPLOY LOGS UNAVAILABLE VIA API. Please log in to your Dokploy Dashboard (https://backend.rahmanef.com) -> 'azzahrah' project -> '${appName}' -> 'Deployments' to see the exact build error.`);
+              console.error(`\n⚠️  DOKPLOY LOGS UNAVAILABLE VIA API. Please log in to your Dokploy Dashboard -> '${projectName}' project -> '${appName}' -> 'Deployments' to see the exact build error.`);
           }
       }
     }

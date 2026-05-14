@@ -29,7 +29,7 @@ All mandates from `sc-convex` and `sc-dokploy` apply. Specifically:
 4. **Idempotency** — duplicate domain creation = no-op; do not recreate existing services.
 5. **Exact cloning** — if user wants a clone of an existing site, fetch and replicate layout.
 6. **Admin Key Sync** — Dokploy env + repo env file always match.
-7. **Preserve `backend.rahmanef.com`** as the Dokploy control domain.
+7. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rename it inside any script.
 8. **Clerk MCP for Clerk apps** — if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
 
 ## Orchestration

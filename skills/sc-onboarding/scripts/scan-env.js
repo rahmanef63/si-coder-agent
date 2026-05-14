@@ -10,7 +10,14 @@ const DOMAIN_VARS = {
   dokploy:   { required: ['DOKPLOY_API_URL', 'DOKPLOY_API_KEY'], optional: [] },
   convex:    { required: [], optional: ['CONVEX_ADMIN_KEY'] },
   hostinger: { required: [], optional: ['HOSTINGER_API_TOKEN'] },
+  // STUB domains — vars pre-registered so /sc-onboarding can collect them.
+  // Scripts for these /sc-* skills are not implemented yet (exit code 2).
   cf:        { required: [], optional: ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'] },
+  stripe:    { required: [], optional: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'] },
+  resend:    { required: [], optional: ['RESEND_API_KEY', 'RESEND_FROM_DOMAIN'] },
+  clerk:     { required: [], optional: ['CLERK_SECRET_KEY', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CLERK_FRONTEND_API_URL'] },
+  vercel:    { required: [], optional: ['VERCEL_TOKEN', 'VERCEL_TEAM_ID'] },
+  supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
 };
 
 function parseArgs(argv) {

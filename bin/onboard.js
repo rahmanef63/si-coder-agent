@@ -11,7 +11,13 @@ const DOMAIN_VARS = {
   dokploy:   { required: ['DOKPLOY_API_URL', 'DOKPLOY_API_KEY'], optional: [] },
   convex:    { required: [], optional: ['CONVEX_ADMIN_KEY'] },
   hostinger: { required: [], optional: ['HOSTINGER_API_TOKEN'] },
+  // STUB domains — scripts not implemented yet, but vars pre-registered.
   cf:        { required: [], optional: ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'] },
+  stripe:    { required: [], optional: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'] },
+  resend:    { required: [], optional: ['RESEND_API_KEY', 'RESEND_FROM_DOMAIN'] },
+  clerk:     { required: [], optional: ['CLERK_SECRET_KEY', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CLERK_FRONTEND_API_URL'] },
+  vercel:    { required: [], optional: ['VERCEL_TOKEN', 'VERCEL_TEAM_ID'] },
+  supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
 };
 
 const VALIDATORS = {
@@ -22,6 +28,18 @@ const VALIDATORS = {
   CONVEX_ADMIN_KEY: v => v.includes('|') && v.length >= 32,
   CLOUDFLARE_API_TOKEN: v => v.length >= 32,
   CLOUDFLARE_ACCOUNT_ID: v => v.length >= 16,
+  STRIPE_SECRET_KEY: v => /^sk_(test|live)_/.test(v),
+  STRIPE_PUBLISHABLE_KEY: v => /^pk_(test|live)_/.test(v),
+  STRIPE_WEBHOOK_SECRET: v => v.startsWith('whsec_'),
+  RESEND_API_KEY: v => v.startsWith('re_'),
+  RESEND_FROM_DOMAIN: v => /\./.test(v),
+  CLERK_SECRET_KEY: v => /^sk_(test|live)_/.test(v),
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: v => /^pk_(test|live)_/.test(v),
+  NEXT_PUBLIC_CLERK_FRONTEND_API_URL: v => v.startsWith('https://'),
+  VERCEL_TOKEN: v => v.length >= 24,
+  VERCEL_TEAM_ID: v => v.length >= 8,
+  SUPABASE_ACCESS_TOKEN: v => v.startsWith('sbp_'),
+  SUPABASE_ORG_ID: v => v.length >= 16,
 };
 
 function parseArgs(argv) {
