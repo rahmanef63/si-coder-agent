@@ -20,9 +20,23 @@ function pkgScripts(cwd) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')).scripts || {}; } catch { return {}; }
 }
 
+// Heavy steps saturate a shared VPS. When this hook fires inside a control-room
+// terminal pane, the build is charged to the agent's cgroup and lags every
+// terminal (observed 2026-05-28: a single next build → 84% memory-stall). Run
+// build/test at low CPU+IO priority so they yield to interactive work.
+const HEAVY = new Set(['build', 'test']);
+
+function niceWrap(pm, script) {
+  if (process.platform !== 'linux' || !HEAVY.has(script)) return [pm, ['run', script]];
+  const hasIonice = spawnSync('sh', ['-c', 'command -v ionice'], { stdio: 'ignore' }).status === 0;
+  const pre = hasIonice ? ['-n', '15', 'ionice', '-c2', '-n7', pm] : ['-n', '15', pm];
+  return ['nice', [...pre, 'run', script]];
+}
+
 function run(cwd, pm, script, quiet) {
   log(`\n▶ ${pm} run ${script}`);
-  const res = spawnSync(pm, ['run', script], {
+  const [cmd, cmdArgs] = niceWrap(pm, script);
+  const res = spawnSync(cmd, cmdArgs, {
     cwd,
     stdio: quiet ? 'pipe' : 'inherit',
     encoding: 'utf8',
