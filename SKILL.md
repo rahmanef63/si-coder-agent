@@ -55,7 +55,7 @@ si-coder-agent/
 ├── SKILL.md           ← this file
 ├── README.md
 ├── .env.example
-├── install.sh         ← symlinks each sc-* into ~/.claude/skills/
+├── install.sh         ← symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 ├── lib/               ← shared modules
 │   ├── dokploy.js     ← Dokploy REST
 │   ├── github.js      ← GitHub REST + repo CRUD

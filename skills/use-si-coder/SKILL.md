@@ -167,7 +167,7 @@ This error means the **WebSocket reconnected while the action was in-flight** �
 |---|---|---|
 | **`NEXT_PUBLIC_CONVEX_URL` is wrong/dummy at build time** | Users created in DB but browser shows error; WebSocket connects to wrong server | Fix Dockerfile — see below |
 | Missing `JWT_PRIVATE_KEY` on Convex backend | Action crashes before creating user | Set in Dokploy → Compose env |
-| Missing `JWKS` on Convex backend | `/jwks.json` returns 500 | Set in Dokploy → Compose env |
+| Missing `JWKS` on Convex backend | `/.well-known/jwks.json` returns 500 | Set in Dokploy → Compose env |
 | Dokploy proxy closes idle WebSocket | Error only after sitting on page | Route auth actions via HTTP (see ConvexClientProvider below) |
 | Scrypt/bcrypt password hashing timeout | Action takes >60s → proxy kills WS | Use PBKDF2 10k iterations or SHA-256 via WebCrypto |
 

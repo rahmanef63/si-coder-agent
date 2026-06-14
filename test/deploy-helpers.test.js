@@ -109,6 +109,20 @@ test('selectDomainsToDelete: keeps all non-traefik hosts when desired is empty',
   assert.deepEqual(selectDomainsToDelete(domains, []), []);
 });
 
+test('selectDomainsToDelete: tolerates a {host: undefined} row (RES-MINOR-5)', () => {
+  // A Dokploy row with a missing/non-string host must not crash and must NOT be
+  // pushed as a delete (it can't reach deleteDomain(undefined)), even while a real
+  // stale host alongside it IS scheduled for deletion.
+  const domains = [
+    { host: 'keep.example.com', id: 1 },
+    { host: undefined, id: 2 },
+    { host: 'stale.example.com', id: 3 },
+  ];
+  const out = selectDomainsToDelete(domains, ['keep.example.com']);
+  assert.deepEqual(out, [{ host: 'stale.example.com', id: 3 }]);
+  assert.ok(!out.some(d => d.host === undefined), 'undefined-host row never scheduled for delete');
+});
+
 // ---------------------------------------------------------------------------
 // extractAdminKey
 // ---------------------------------------------------------------------------

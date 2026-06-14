@@ -45,7 +45,7 @@ After `bash install.sh`, these slash commands are available. **Implemented** com
 ```bash
 git clone https://github.com/rahmanef63/si-coder-agent.git
 cd si-coder-agent
-bash install.sh        # symlinks skills/sc-* into ~/.claude/skills/
+bash install.sh        # symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 node bin/onboard.js    # interactive credential setup (non-AI)
 source ~/.bashrc
 ```
@@ -98,8 +98,9 @@ Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. All scripts share thin R
 si-coder-agent/
 ├── SKILL.md           umbrella; points to sc-*
 ├── README.md
+├── LICENSE             MIT
 ├── .env.example
-├── install.sh         symlinks skills/sc-* into ~/.claude/skills/
+├── install.sh         symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 ├── lib/
 │   ├── dokploy.js       Dokploy REST client + CRUD helpers
 │   ├── github.js        GitHub REST + git push helpers
@@ -132,6 +133,9 @@ si-coder-agent/
 │   └── sc-{cf,stripe,resend,clerk,supabase}/   STUBS — boilerplate only
 ├── scripts/
 │   └── deploy.js      legacy monolith (still functional)
+├── test/
+│   ├── deploy-helpers.test.js  pure helpers from scripts/deploy.js
+│   └── lib.test.js             lib/tls, lib/convex, lib/hostinger, lib/env
 └── bin/
     └── onboard.js     one-shot CLI wizard
 ```

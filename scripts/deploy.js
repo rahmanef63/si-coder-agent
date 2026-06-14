@@ -8,6 +8,8 @@ const util = require('util');
 const lookup = util.promisify(dns.lookup);
 
 // M1 DRY: reuse shared helpers from libs instead of forking logic.
+// parseEnvString/mergeEnvString are imported here ONLY to be re-exported (back-compat for
+// tests/callers); deploy.js itself uses the verbatim, non-quote-stripping merge path below.
 const { parseEnvString, mergeEnvString } = require('../lib/env');
 const { configureDnsRecord } = require('../lib/hostinger');
 // DRY-1: admin-key extraction + schema deploy live in lib/convex (single source of truth).
@@ -62,6 +64,8 @@ function parseEnvVerbatimOrdered(envString = '') {
   for (const rawLine of envString.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
+    // RES-NIT-8: skip comment lines so '# note=foo' isn't parsed as key '# note'.
+    if (line.startsWith('#')) continue;
     const eq = line.indexOf('=');
     if (eq === -1) continue;
     const key = line.slice(0, eq).trim();
@@ -95,6 +99,8 @@ function selectDomainsToDelete(domains = [], desiredHosts = []) {
   const deletions = [];
   for (const domain of domains) {
     const host = domain.host;
+    // RES-MINOR-5: a Dokploy row with a missing/non-string host can't reach deleteDomain(undefined).
+    if (typeof host !== 'string' || !host) continue;
     const isDesired = desired.has(host);
     const isTraefik = typeof host === 'string' && host.endsWith('.traefik.me');
     if (isDesired) {
@@ -200,6 +206,11 @@ function ensureGitignoreSafety(cwd = process.cwd()) {
 function scanNestedDotenvLeaks(cwd = process.cwd()) {
   const SKIP_DIRS = new Set(['.git', 'node_modules']);
   const dangerous = [];
+  // SEC-NESTED-NONDOTENV: the root-level non-dotenv denylist (id_rsa, id_*, *.pem,
+  // *.key, serviceAccount*.json, …) previously only ran at repo ROOT and only WARNED.
+  // `git add .` stages the entire tree, so collect nested matches during the same walk
+  // and WARN on them too (do NOT hard-abort — match the existing root-level warn behavior).
+  const nestedSecretWarn = [];
   const walk = (dir) => {
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
@@ -212,14 +223,22 @@ function scanNestedDotenvLeaks(cwd = process.cwd()) {
       } else if (entry.isFile()) {
         const name = entry.name;
         if (name === '.env.example') continue;
+        const rel = path.relative(cwd, full);
         if (name === '.env' || name.startsWith('.env.')) {
-          const rel = path.relative(cwd, full);
           if (!gitIgnores(cwd, rel)) dangerous.push(rel);
+        } else if (SECRET_FILE_RE.test(name) && !gitIgnores(cwd, rel)) {
+          nestedSecretWarn.push(rel);
         }
       }
     }
   };
   walk(cwd);
+  if (nestedSecretWarn.length) {
+    console.warn(
+      `⚠️ Potential secret file(s) in the tree that 'git add .' may stage: ${nestedSecretWarn.join(', ')}. ` +
+      `If sensitive, add them to .gitignore before deploying.`
+    );
+  }
   if (dangerous.length) {
     throw new Error(
       `Refusing to push: unignored nested secret file(s) that 'git add .' would stage: ` +
@@ -285,8 +304,10 @@ function makeFetchers({ baseUrl, apiKey, githubToken }) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
+        // Keep the abort timer armed across the body read: clearing it before res.text()
+        // would leave a backend that sends headers then stalls the body unbounded. The
+        // finally below clears the timer AFTER the body is consumed (or on error).
         const res = await fetch(url, { ...options, signal: controller.signal });
-        clearTimeout(timer);
         const text = await res.text();
         let data;
         try { data = text ? JSON.parse(text) : {}; } catch { data = text; }
@@ -301,13 +322,17 @@ function makeFetchers({ baseUrl, apiKey, githubToken }) {
             await delay(backoff);
             continue;
           }
-          throw new Error(msg);
+          // RES-NIT-9: tag HTTP errors with a sentinel at the throw site so the catch
+          // classifies on a flag, not a brittle `/API Error/.test(err.message)` match.
+          const e = new Error(msg);
+          e.isHttpError = true;
+          throw e;
         }
         return data;
       } catch (err) {
-        clearTimeout(timer);
-        // Re-throw non-retryable HTTP errors immediately (already-final 4xx / final attempt).
-        if (/API Error/.test(err.message)) throw err;
+        // RES-NIT-9: re-throw non-retryable HTTP errors immediately (already-final 4xx /
+        // final attempt) via the sentinel tagged at the throw site, not a substring match.
+        if (err.isHttpError) throw err;
         // Network error / abort: retry with backoff.
         lastErr = err;
         if (attempt < FETCH_RETRIES) {
@@ -317,6 +342,10 @@ function makeFetchers({ baseUrl, apiKey, githubToken }) {
           await delay(backoff);
           continue;
         }
+      } finally {
+        // Clear the per-attempt timer only after the body has been read (success) or the
+        // attempt has otherwise concluded — so the signal still covers res.text().
+        clearTimeout(timer);
       }
     }
     throw lastErr || new Error(`${label} request failed`);
@@ -428,11 +457,14 @@ async function run() {
     }
   }
 
+  // Fire-and-forget compose env mutation: merges `updates` into the stored compose env
+  // verbatim (see M1 NOTE — no quote-stripping) and persists it. Returns nothing; both
+  // call sites discard the result, and parseEnvString here would have quote-stripped the
+  // value, silently contradicting the verbatim-merge guarantee.
   async function updateComposeEnv(composeId, updates) {
     const currentCompose = await fetchDokploy(`/compose.one?composeId=${composeId}`);
     const nextEnv = mergeEnvStringVerbatim(currentCompose.env || '', updates);
     await fetchDokploy('/compose.update', 'POST', { composeId, env: nextEnv });
-    return parseEnvString(nextEnv);
   }
 
   async function deleteDomain(domainId) {
@@ -524,9 +556,19 @@ async function run() {
         catch { return ''; }
       };
 
-      git(['config', '--global', 'init.defaultBranch', 'main']);
+      // SEC/RES-NIT-6: do NOT mutate the operator's GLOBAL git config
+      // (`git config --global init.defaultBranch main`). Init on `main` LOCALLY instead:
+      // prefer `git init -b main`; fall back to `git init` + `git checkout -B main` on
+      // older git that lacks `-b`.
       const isExistingRepo = gitOut(['rev-parse', '--is-inside-work-tree']) === 'true';
-      if (!isExistingRepo) git(['init']);
+      if (!isExistingRepo) {
+        try {
+          git(['init', '-b', 'main']);
+        } catch {
+          git(['init']);
+          git(['checkout', '-B', 'main']);
+        }
+      }
 
       // LOCAL-ORIGIN-HIJACK: on a pre-existing repo, blindly removing `origin` silently
       // rewrites the user's real remote. Refuse unless explicitly allowed; when allowed,
@@ -737,7 +779,9 @@ async function run() {
             // dockerExec(generate_admin_key.sh) + extractAdminKey to lib/convex.generateAdminKey
             // so admin-key extraction lives in exactly one place.
             if (!adminKey) {
-              let elapsedMs = 0;
+              // RES-NIT-7: track real wall-clock so the "~Ns elapsed" readout reflects time
+              // actually spent (docker exec + sleeps), not just the sum of pending backoffs.
+              const pollStart = Date.now();
               for (let attempt = 1; attempt <= ADMIN_KEY_ATTEMPTS; attempt++) {
                 try {
                   adminKey = generateAdminKey({ containerName });
@@ -746,9 +790,9 @@ async function run() {
                 } catch (genErr) {
                   if (attempt === ADMIN_KEY_ATTEMPTS) throw genErr;
                   // R2: cap each backoff so a slow boot can't stall ~26 min with no per-attempt
-                  // cap. Log cumulative elapsed so a stuck backend is visible, not silently hung.
+                  // cap. Log real elapsed wall-clock so a stuck backend is visible, not silently hung.
                   const backoff = Math.min(ADMIN_KEY_BACKOFF_BASE_MS * 2 ** (attempt - 1), ADMIN_KEY_BACKOFF_MAX_MS);
-                  elapsedMs += backoff;
+                  const elapsedMs = Date.now() - pollStart;
                   console.log(`⏳ Backend not ready (attempt ${attempt}/${ADMIN_KEY_ATTEMPTS}, ~${Math.round(elapsedMs / 1000)}s elapsed): ${genErr.message}. Retrying in ${backoff}ms...`);
                   await delay(backoff);
                 }
@@ -959,10 +1003,12 @@ async function run() {
           const minutes = Math.round((DEPLOY_POLL_MAX_ATTEMPTS * DEPLOY_POLL_INTERVAL_MS) / 60000);
           console.error(`❌ Could not read deploy status after ${minutes} min — Dokploy API unreachable (every /project.all poll failed). The build may still be running, but its status is unknown.`);
           console.error(`\n⚠️  Verify the Dokploy host (${apiUrl}) is reachable, then check the Dashboard -> '${projectName}' project -> '${appName}' -> 'Deployments'.`);
-        } else if (!isFinished && status === 'running') {
-          // R3: distinct timeout message vs. build 'error'.
+        } else if (!isFinished && hadSuccessfulRead && !['done', 'error'].includes(status)) {
+          // R3: distinct timeout message vs. build 'error'. Any non-terminal Dokploy status
+          // on a successful read (running/building/deploying/idle/...) is timeout-in-progress,
+          // NOT a failure — only 'done'/'error' are terminal.
           const minutes = Math.round((DEPLOY_POLL_MAX_ATTEMPTS * DEPLOY_POLL_INTERVAL_MS) / 60000);
-          console.error(`⏱️ Deployment timed out after ${minutes} min: status still 'running' (build may still be in progress).`);
+          console.error(`⏱️ Deployment timed out after ${minutes} min: status still '${status}' (build may still be in progress).`);
           console.error(`\n⚠️  DOKPLOY LOGS UNAVAILABLE VIA API. Please log in to your Dokploy Dashboard -> '${projectName}' project -> '${appName}' -> 'Deployments' to check progress.`);
         } else {
           console.error(`❌ Deployment ended with status: ${status}.`);
@@ -1009,4 +1055,8 @@ module.exports = {
   parseDeployArgs,
   REPO_URL_RE,
   run,
+  // RES-RE-MINOR-1: export the fetcher factory so the legacy resilience engine
+  // (fetchWithResilience: retry classification, backoff bound, sentinel re-throw,
+  // timeout-then-retry) is reachable from the test suite, not asserted by comment only.
+  makeFetchers,
 };
