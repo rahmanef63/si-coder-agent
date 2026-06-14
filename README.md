@@ -1,110 +1,95 @@
-# SI Coder Agent — Modular Zero-Human Deployment
+# SI Coder Agent
 
-Deploy any full-stack app (Next.js + self-hosted Convex DB) with **zero human involvement** through Dokploy, GitHub, and (optional) Hostinger DNS. Modular per-domain skills, plus a one-shot monolithic deploy script.
+> Zero-human full-stack deployment as a bundle of `/sc-*` Claude Code slash commands — GitHub, Convex, Dokploy, Vercel, and DNS, all driven by an AI agent.
 
-## The skill family
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Skills](https://img.shields.io/badge/skills-7%20implemented%20%2B%205%20stubs-8A2BE2)](#skill-catalog)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-skill%20bundle-D97757)](https://claude.com/claude-code)
 
-After running `bash install.sh`, you get the slash commands below. **Implemented** ones do the work; **stub** ones are boilerplate-only and exit with code 2 until someone fills them in.
+**SI Coder Agent** is a modular set of `/sc-*` slash commands for Claude Code (and any agent that loads Skills) that take a local Next.js + Convex app from source to a live, verified URL with **zero human steps**. It creates the GitHub repo, pushes code, provisions the backend and frontend, wires up DNS, triggers the build, and polls until the site responds. Built for solo developers and agents who want to ship full stacks without clicking through dashboards. No runtime dependencies — just Node 18+ and your API tokens.
 
-### Implemented
+## Two deploy paths
 
-| Command | Domain | What it does |
+Both paths share the **same flow shape** — `GitHub → backend → frontend → DNS → verify` — and are driven by the same orchestrator. Pick by where you want things to run:
+
+| | **(A) Self-hosted** | **(B) Online** |
 |---|---|---|
-| `/sc-all` | Orchestrator | End-to-end: repo + DNS + Dokploy + Convex + frontend + verify |
-| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug |
-| `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
-| `/sc-convex-cloud` | Convex Cloud | Deploy managed backend, inject NEXT_PUBLIC_CONVEX_URL, probe `*.convex.cloud` |
-| `/sc-vercel` | Frontend (online) | Project + GitHub bind + env + build-command + domain + Hostinger DNS + deploy |
-| `/sc-onboarding` | Setup | Scans env, prompts only for missing credentials, writes to `~/.bashrc` |
+| Command | `/sc-all --target dokploy` (default) | `/sc-all --target vercel` |
+| Frontend | Dokploy app (your VPS) | Vercel |
+| Backend | Convex self-hosted (Docker Compose on Dokploy) | Convex Cloud (managed) |
+| DNS | Hostinger A-record → VPS | Hostinger CNAME (sub) / A (apex) → Vercel |
+| Pick when | You own the box, want full control, $0 marginal cost | You want a managed edge, no VPS to babysit |
 
-### Stubs (boilerplate, accepting contributions)
+## Skill catalog
 
-| Command | Domain | Planned scope |
-|---|---|---|
-| `/sc-cf` | Cloudflare | DNS A/CNAME, Workers, Pages, R2, Zero Trust tunnel |
-| `/sc-stripe` | Payments | Products/prices, webhooks, customer portal, restricted keys |
-| `/sc-resend` | Email | Domain verify + auto DKIM/SPF/DMARC, API keys, smoke send |
-| `/sc-clerk` | Auth (alt) | Origins, JWT template `convex`, paired with Clerk MCP for code |
-| `/sc-supabase` | Backend (alt) | Project provision, migrations, edge functions, types gen |
+After `bash install.sh`, these slash commands are available. **Implemented** commands do the work; **stubs** are boilerplate and exit with code `2` until someone fills them in (contributions welcome).
 
-### Suggested for the future (not stubbed yet)
+| Command | Status | What it does | Key env |
+|---|---|---|---|
+| `/sc-all` | ✅ | Orchestrator — end-to-end deploy; `--target dokploy\|vercel` | `GITHUB_TOKEN` + path env (below) |
+| `/sc-dokploy` | ✅ | Dokploy CRUD/audit/debug: projects, apps, compose, domains, stale-domain audit | `DOKPLOY_API_URL`, `DOKPLOY_API_KEY` |
+| `/sc-convex` | ✅ | Convex **self-hosted** on Dokploy: deploy, rotate admin key, JWT auth env, probe `api-/site-/dash-` | `DOKPLOY_*` (+ admin key) |
+| `/sc-convex-cloud` | ✅ | Convex **Cloud** (managed) deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probe `*.convex.cloud` | `CONVEX_DEPLOY_KEY` |
+| `/sc-vercel` | ✅ | Vercel online frontend: GitHub-bound project, Convex-coupled build, custom domain/subdomain, Hostinger DNS | `VERCEL_TOKEN` (+`VERCEL_TEAM_ID` opt), `CONVEX_DEPLOY_KEY`, `HOSTINGER_API_TOKEN` (opt) |
+| `/sc-git` | ✅ | GitHub repo CRUD + Actions cost reduction: audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron | `GITHUB_TOKEN` |
+| `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing, writes `~/.bashrc` (merge-in-place). Non-AI: `node bin/onboard.js` | — |
+| `/sc-cf` | 🚧 stub | Cloudflare — DNS A/AAAA/CNAME (Hostinger alt), Workers/Pages, R2, Zero Trust tunnel | — |
+| `/sc-stripe` | 🚧 stub | Payments — products/prices, webhooks, customer portal, restricted keys | — |
+| `/sc-resend` | 🚧 stub | Email — domain verify (DKIM/SPF/DMARC), API keys, template send | — |
+| `/sc-clerk` | 🚧 stub | Auth (alt) — origins, JWT template for Convex, paired with Clerk MCP | — |
+| `/sc-supabase` | 🚧 stub | Backend (alt) — project provision, migrations, edge functions, types gen | — |
 
-`/sc-r2`, `/sc-storage` (generic S3), `/sc-sentry`, `/sc-posthog`, `/sc-monitor` (Uptime Kuma / Better Stack), `/sc-domains` (registrar abstraction over Hostinger/Porkbun/Namecheap), `/sc-mcp` (scaffold MCP server in a project), `/sc-google` (OAuth / Workspace), `/sc-railway`, `/sc-coolify`.
-
-Same pattern always — drop a folder into `skills/`, register vars in `scan-env.js` + `onboard.js`, add `link_skill` to `install.sh`.
-
-The legacy `/use-si-coder` monolith (`scripts/deploy.js`) remains available in parallel for users who prefer one-shot.
-
-## Online deploy (Vercel + Convex Cloud)
-
-Alternative to the self-hosted Dokploy path. Same end-to-end shape:
-GitHub repo + push → Convex Cloud backend → Vercel frontend → Hostinger DNS → verify.
-
-Required env: `GITHUB_TOKEN`, `VERCEL_TOKEN` (+ optional `VERCEL_TEAM_ID`),
-`CONVEX_DEPLOY_KEY` (Convex Cloud prod key), optional `HOSTINGER_API_TOKEN` for DNS.
-
-    # 1. Backend (Convex Cloud) — coupled build injects NEXT_PUBLIC_CONVEX_URL
-    node skills/sc-convex-cloud/scripts/deploy-cloud.js
-
-    # 2. Frontend (Vercel) + domain + DNS + deploy
-    node skills/sc-vercel/scripts/deploy.js \
-      --project myapp --app myapp --domain app.example.com \
-      --git-owner rahmanef63 --git-repo myapp --prod
-
-Orchestrated: `/sc-all --target vercel` runs both, skipping Dokploy + self-hosted Convex.
-The Vercel build command is set to
-`npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`;
-DNS is CNAME→`cname.vercel-dns.com` for a subdomain, A→`76.76.21.21` for an apex
-(always read live from Vercel's domain config).
-
-## Install
+## Quick start
 
 ```bash
 git clone https://github.com/rahmanef63/si-coder-agent.git
 cd si-coder-agent
-bash install.sh                  # symlinks skills/sc-* into ~/.claude/skills/
-node bin/onboard.js              # interactive credential setup (non-AI)
+bash install.sh        # symlinks skills/sc-* into ~/.claude/skills/
+node bin/onboard.js    # interactive credential setup (non-AI)
 source ~/.bashrc
 ```
 
-Or, if you're driving via Claude / OpenClaw / Gemini:
-```
-/sc-onboarding
-```
-The AI will scan your env, ask only for what's missing, and write to `~/.bashrc`.
+Driving via an AI agent instead? Just run `/sc-onboarding` — it scans your env, asks only for what's missing, and writes `~/.bashrc`.
 
-## Quick deploy (legacy one-shot)
+**Deploy — self-hosted (Dokploy + Convex self-hosted):**
 
 ```bash
-cd ~/projects/<app_name>
-node ~/projects/opensource/si-coder-agent/scripts/deploy.js \
+# Orchestrated (default target is dokploy):
+/sc-all --target dokploy
+
+# Or just the Convex self-hosted backend, standalone:
+node skills/sc-convex/scripts/deploy-convex.js \
+  --project myproj --app myapp --domain myapp.example.com --with-auth-keys
+```
+
+**Deploy — online (Vercel + Convex Cloud):**
+
+```bash
+# 1. Backend (Convex Cloud) — coupled build injects NEXT_PUBLIC_CONVEX_URL
+node skills/sc-convex-cloud/scripts/deploy-cloud.js
+
+# 2. Frontend (Vercel) + custom domain + Hostinger DNS + deploy
+node skills/sc-vercel/scripts/deploy.js \
+  --project myapp --app myapp --domain app.example.com \
+  --git-owner rahmanef63 --git-repo myapp --prod
+
+# Or orchestrated — runs both, skips Dokploy + self-hosted Convex:
+/sc-all --target vercel
+```
+
+The Vercel build command is set to `npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`. DNS is `CNAME → cname.vercel-dns.com` for a subdomain, `A → 76.76.21.21` for an apex (always read live from Vercel's domain config).
+
+**Legacy one-shot** (monolith, still functional):
+
+```bash
+node scripts/deploy.js \
   "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT>" "<APP>" "$GITHUB_TOKEN" "<DOMAIN>"
 ```
 
-## Modular usage
+## Architecture
 
-```bash
-# Just deploy the Convex backend:
-node skills/sc-convex/scripts/deploy-convex.js --project myproj --app myapp --domain mydomain.com --with-auth-keys
-
-# Check Convex backend health:
-node skills/sc-convex/scripts/check-backend.js --domain mydomain.com --admin-key "$CONVEX_ADMIN_KEY"
-
-# Rotate Convex admin key:
-node skills/sc-convex/scripts/rotate-admin-key.js --compose-name myapp-db --env-file ./.env
-
-# Set JWT env on a running backend (CLI breaks on PEM):
-node skills/sc-convex/scripts/set-auth-env.js --domain mydomain.com --admin-key "$CONVEX_ADMIN_KEY" --generate
-
-# List all Dokploy projects:
-node skills/sc-dokploy/scripts/projects.js list
-
-# Audit stale domains across the whole Dokploy instance:
-node skills/sc-dokploy/scripts/audit.js
-node skills/sc-dokploy/scripts/audit.js --fix    # remove TRAEFIK_ME + DUPLICATE_HOST
-```
-
-## Repo layout
+Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. All scripts share thin REST clients in `lib/`. CommonJS, Node 18+ native `fetch`, no runtime deps.
 
 ```
 si-coder-agent/
@@ -113,13 +98,15 @@ si-coder-agent/
 ├── .env.example
 ├── install.sh         symlinks skills/sc-* into ~/.claude/skills/
 ├── lib/
-│   ├── dokploy.js     Dokploy REST client + CRUD helpers
-│   ├── github.js      GitHub REST + git push helpers
-│   ├── hostinger.js   Hostinger DNS A/CNAME-record sync
-│   ├── convex.js      admin key / schema deploy / JWT keys / probe
+│   ├── dokploy.js       Dokploy REST client + CRUD helpers
+│   ├── github.js        GitHub REST + git push helpers
+│   ├── hostinger.js     Hostinger DNS A/CNAME-record sync
+│   ├── convex.js        admin key / schema deploy / JWT keys / probe
 │   ├── convex-cloud.js  Convex Cloud deploy / URL derive / probe
-│   ├── vercel.js      Vercel REST client + deploy/domain/DNS helpers
-│   └── env.js         env-string parse, merge, .bashrc append
+│   ├── vercel.js        Vercel REST client + deploy/domain/DNS helpers
+│   ├── proc.js          no-shell execFileSync wrappers
+│   ├── tls.js           TLS verification helpers (always on)
+│   └── env.js           env-string parse, merge, .bashrc append
 ├── skills/
 │   ├── sc-all/SKILL.md
 │   ├── sc-dokploy/
@@ -134,6 +121,7 @@ si-coder-agent/
 │   ├── sc-vercel/
 │   │   ├── SKILL.md
 │   │   └── scripts/{_shared,deploy}.js
+│   ├── sc-git/SKILL.md + scripts/
 │   ├── sc-onboarding/
 │   │   ├── SKILL.md
 │   │   ├── scripts/scan-env.js
@@ -145,13 +133,23 @@ si-coder-agent/
     └── onboard.js     one-shot CLI wizard
 ```
 
-## CORE MANDATES (shared across all sc-*)
+## Security
 
-1. **Self-Hosted Convex by default** — never silently swap to Clerk. Use `@convex-dev/auth`.
+All `sc-*` skills were hardened **2026-06-14**:
+
+- **No shell** — every external call uses `execFileSync` (no `sh -c`), so no command injection.
+- **TLS always verified** — never disabled, even for self-signed probes.
+- **No secret leaks** — tokens never appear in logs, build args, or git URLs.
+- **`0600` secret files** — credential files are written owner-read/write only.
+- **Shell-safe `~/.bashrc`** — values are single-quote escaped and merged in place.
+
+## Core mandates (shared across all sc-*)
+
+1. **Self-hosted Convex by default** — never silently swap to Clerk. Use `@convex-dev/auth`.
 2. **`convex/_generated` committed** — never run codegen inside the Dockerfile.
 3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
 4. **Idempotency** — duplicate domain create = no-op.
-5. **Admin Key Sync** — Dokploy compose env + repo env file always match.
+5. **Admin key sync** — Dokploy compose env + repo env file always match.
 6. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rename it inside any script.
 7. **Clerk MCP for Clerk apps** — `clerk` at `https://mcp.clerk.com/mcp`.
 8. **Exact cloning** — replicate site layout, not a generic admin dashboard.
@@ -159,10 +157,10 @@ si-coder-agent/
 ## Adding a new `/sc-*` domain
 
 1. `mkdir skills/sc-<name>/{scripts}`
-2. Write `skills/sc-<name>/SKILL.md` with frontmatter `name: sc-<name>` + `description:`
+2. Write `skills/sc-<name>/SKILL.md` with frontmatter `name: sc-<name>` + `description:`.
 3. Put scripts under `skills/sc-<name>/scripts/*.js`. Import shared utils from `../../../lib/`.
 4. Add domain-required vars to `skills/sc-onboarding/scripts/scan-env.js` → `DOMAIN_VARS`.
-5. Add validator to `bin/onboard.js` → `VALIDATORS`.
+5. Add a validator to `bin/onboard.js` → `VALIDATORS`.
 6. Add a step doc at `skills/sc-onboarding/steps/<name>.md`.
 7. Edit `install.sh` → add `link_skill "sc-<name>"`.
 8. Re-run `bash install.sh`.
@@ -171,7 +169,9 @@ si-coder-agent/
 
 **Q: Site stuck loading?** Check your `Dockerfile` uses `ARG NEXT_PUBLIC_CONVEX_URL=<real-url>`, not a dummy.
 
-**Q: Convex dashboard 401/404?** Run `/sc-convex` → `rotate-admin-key.js`. Admin key now lives in Dokploy compose env.
+**Q: Vercel build succeeds but app can't reach Convex Cloud?** The build command must be the coupled `npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` so the live deployment URL is injected at build time. `/sc-vercel` sets this for you.
+
+**Q: Convex dashboard 401/404?** Run `/sc-convex` → `rotate-admin-key.js`. The admin key now lives in Dokploy compose env.
 
 **Q: Dokploy shows old `*.traefik.me` domains?** Run `node skills/sc-dokploy/scripts/audit.js --fix`.
 
@@ -181,4 +181,4 @@ si-coder-agent/
 
 ## License
 
-MIT — Created by Rahman EF.
+[MIT](LICENSE) — Created by Rahman EF.

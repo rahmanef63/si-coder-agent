@@ -1,0 +1,19 @@
+{
+  "name": "si-coder-agent",
+  "version": "0.2.0",
+  "description": "Zero-human full-stack deployment skill bundle for AI agents (Claude Code / OpenClaw / Gemini): GitHub + Dokploy + Convex (self-hosted & Cloud) + Vercel + Hostinger DNS, via modular /sc-* slash commands.",
+  "keywords": ["claude-code","claude-skills","ai-agent","agent-skills","deployment-automation","devops","dokploy","convex","convex-self-hosted","convex-cloud","vercel","hostinger","nextjs","zero-human","self-hosted","infrastructure-automation"],
+  "homepage": "https://github.com/rahmanef63/si-coder-agent#readme",
+  "bugs": { "url": "https://github.com/rahmanef63/si-coder-agent/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/rahmanef63/si-coder-agent.git" },
+  "license": "MIT",
+  "author": "Rahman EF",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "bin": { "si-coder-onboard": "bin/onboard.js" },
+  "files": ["lib/","scripts/","skills/","bin/","SKILL.md",".env.example","install.sh","README.md","LICENSE"],
+  "scripts": {
+    "onboard": "node bin/onboard.js",
+    "deploy": "node scripts/deploy.js"
+  }
+}

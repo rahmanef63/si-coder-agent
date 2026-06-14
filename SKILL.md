@@ -1,19 +1,30 @@
 ---
 name: si-coder
-description: "Zero human involvement full-stack deployment to Dokploy. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-onboarding) plus the legacy monolithic deploy.js. The user can invoke /sc-all for end-to-end, /sc-convex or /sc-dokploy for narrower domain ops, or /sc-onboarding to set up credentials."
+description: "Zero human involvement full-stack deployment. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-convex-cloud, sc-vercel, sc-git, sc-onboarding) plus the legacy monolithic deploy.js. Two deploy paths share one flow shape: self-hosted (Dokploy app + self-hosted Convex) and online (Vercel frontend + Convex Cloud). The user can invoke /sc-all for end-to-end (--target dokploy|vercel), /sc-convex/-cloud, /sc-vercel, or /sc-dokploy for narrower domain ops, /sc-git for GitHub repo/Actions ops, or /sc-onboarding to set up credentials."
 ---
 
 # si-coder-agent — Umbrella
 
 This is the parent skill for the SI Coder family. After installing (see `install.sh`), the following slash commands are available:
 
+**Implemented (7):**
+
 | Command | Domain | Purpose |
 |---|---|---|
-| `/sc-all` | Orchestrator | End-to-end full-stack deploy (replaces legacy `/use-si-coder` monolith) |
-| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug |
-| `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
-| `/sc-onboarding` | Setup | Scan env, prompt only for missing credentials, write to `~/.bashrc` |
-| `/sc-cf` | Cloudflare | (future) DNS + CDN automation |
+| `/sc-all` | Orchestrator | End-to-end full-stack deploy; `--target dokploy` (default, self-hosted) or `--target vercel` (online) |
+| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug, stale-domain detection |
+| `/sc-convex` | Convex self-hosted | Deploy on Dokploy, rotate admin key, set JWT auth env, probe `api-/site-/dash-` |
+| `/sc-convex-cloud` | Convex Cloud | Managed Convex deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probes `*.convex.cloud` |
+| `/sc-vercel` | Vercel | Online frontend bound to a GitHub repo; build couples Convex Cloud deploy, custom domain/subdomain, Hostinger DNS (CNAME sub / A apex) |
+| `/sc-git` | GitHub | Repo CRUD + Actions cost reduction (audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron) |
+| `/sc-onboarding` | Setup | Scan env, prompt only for missing credentials, write to `~/.bashrc` (merge-in-place, single-quote escaped) |
+
+### Two deploy paths (same flow shape)
+
+- **(A) Self-hosted** — GitHub → Dokploy app + self-hosted Convex compose → Hostinger A-record → verify. `/sc-all --target dokploy`
+- **(B) Online** — GitHub → Vercel frontend + Convex Cloud backend → Hostinger CNAME/A to Vercel → verify. `/sc-all --target vercel`
+
+**Stubs (5, exit code 2 until implemented):** `/sc-cf` (Cloudflare), `/sc-stripe` (payments), `/sc-resend` (email), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt).
 
 The **legacy `/use-si-coder`** continues to work in parallel — it runs the monolithic `scripts/deploy.js` which still bundles GitHub + Dokploy + Convex + Hostinger DNS.
 
@@ -45,17 +56,33 @@ si-coder-agent/
 ├── README.md
 ├── .env.example
 ├── install.sh         ← symlinks each sc-* into ~/.claude/skills/
-├── lib/               ← shared modules (Dokploy, GitHub, Hostinger, Convex, env)
+├── lib/               ← shared modules
+│   ├── dokploy.js     ← Dokploy REST
+│   ├── github.js      ← GitHub REST + repo CRUD
+│   ├── hostinger.js   ← Hostinger DNS (A/CNAME)
+│   ├── convex.js      ← Convex self-hosted (Dokploy compose)
+│   ├── convex-cloud.js← Convex Cloud (managed) deploy
+│   ├── vercel.js      ← Vercel projects/domains/deploys
+│   ├── proc.js        ← no-shell execFileSync process runner
+│   ├── tls.js         ← TLS verification helpers (always on)
+│   └── env.js         ← env scan + ~/.bashrc merge writer
 ├── skills/
 │   ├── sc-all/SKILL.md
 │   ├── sc-dokploy/{SKILL.md, scripts/}
 │   ├── sc-convex/{SKILL.md, scripts/}
+│   ├── sc-convex-cloud/{SKILL.md, scripts/}
+│   ├── sc-vercel/{SKILL.md, scripts/}
+│   ├── sc-git/{SKILL.md, scripts/}
 │   └── sc-onboarding/{SKILL.md, scripts/, steps/}
 ├── scripts/
 │   └── deploy.js      ← legacy monolith, still functional
 └── bin/
     └── onboard.js     ← one-shot CLI wizard (no AI needed)
 ```
+
+## Security posture (hardened 2026-06-14)
+
+All `sc-*` skills: no-shell `execFileSync` (no command injection), TLS verification always on, no secrets in logs / build-args / git-URLs, `~/.bashrc` writes single-quote escaped. Requires **Node >=18** (native `fetch`), no runtime deps, CommonJS. Legacy one-shot `scripts/deploy.js` remains available.
 
 ## Deployment profile (placeholders only)
 
