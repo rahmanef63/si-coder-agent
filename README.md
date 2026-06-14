@@ -80,11 +80,14 @@ node skills/sc-vercel/scripts/deploy.js \
 
 The Vercel build command is set to `npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`. DNS is `CNAME → cname.vercel-dns.com` for a subdomain, `A → 76.76.21.21` for an apex (always read live from Vercel's domain config).
 
-**Legacy one-shot** (monolith, still functional):
+**Legacy one-shot** (monolith, still functional). Secrets are read **only from the environment** (`DOKPLOY_API_URL`, `DOKPLOY_API_KEY`, `GITHUB_TOKEN`) — never argv, so nothing leaks via `ps aux`. Only non-secret project/app/domain go on the command line:
 
 ```bash
-node scripts/deploy.js \
-  "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT>" "<APP>" "$GITHUB_TOKEN" "<DOMAIN>"
+# export DOKPLOY_API_URL / DOKPLOY_API_KEY / GITHUB_TOKEN in ~/.bashrc first
+# cwd is the target app you want to deploy; the script path points at your
+# si-coder-agent checkout (it imports ../lib/*, so it must run from the clone).
+cd ~/projects/<app>
+node ~/path/to/si-coder-agent/scripts/deploy.js --project "<PROJECT>" --app "<APP>" --domain "<DOMAIN>"
 ```
 
 ## Architecture
@@ -142,6 +145,19 @@ All `sc-*` skills were hardened **2026-06-14**:
 - **No secret leaks** — tokens never appear in logs, build args, or git URLs.
 - **`0600` secret files** — credential files are written owner-read/write only.
 - **Shell-safe `~/.bashrc`** — values are single-quote escaped and merged in place.
+
+## Development & tests
+
+The canonical test entrypoint is:
+
+```bash
+npm test        # runs node --test "test/**/*.test.js"
+```
+
+Use `npm test` (or `node --test test/deploy-helpers.test.js` for a single file). Avoid the
+bare directory form `node --test test/` — on some Node versions it resolves `test/` as a
+module entry and fails with `MODULE_NOT_FOUND` instead of discovering the `*.test.js` files.
+Tests use only Node built-ins (`node:test` + `node:assert`); no extra dev deps.
 
 ## Core mandates (shared across all sc-*)
 

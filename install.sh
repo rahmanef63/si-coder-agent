@@ -46,7 +46,11 @@ link_skill "sc-resend"
 link_skill "sc-clerk"
 link_skill "sc-supabase"
 
-# Optional: legacy umbrella as /use-si-coder remains in ~/.agents/skills/si-coder/ (unchanged).
+# --- Legacy umbrella as /use-si-coder. The in-repo skill is the single source of truth
+# (skills/use-si-coder/SKILL.md). It drives the repo-root scripts/deploy.js, so run that
+# monolith from this checkout (the SKILL.md documents the exact path + env-only secrets).
+link_skill "use-si-coder"
+
 echo ""
 echo "✅ done. Available slash commands:"
 echo "   /sc-all          → end-to-end deploy (--target dokploy|vercel)"
@@ -64,4 +68,5 @@ echo "   /sc-resend       → Resend domain verify + send"
 echo "   /sc-clerk        → Clerk provisioning (pair with Clerk MCP for code)"
 echo "   /sc-supabase     → Supabase backend alternative"
 echo ""
-echo "Legacy /use-si-coder remains parallel (in ~/.agents/skills/si-coder/)."
+echo "Legacy umbrella:"
+echo "   /use-si-coder    → one-shot monolith (runs repo-root scripts/deploy.js; secrets via env only)"
