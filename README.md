@@ -13,6 +13,8 @@ After running `bash install.sh`, you get the slash commands below. **Implemented
 | `/sc-all` | Orchestrator | End-to-end: repo + DNS + Dokploy + Convex + frontend + verify |
 | `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug |
 | `/sc-convex` | Convex self-hosted | Deploy, rotate admin key, set JWT env, probe `api-/site-/dash-` |
+| `/sc-convex-cloud` | Convex Cloud | Deploy managed backend, inject NEXT_PUBLIC_CONVEX_URL, probe `*.convex.cloud` |
+| `/sc-vercel` | Frontend (online) | Project + GitHub bind + env + build-command + domain + Hostinger DNS + deploy |
 | `/sc-onboarding` | Setup | Scans env, prompts only for missing credentials, writes to `~/.bashrc` |
 
 ### Stubs (boilerplate, accepting contributions)
@@ -23,7 +25,6 @@ After running `bash install.sh`, you get the slash commands below. **Implemented
 | `/sc-stripe` | Payments | Products/prices, webhooks, customer portal, restricted keys |
 | `/sc-resend` | Email | Domain verify + auto DKIM/SPF/DMARC, API keys, smoke send |
 | `/sc-clerk` | Auth (alt) | Origins, JWT template `convex`, paired with Clerk MCP for code |
-| `/sc-vercel` | Frontend (alt) | Project + env + domain + deploy, alt to Dokploy app |
 | `/sc-supabase` | Backend (alt) | Project provision, migrations, edge functions, types gen |
 
 ### Suggested for the future (not stubbed yet)
@@ -33,6 +34,28 @@ After running `bash install.sh`, you get the slash commands below. **Implemented
 Same pattern always — drop a folder into `skills/`, register vars in `scan-env.js` + `onboard.js`, add `link_skill` to `install.sh`.
 
 The legacy `/use-si-coder` monolith (`scripts/deploy.js`) remains available in parallel for users who prefer one-shot.
+
+## Online deploy (Vercel + Convex Cloud)
+
+Alternative to the self-hosted Dokploy path. Same end-to-end shape:
+GitHub repo + push → Convex Cloud backend → Vercel frontend → Hostinger DNS → verify.
+
+Required env: `GITHUB_TOKEN`, `VERCEL_TOKEN` (+ optional `VERCEL_TEAM_ID`),
+`CONVEX_DEPLOY_KEY` (Convex Cloud prod key), optional `HOSTINGER_API_TOKEN` for DNS.
+
+    # 1. Backend (Convex Cloud) — coupled build injects NEXT_PUBLIC_CONVEX_URL
+    node skills/sc-convex-cloud/scripts/deploy-cloud.js
+
+    # 2. Frontend (Vercel) + domain + DNS + deploy
+    node skills/sc-vercel/scripts/deploy.js \
+      --project myapp --app myapp --domain app.example.com \
+      --git-owner rahmanef63 --git-repo myapp --prod
+
+Orchestrated: `/sc-all --target vercel` runs both, skipping Dokploy + self-hosted Convex.
+The Vercel build command is set to
+`npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`;
+DNS is CNAME→`cname.vercel-dns.com` for a subdomain, A→`76.76.21.21` for an apex
+(always read live from Vercel's domain config).
 
 ## Install
 
@@ -92,8 +115,10 @@ si-coder-agent/
 ├── lib/
 │   ├── dokploy.js     Dokploy REST client + CRUD helpers
 │   ├── github.js      GitHub REST + git push helpers
-│   ├── hostinger.js   Hostinger DNS A-record sync
+│   ├── hostinger.js   Hostinger DNS A/CNAME-record sync
 │   ├── convex.js      admin key / schema deploy / JWT keys / probe
+│   ├── convex-cloud.js  Convex Cloud deploy / URL derive / probe
+│   ├── vercel.js      Vercel REST client + deploy/domain/DNS helpers
 │   └── env.js         env-string parse, merge, .bashrc append
 ├── skills/
 │   ├── sc-all/SKILL.md
@@ -103,11 +128,17 @@ si-coder-agent/
 │   ├── sc-convex/
 │   │   ├── SKILL.md
 │   │   └── scripts/{deploy-convex,check-backend,rotate-admin-key,set-auth-env}.js
+│   ├── sc-convex-cloud/
+│   │   ├── SKILL.md
+│   │   └── scripts/{deploy-cloud,check-cloud}.js
+│   ├── sc-vercel/
+│   │   ├── SKILL.md
+│   │   └── scripts/{_shared,deploy}.js
 │   ├── sc-onboarding/
 │   │   ├── SKILL.md
 │   │   ├── scripts/scan-env.js
-│   │   └── steps/{github,dokploy,convex,hostinger,cf,stripe,resend,clerk,vercel,supabase}.md
-│   └── sc-{cf,stripe,resend,clerk,vercel,supabase}/   STUBS — boilerplate only
+│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,clerk,vercel,supabase}.md
+│   └── sc-{cf,stripe,resend,clerk,supabase}/   STUBS — boilerplate only
 ├── scripts/
 │   └── deploy.js      legacy monolith (still functional)
 └── bin/

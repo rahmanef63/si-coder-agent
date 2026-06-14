@@ -1,8 +1,10 @@
 // deploy.js
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { run: procRun, dockerExec } = require('../lib/proc');
+const { waitForValidTls } = require('../lib/tls');
 const args = process.argv.slice(2);
 
 if (args.length < 5) {
@@ -233,6 +235,12 @@ function extractAdminKey(output = '') {
   return lines.find(line => line.includes('|')) || lines[lines.length - 1] || '';
 }
 
+function maskSecret(s = '') {
+  s = String(s);
+  if (s.length <= 4) return '****';
+  return `len=${s.length} …${s.slice(-4)}`;
+}
+
 async function configureHostingerDNS(fullDomain, apiUrl) {
   const hostingerToken = process.env.HOSTINGER_API_TOKEN;
   if (!hostingerToken || !fullDomain) return;
@@ -271,7 +279,7 @@ async function configureHostingerDNS(fullDomain, apiUrl) {
     }
 
     // Fetch zone
-    const zoneRes = await fetch(`https://developers.hostinger.com/api/dns/v1/zones/${rootDomain}`, {
+    const zoneRes = await fetch(`https://developers.hostinger.com/api/dns/v1/zones/${encodeURIComponent(rootDomain)}`, {
       headers: { 'Authorization': `Bearer ${hostingerToken}`, 'Accept': 'application/json' }
     });
     if(!zoneRes.ok) return;
@@ -289,7 +297,7 @@ async function configureHostingerDNS(fullDomain, apiUrl) {
         records: [{ content: serverIp, is_disabled: false }]
       });
 
-      const putRes = await fetch(`https://developers.hostinger.com/api/dns/v1/zones/${rootDomain}`, {
+      const putRes = await fetch(`https://developers.hostinger.com/api/dns/v1/zones/${encodeURIComponent(rootDomain)}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${hostingerToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ zone: zoneRecords })
@@ -340,37 +348,41 @@ async function run() {
     }
 
     console.log("💻 Pushing local code to GitHub via SSH...");
+    // repoUrl is built as git@github.com:<user>/<app>.git below; validate before any git use.
+    const REPO_URL_RE = /^(git@github\.com:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\.git|https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(\.git)?)$/;
+    if (!REPO_URL_RE.test(repoUrl)) throw new Error(`refusing unsafe repoUrl: ${repoUrl}`);
+    const ALLOW_FORCE_PUSH = process.env.SC_ALLOW_FORCE_PUSH === '1';
     try {
+        const git = (gitArgs) => execFileSync('git', gitArgs, { stdio: 'ignore' });
         // Clear local build cache to avoid stale URLs
         if (fs.existsSync(path.join(process.cwd(), '.next'))) {
             console.log("🧹 Clearing local .next build cache...");
-            execSync('rm -rf .next');
+            fs.rmSync(path.join(process.cwd(), '.next'), { recursive: true, force: true });
         }
 
-        execSync(`git config --global init.defaultBranch main`);
-        try { execSync('git rev-parse --is-inside-work-tree', { stdio: 'ignore' }); } catch {
-            execSync('git init');
-        }
-        
-        try { execSync('git remote remove origin', { stdio: 'ignore' }); } catch(e) {}
-        execSync(`git remote add origin ${repoUrl}`);
-        
-        execSync('git add .');
-        try { execSync('git commit -m "Auto-deploy commit"', { stdio: 'ignore' }); } catch(e) {}
-        
-        const branchBuffer = execSync('git branch --show-current');
-        let currentBranch = branchBuffer.toString().trim();
+        git(['config', '--global', 'init.defaultBranch', 'main']);
+        try { git(['rev-parse', '--is-inside-work-tree']); } catch { git(['init']); }
+
+        try { git(['remote', 'remove', 'origin']); } catch(e) {}
+        git(['remote', 'add', 'origin', repoUrl]);
+
+        git(['add', '.']);
+        try { git(['commit', '-m', 'Auto-deploy commit']); } catch(e) {}
+
+        let currentBranch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim();
         if(!currentBranch) currentBranch = 'main';
-        
-        execSync(`git push -u origin ${currentBranch} --force`, { stdio: 'ignore' });
+
+        const pushArgs = ['push', '-u', 'origin', currentBranch];
+        if (ALLOW_FORCE_PUSH) pushArgs.push('--force');
+        git(pushArgs);
         console.log(`✅ Code pushed to ${repoUrl} on branch ${currentBranch}.`);
-        
+
     } catch(error) {
         console.error("❌ Git push failed. Ensure your local SSH keys are configured for GitHub.");
         throw error;
     }
 
-    const branch = execSync('git branch --show-current').toString().trim() || 'main';
+    const branch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim() || 'main';
 
 
     // --- 2. DOKPLOY PROJECT CREATION (API Specs: <DOKPLOY_API_URL>/swagger) ---
@@ -391,7 +403,9 @@ async function run() {
     if (!envId) {
       throw new Error(`No environments found for project ${projectName}`);
     }
-    const secureGitUrl = `https://${githubUsername}:${githubToken}@github.com/${repoOwner}/${repoName}.git`;
+    // SECURITY: never persist the PAT in a URL into Dokploy (customGitUrl is stored plaintext).
+    // Prefer the Dokploy GitHub provider (configured below); fall back to PAT-less SSH/https.
+    const publicGitUrl = `https://github.com/${repoOwner}/${repoName}.git`;
 
     const hasDockerCompose = fs.existsSync(path.join(process.cwd(), 'docker-compose.yml'));
     const hasDockerfile = fs.existsSync(path.join(process.cwd(), 'Dockerfile'));
@@ -519,7 +533,7 @@ async function run() {
                   }
 
                   const containerName = `${composeRuntimeName}-backend-1`;
-                  const rawAdminKey = execSync(`sudo docker exec ${containerName} ./generate_admin_key.sh`, { stdio: 'pipe' }).toString();
+                  const rawAdminKey = dockerExec(containerName, ['./generate_admin_key.sh']);
                   adminKey = extractAdminKey(rawAdminKey);
 
                   if (!adminKey) {
@@ -529,15 +543,19 @@ async function run() {
                   await updateComposeEnv(composeApp.composeId, { CONVEX_ADMIN_KEY: adminKey });
                   project.tempAdminKey = adminKey;
                   console.log("✅ Admin Key saved to Compose env.");
-                  console.log(`\n🔑 CONVEX_ADMIN_KEY generated: ${adminKey}`);
+                  console.log(`\n🔑 CONVEX_ADMIN_KEY generated (masked): ${maskSecret(adminKey)}`);
               } catch (err) {
                   console.warn(`⚠️ Automatic admin-key generation failed: ${err.message}`);
               }
 
               if (adminKey && apiDomain) {
                   try {
-                      console.log("📤 Pushing Convex schema automatically...");
-                      execSync(`NODE_TLS_REJECT_UNAUTHORIZED=0 npx convex deploy --url https://${apiDomain} --admin-key "${adminKey}"`, { stdio: 'inherit' });
+                      console.log("📤 Waiting for valid TLS on backend, then pushing Convex schema...");
+                      await waitForValidTls(apiDomain);
+                      procRun('npx', ['convex', 'deploy', '--url', `https://${apiDomain}`], {
+                          stdio: 'inherit',
+                          env: { ...process.env, CONVEX_SELF_HOSTED_ADMIN_KEY: adminKey },
+                      });
                       console.log("✅ Convex schema deployed successfully.");
                   } catch (err) {
                       console.warn(`⚠️ Automatic schema deployment failed: ${err.message}`);
@@ -580,14 +598,12 @@ async function run() {
           
           console.log(`⚙️ Configuring Dokploy application source...`);
           try {
-            // Set environment variables for the frontend (Next.js build)
+            // Frontend only needs the public Convex URL. NEVER bake the admin key into
+            // image layers via env/buildArgs (it is a backend-only secret).
             let appEnv = "";
             if (domain) {
                 const apiDomain = `api-${domain}`;
                 appEnv = `NEXT_PUBLIC_CONVEX_URL=https://${apiDomain}`;
-                if (project.tempAdminKey) {
-                    appEnv += `\nCONVEX_ADMIN_KEY=${project.tempAdminKey}`;
-                }
             }
 
             const githubProvider = await getDokployGithubProvider();
@@ -623,10 +639,11 @@ async function run() {
               });
               console.log(`✅ Dokploy application updated successfully with GitHub provider.`);
             } else {
-              console.log(`ℹ️ No Dokploy GitHub provider found. Falling back to raw Git source.`);
+              console.log(`ℹ️ No Dokploy GitHub provider found. Falling back to raw Git source (no embedded PAT).`);
+              console.warn('⚠️ Without a Dokploy GitHub provider, private repos need an SSH deploy key or GitHub App in Dokploy. Not persisting a PAT-in-URL.');
               await fetchDokploy('/application.update', 'POST', {
                 applicationId: appId,
-                customGitUrl: secureGitUrl,
+                customGitUrl: publicGitUrl,
                 customGitBranch: branch,
                 buildType: "dockerfile",
                 dockerfile: "Dockerfile",
@@ -636,7 +653,7 @@ async function run() {
                 env: appEnv,
                 buildArgs: appEnv
               });
-              console.log(`✅ Dokploy application updated successfully with raw Git source.`);
+              console.log(`✅ Dokploy application updated with raw Git source (auth handled by Dokploy provider/SSH key, not URL).`);
             }
           } catch(e) {
             console.warn(`⚠️ Warning during application update: ${e.message}`);

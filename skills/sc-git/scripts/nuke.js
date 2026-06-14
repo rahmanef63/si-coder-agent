@@ -10,7 +10,8 @@ async function main() {
   const enabled = !!args.revert;
   ghApi(`repos/${OWNER}/${repo}/actions/permissions`, {
     method: 'PUT',
-    body: { enabled: String(enabled), allowed_actions: 'all' },
+    rawBody: { enabled },          // -F keeps the boolean typed (true/false, not "false")
+    body: { allowed_actions: 'all' },
   });
   ok(`Actions ${enabled ? 'enabled' : 'disabled'} for ${OWNER}/${repo}`);
 }

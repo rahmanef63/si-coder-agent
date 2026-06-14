@@ -16,7 +16,8 @@ const DOMAIN_VARS = {
   stripe:    { required: [], optional: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'] },
   resend:    { required: [], optional: ['RESEND_API_KEY', 'RESEND_FROM_DOMAIN'] },
   clerk:     { required: [], optional: ['CLERK_SECRET_KEY', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CLERK_FRONTEND_API_URL'] },
-  vercel:    { required: [], optional: ['VERCEL_TOKEN', 'VERCEL_TEAM_ID'] },
+  vercel:        { required: ['VERCEL_TOKEN'], optional: ['VERCEL_TEAM_ID'] },
+  'convex-cloud':{ required: ['CONVEX_DEPLOY_KEY'], optional: ['CONVEX_DEPLOYMENT'] },
   supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
 };
 
@@ -26,6 +27,8 @@ const VALIDATORS = {
   DOKPLOY_API_KEY: v => v.length >= 24,
   HOSTINGER_API_TOKEN: v => v.length >= 32,
   CONVEX_ADMIN_KEY: v => v.includes('|') && v.length >= 32,
+  CONVEX_DEPLOY_KEY: v => v.includes('|') && /^(prod|preview|project):/.test(v) && v.length >= 32,
+  CONVEX_DEPLOYMENT: v => v.length >= 6, // e.g. "prod:happy-animal-123" or a deployment name
   CLOUDFLARE_API_TOKEN: v => v.length >= 32,
   CLOUDFLARE_ACCOUNT_ID: v => v.length >= 16,
   STRIPE_SECRET_KEY: v => /^sk_(test|live)_/.test(v),
@@ -69,7 +72,9 @@ function askDomainsInteractive(rl) {
     console.log('  [2] dokploy    (Dokploy CRUD + deploy)');
     console.log('  [3] convex     (Convex self-hosted)');
     console.log('  [4] hostinger  (DNS automation, optional)');
-    console.log('  [5] cf         (Cloudflare, future)\n');
+    console.log('  [5] cf         (Cloudflare, future)');
+    console.log('  [6] vercel        (Vercel online frontend)');
+    console.log('  [7] convex-cloud  (Convex Cloud backend)\n');
     rl.question('Pick (e.g. "github,dokploy,convex"): ', (ans) => {
       const picked = ans.split(',').map(s => s.trim()).filter(Boolean);
       resolve(picked.length === 0 ? ['github', 'dokploy'] : picked);

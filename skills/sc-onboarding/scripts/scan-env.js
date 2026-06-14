@@ -16,7 +16,8 @@ const DOMAIN_VARS = {
   stripe:    { required: [], optional: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'] },
   resend:    { required: [], optional: ['RESEND_API_KEY', 'RESEND_FROM_DOMAIN'] },
   clerk:     { required: [], optional: ['CLERK_SECRET_KEY', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CLERK_FRONTEND_API_URL'] },
-  vercel:    { required: [], optional: ['VERCEL_TOKEN', 'VERCEL_TEAM_ID'] },
+  vercel:        { required: ['VERCEL_TOKEN'], optional: ['VERCEL_TEAM_ID'] },
+  'convex-cloud':{ required: ['CONVEX_DEPLOY_KEY'], optional: ['CONVEX_DEPLOYMENT'] },
   supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
 };
 

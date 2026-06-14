@@ -2,7 +2,7 @@
 // audit.js — scan all repos for workflow burn risk
 const fs = require('fs');
 const path = require('path');
-const { parseArgs, listRepos, workflowFiles, runCount, OWNER, log, warn } = require('./_shared');
+const { parseArgs, ghApi, listRepos, workflowFiles, runCount, OWNER, log, warn } = require('./_shared');
 
 function detectTriggers(yamlText) {
   const t = { push: false, pr: false, schedule: false, dispatch: false, workflowRun: false, paths: false, branches: [], cron: [] };
@@ -62,8 +62,10 @@ async function main() {
         try { yaml = fs.readFileSync(w.abs, 'utf8'); } catch {}
       } else {
         try {
-          const { execSync } = require('child_process');
-          yaml = execSync(`gh api "repos/${OWNER}/${r.name}/contents/${w.abs}" --jq .content | base64 -d`, { encoding: 'utf8' });
+          // No shell: ghApi runs `gh` via spawnSync (argv). w.abs comes from the
+          // GitHub API and must never be interpolated into a shell string.
+          const b64 = ghApi(`repos/${OWNER}/${r.name}/contents/${w.abs}`, { jq: '.content' });
+          yaml = Buffer.from(b64, 'base64').toString('utf8');
         } catch {}
       }
       const trig = detectTriggers(yaml);

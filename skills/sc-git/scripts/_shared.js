@@ -35,7 +35,10 @@ function gh(args, { json = false, stdin = null } = {}) {
   return json ? JSON.parse(res.stdout) : res.stdout;
 }
 
-function ghApi(endpoint, { method = 'GET', body = null, jq = null, paginate = false } = {}) {
+// body:    string fields via -f (always string)
+// rawBody: typed fields via -F (true/false/number stay typed; "field[]=x" repeats for arrays)
+// input:   send a full JSON object via --input - (stdin); used when raw typing must be exact
+function ghApi(endpoint, { method = 'GET', body = null, rawBody = null, input = null, jq = null, paginate = false } = {}) {
   const args = ['api'];
   if (paginate) args.push('--paginate');
   if (method !== 'GET') args.push('-X', method);
@@ -44,9 +47,21 @@ function ghApi(endpoint, { method = 'GET', body = null, jq = null, paginate = fa
       args.push('-f', `${k}=${v}`);
     }
   }
+  if (rawBody) {
+    for (const [k, v] of Object.entries(rawBody)) {
+      // Arrays expand into repeated `key[]=item` raw fields (proper multi-value encoding).
+      if (Array.isArray(v)) {
+        for (const item of v) args.push('-F', `${k}[]=${item}`);
+      } else {
+        args.push('-F', `${k}=${v}`); // -F keeps booleans/numbers typed
+      }
+    }
+  }
+  let stdin = null;
+  if (input) { args.push('--input', '-'); stdin = JSON.stringify(input); }
   if (jq) args.push('--jq', jq);
   args.push(endpoint);
-  const out = gh(args);
+  const out = gh(args, { stdin });
   if (jq) return out.trim();
   try { return JSON.parse(out); } catch { return out; }
 }

@@ -15,17 +15,23 @@ async function main() {
   }
 
   if (cmd === 'create') {
-    const { url, events = 'push', secret } = args;
+    const { url, events = 'push' } = args;
     if (!url) { err('--url required'); process.exit(1); }
+    // S10: never take the secret on argv (leaks to ps/shell history). Read from env or stdin.
+    let secret = process.env.SC_GIT_WEBHOOK_SECRET || '';
+    if (!secret && !process.stdin.isTTY) {
+      try { secret = require('fs').readFileSync(0, 'utf8').trim(); } catch {}
+    }
+    const eventList = events.split(',').map(s => s.trim()).filter(Boolean);
+    // S13: send active as a typed boolean and events[] as repeated raw fields.
+    const rawBody = { active: true, 'events': eventList };
     const body = {
       'name': 'web',
-      'active': 'true',
-      'events[]': events.split(','),
       'config[url]': url,
       'config[content_type]': 'json',
     };
     if (secret) body['config[secret]'] = secret;
-    const hook = ghApi(`repos/${OWNER}/${repo}/hooks`, { method: 'POST', body });
+    const hook = ghApi(`repos/${OWNER}/${repo}/hooks`, { method: 'POST', rawBody, body });
     ok(`webhook ${hook.id} created → ${url}`);
     return;
   }
@@ -38,7 +44,7 @@ async function main() {
     return;
   }
 
-  err('Usage: webhook.js list|create|delete --repo X [--url ...] [--id ...]');
+  err('Usage: webhook.js list|create|delete --repo X [--url ...] [--events push,pull_request] [--id ...]  (secret via SC_GIT_WEBHOOK_SECRET env or stdin)');
   process.exit(1);
 }
 main().catch(e => { console.error('❌', e.message); process.exit(1); });

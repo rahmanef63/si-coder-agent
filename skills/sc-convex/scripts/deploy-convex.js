@@ -59,6 +59,22 @@ async function main() {
 
   // env: preserve INSTANCE_SECRET, set domains
   const current = await dokploy.getCompose(composeApp.composeId);
+
+  // The stock Dokploy 'convex' template ships WITHOUT a restart policy, so a
+  // host reboot (live-restore off) leaves the backend permanently down while
+  // Dokploy still reports the last deploy as 'done' (2026-06-07 incident:
+  // tech.rahmanef.com data layer dark for 8 days). Patch it in idempotently.
+  if (current.composeFile && !current.composeFile.includes('restart:')) {
+    const patched = current.composeFile.replace(
+      /(\n    image: [^\n]+\n)/g,
+      '$1    restart: unless-stopped\n',
+    );
+    if (patched !== current.composeFile) {
+      await dokploy.updateCompose({ composeId: composeApp.composeId, composeFile: patched });
+      console.log('🔁 Added restart: unless-stopped to compose services');
+    }
+  }
+
   const currentEnv = parseEnvString(current.env || '');
   const instanceSecret = currentEnv.INSTANCE_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -111,6 +127,8 @@ async function main() {
 
   // Wait, then admin key + schema (if convex/schema.ts exists)
   const fs = require('fs');
+  const failures = [];
+  const maskSecret = (s = '') => (String(s).length <= 4 ? '****' : `len=${String(s).length} …${String(s).slice(-4)}`);
   if (fs.existsSync(path.join(process.cwd(), 'convex/schema.ts'))) {
     console.log('⏳ Waiting 15s for backend to boot...');
     await new Promise(r => setTimeout(r, 15000));
@@ -122,12 +140,12 @@ async function main() {
     try {
       const adminKey = generateAdminKey({ containerName });
       await dokploy.updateComposeEnv(composeApp.composeId, { CONVEX_ADMIN_KEY: adminKey });
-      console.log(`🔑 admin key saved to compose env (truncated: ${adminKey.slice(0, 24)}...)`);
+      console.log(`🔑 admin key saved to compose env (masked: ${maskSecret(adminKey)})`);
 
       if (apiDomain) {
         const { deploySchema } = require(path.resolve(__dirname, '../../../lib/convex'));
-        try { deploySchema({ apiDomain, adminKey }); console.log('✅ Convex schema pushed'); }
-        catch (e) { console.warn(`⚠️ schema push failed: ${e.message}`); }
+        try { await deploySchema({ apiDomain, adminKey }); console.log('✅ Convex schema pushed'); }
+        catch (e) { failures.push(`schema push: ${e.message}`); console.error(`❌ schema push failed: ${e.message}`); }
       }
 
       if (withAuth) {
@@ -137,11 +155,18 @@ async function main() {
             changes: { JWT_PRIVATE_KEY: updates.JWT_PRIVATE_KEY, JWKS: updates.JWKS },
           });
           console.log('✅ JWT_PRIVATE_KEY + JWKS set via REST API');
-        } catch (e) { console.warn(`⚠️ auth env set failed: ${e.message}`); }
+        } catch (e) { failures.push(`auth env set: ${e.message}`); console.error(`❌ auth env set failed: ${e.message}`); }
       }
     } catch (e) {
-      console.warn(`⚠️ admin-key generation failed: ${e.message}`);
+      failures.push(`admin-key generation: ${e.message}`);
+      console.error(`❌ admin-key generation failed: ${e.message}`);
     }
+  }
+
+  if (failures.length) {
+    console.error(`\n❌ sc-convex deploy FAILED — ${failures.length} critical step(s) did not complete:`);
+    for (const f of failures) console.error(`   - ${f}`);
+    process.exit(1);
   }
 
   console.log('\n✅ sc-convex deploy done.');

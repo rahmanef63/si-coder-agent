@@ -1,6 +1,6 @@
 ---
 name: sc-all
-description: "End-to-end zero-human full-stack deployment to Dokploy. Orchestrates sc-dokploy + sc-convex (and future sc-cf): create GitHub repo, push code, set up Dokploy project/app/compose, deploy self-hosted Convex backend, configure DNS, trigger build, poll until done. Equivalent to legacy /use-si-coder but composed of the modular sc-* skills."
+description: "End-to-end zero-human full-stack deployment to Dokploy. Orchestrates sc-dokploy + sc-convex (and future sc-cf): create GitHub repo, push code, set up Dokploy project/app/compose, deploy self-hosted Convex backend, configure DNS, trigger build, poll until done. Equivalent to legacy /use-si-coder but composed of the modular sc-* skills. Supports --target dokploy (default, self-hosted) | vercel (online: Vercel + Convex Cloud)."
 ---
 
 # /sc-all — Full-stack zero-human deployment
@@ -13,6 +13,10 @@ Required env (see `/sc-onboarding` if any are missing):
 - `GITHUB_TOKEN`
 - `DOKPLOY_API_URL`, `DOKPLOY_API_KEY`
 - `HOSTINGER_API_TOKEN` (optional but recommended)
+
+For `--target vercel` (online path): requires `VERCEL_TOKEN` + `CONVEX_DEPLOY_KEY` instead of
+`DOKPLOY_*` (route to `/sc-onboarding --domains vercel,convex-cloud` if missing). `DOKPLOY_*` is
+**not** required for this target. `HOSTINGER_API_TOKEN` stays optional for DNS.
 
 The user's project directory must contain:
 - A `Dockerfile` (for the frontend) — `ARG NEXT_PUBLIC_CONVEX_URL=...` pattern
@@ -32,6 +36,27 @@ All mandates from `sc-convex` and `sc-dokploy` apply. Specifically:
 7. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rename it inside any script.
 8. **Clerk MCP for Clerk apps** — if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
 
+## Umbrella semantics
+
+`/sc-all` is the **umbrella command**. Invoking it automatically pulls in every sub-skill below (sc-onboarding, sc-github, sc-dokploy, **sc-convex**, sc-git hook install). The user **never** needs to invoke `/sc-convex` separately — if `docker-compose.yml` is present, sc-convex is run as Phase 4. If a `convex/` dir is present without compose (existing self-hosted), sc-git's pre-push hook is installed so all subsequent pushes auto-deploy Convex without any manual command.
+
+Concretely:
+- Existing self-hosted project: `/sc-all` installs/refreshes the sc-git pre-push hook with Convex auto-deploy guard. After that, `git push` alone handles everything — backend deploys to Convex self-hosted first, then frontend rebuilds via Dokploy webhook. **Never instruct the user to run `npx convex deploy`, `pnpm convex:deploy`, or any Convex CLI command by hand.**
+- Fresh deploy: `/sc-all` runs the full Phase 1–6 sequence below.
+
+## Target selection (`--target dokploy|vercel`, default `dokploy`)
+
+- `--target dokploy` (default): the existing Phase 1–6 flow (self-hosted Convex on Dokploy + Dokploy frontend app).
+- `--target vercel` (online): skips Phase 3 Dokploy project, Phase 4 self-hosted Convex, and Phase 5 Dokploy application.
+  Instead runs:
+    Phase V4 — Convex Cloud: `sc-convex-cloud/scripts/deploy-cloud.js` (or let Vercel's coupled build do it).
+    Phase V5 — Vercel frontend: `sc-vercel/scripts/deploy.js --project <P> --app <A> --domain <D> --git-owner <o> --git-repo <r> --prod`.
+      This binds the GitHub repo, sets `CONVEX_DEPLOY_KEY`, sets the coupled build command, adds the domain,
+      writes Hostinger DNS (CNAME for subdomain / A for apex from Vercel's required config), and polls the deploy.
+    Phase V6 — Verify: `sc-convex-cloud/scripts/check-cloud.js` + the Vercel deployment readyState + custom-domain alias.
+
+Phase 2 (GitHub) is shared across both targets.
+
 ## Orchestration
 
 `/sc-all` walks through these phases. Each phase delegates to a sub-skill or shared library:
@@ -47,9 +72,10 @@ If any required env var missing → run `/sc-onboarding` first.
 - `lib/dokploy.js` → `findOrCreateProject(project)`
 - Detect `Dockerfile` / `docker-compose.yml` to choose Application vs Compose path
 
-### Phase 4 — Convex backend (if `docker-compose.yml` exists)
-Delegate to `sc-convex`:
-- `scripts/deploy-convex.js --project <P> --app <A> --domain <D> --with-auth-keys`
+### Phase 4 — Convex backend (if `docker-compose.yml` exists OR `convex/` dir exists)
+Delegate to `sc-convex` AUTOMATICALLY — never wait for the user to type `/sc-convex`:
+- Fresh project (compose): `scripts/deploy-convex.js --project <P> --app <A> --domain <D> --with-auth-keys`
+- Existing self-hosted (just convex/): `sc-git/hook.js install --repo <name>` — installs the pre-push hook that auto-deploys Convex on every push that touches `convex/`. After install, the user just `git push` and the hook does `pnpm exec convex deploy --yes` against the self-hosted backend (CLI auto-detects from `.env.local`). Zero manual Convex commands forever.
 
 ### Phase 5 — Frontend application (if `Dockerfile` exists)
 - `lib/dokploy.js` → `createApplication` if missing

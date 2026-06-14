@@ -49,10 +49,19 @@ async function main() {
   await setBackendEnv({ apiDomain, adminKey, changes });
   console.log(`✅ JWT_PRIVATE_KEY + JWKS pushed to ${apiDomain}`);
   if (doGenerate) {
-    console.log('\nKEEP THESE LOCALLY (lost = unable to rotate without re-issuing all tokens):');
-    console.log('JWKS:', changes.JWKS);
-    console.log('JWT_PRIVATE_KEY: [printed once — copy now]');
-    console.log(changes.JWT_PRIVATE_KEY);
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    // JWKS is public (goes in .well-known) — safe to print.
+    console.log('\nJWKS (public, safe to commit to frontend config):');
+    console.log(changes.JWKS);
+    // JWT_PRIVATE_KEY is secret — write to a 0600 file, do NOT print plaintext.
+    const outPath = process.env.JWT_PRIVATE_KEY_OUT
+      || path.join(os.homedir(), `.si-coder-jwt-private-${domain}.pem`);
+    fs.writeFileSync(outPath, changes.JWT_PRIVATE_KEY, { mode: 0o600 });
+    try { fs.chmodSync(outPath, 0o600); } catch {}
+    console.log(`\n🔐 JWT_PRIVATE_KEY written to ${outPath} (mode 600).`);
+    console.log('   KEEP THIS FILE. Lost = cannot rotate without re-issuing all tokens.');
   }
 }
 

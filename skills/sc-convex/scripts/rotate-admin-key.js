@@ -56,11 +56,15 @@ async function main() {
   if (envFile) {
     const existing = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
     const merged = mergeEnvString(existing, { [envVarName]: adminKey });
-    fs.writeFileSync(envFile, merged + '\n');
-    console.log(`✅ ${envFile} updated (${envVarName})`);
+    fs.writeFileSync(envFile, merged + '\n', { mode: 0o600 });
+    try { fs.chmodSync(envFile, 0o600); } catch {} // tighten even if file pre-existed
+    console.log(`✅ ${envFile} updated (${envVarName}, mode 600)`);
   }
 
-  console.log(`\n🔐 Admin key: ${adminKey}`);
+  const maskSecret = (s = '') => (String(s).length <= 4 ? '****' : `len=${String(s).length} …${String(s).slice(-4)}`);
+  console.log(`\n🔐 Admin key generated (masked): ${maskSecret(adminKey)}`);
+  if (envFile) console.log(`   Full value written to ${envFile} (mode 600).`);
+  else console.log('   Re-run with --env-file ./.env to capture the full value securely.');
 }
 
 main().catch(e => { console.error('❌', e.message); process.exit(1); });
