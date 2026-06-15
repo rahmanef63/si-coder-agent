@@ -15,10 +15,11 @@ flowchart LR
     D3 --> D4["4 · Convex self-hosted<br/>admin key + JWT"]
     D4 --> D5["5 · Dokploy app"]
     D5 --> D6["6 · DNS + poll"]
-    T -->|vercel| V3["3 · Convex Cloud<br/>coupled build"]
-    V3 --> V4["4 · Vercel project<br/>+ domain"]
-    V4 --> D6
     D6 --> Live["live URL ✅"]
+    T -->|vercel| V4["V4 · Convex Cloud<br/>coupled build"]
+    V4 --> V5["V5 · Vercel project<br/>+ domain + DNS"]
+    V5 --> V6["V6 · verify<br/>check-cloud + readyState"]
+    V6 --> Live
 ```
 
 ## Pre-requisites
@@ -52,7 +53,7 @@ All mandates from `sc-convex` and `sc-dokploy` apply. Specifically:
 
 ## Umbrella semantics
 
-`/sc-all` is the **umbrella command**. Invoking it automatically pulls in every sub-skill below (sc-onboarding, sc-github, sc-dokploy, **sc-convex**, sc-git hook install). The user **never** needs to invoke `/sc-convex` separately — if `docker-compose.yml` is present, sc-convex is run as Phase 4. If a `convex/` dir is present without compose (existing self-hosted), sc-git's pre-push hook is installed so all subsequent pushes auto-deploy Convex without any manual command.
+`/sc-all` is the **umbrella command**. Invoking it automatically pulls in every sub-skill below (sc-onboarding, GitHub repo create+push via `lib/github.js`, sc-dokploy, **sc-convex**, sc-git hook install). The user **never** needs to invoke `/sc-convex` separately — if `docker-compose.yml` is present, sc-convex is run as Phase 4. If a `convex/` dir is present without compose (existing self-hosted), sc-git's pre-push hook is installed so all subsequent pushes auto-deploy Convex without any manual command.
 
 Concretely:
 - Existing self-hosted project: `/sc-all` installs/refreshes the sc-git pre-push hook with Convex auto-deploy guard. After that, `git push` alone handles everything — backend deploys to Convex self-hosted first, then frontend rebuilds via Dokploy webhook. **Never instruct the user to run `npx convex deploy`, `pnpm convex:deploy`, or any Convex CLI command by hand.**
