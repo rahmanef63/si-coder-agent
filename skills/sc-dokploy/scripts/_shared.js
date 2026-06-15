@@ -61,13 +61,24 @@ function allCompose(project) {
 
 // ---- Secret redaction (SCD-SEC-1/2): shared by the env + show inspection commands ----
 // Policy: redact-by-default. Print a value only when nothing flags it as secret.
-const SECRET_KEY_RE = /KEY|SECRET|TOKEN|PASS|URL|URI|DSN|CONN|CREDENTIAL|PRIVATE|AUTH|SK|PAT|SALT|SIGN|HMAC|JWT|RESEND|STRIPE|CLERK|WEBHOOK|ADMIN|API/i;
 const SECRET_VALUE_RE = /^[A-Za-z0-9_+/=.|-]{24,}$/;        // long, spaceless, base64/hex/key-ish
 const URL_USERINFO_RE = /:\/\/[^/@\s]+:[^/@\s]+@/;          // scheme://user:pass@host
-
+// Unambiguous secret indicators — substring match is safe.
+const STRONG_KEY_RE = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|SIGNING|WEBHOOK)/i;
+// Short/ambiguous indicators — matched ONLY as whole `_`/camelCase segments so they don't
+// false-positive inside ordinary words (PAT ⊄ "mountPath", SK ⊄ "task", API ⊄ "rapid").
+const SHORT_KEY_TOKENS = new Set(['SK', 'PAT', 'PWD', 'DSN', 'URI', 'URL', 'CONN', 'API', 'ADMIN', 'JWT', 'HMAC', 'SALT', 'AUTH', 'PASS', 'SIGN', 'STRIPE', 'CLERK', 'RESEND', 'SSH']);
+function keyLooksSecret(key) {
+  if (!key) return false;
+  if (STRONG_KEY_RE.test(key)) return true;
+  return String(key).split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/).filter(Boolean)
+    .some(s => SHORT_KEY_TOKENS.has(s.toUpperCase()));
+}
+// env subcommand: redact when the key looks secret, the value carries URL userinfo, or it's
+// a long spaceless high-entropy token under an arbitrary key.
 function isSecretEnv(key, value) {
   const v = value == null ? '' : String(value);
-  return SECRET_KEY_RE.test(key) || URL_USERINFO_RE.test(v) || (!/\s/.test(v) && SECRET_VALUE_RE.test(v));
+  return keyLooksSecret(key) || URL_USERINFO_RE.test(v) || (!/\s/.test(v) && SECRET_VALUE_RE.test(v));
 }
 function redactValue(value) {
   const v = value == null ? '' : String(value);
@@ -80,16 +91,30 @@ function maskUrlUserinfo(s) {
 // Fields on a Dokploy app/compose object (besides env) that carry credentials in cleartext.
 const SECRET_FIELDS = new Set(['env', 'customGitSSHKey', 'registryPassword', 'dockerAuth', 'githubToken', 'gitlabToken']);
 const URL_FIELDS = new Set(['customGitUrl', 'registryUrl']);
-// Redact a Dokploy app/compose object for safe `show` inspection (SCD-SEC-2).
-function redactObject(obj) {
-  const out = {};
-  for (const [k, v] of Object.entries(obj || {})) {
-    if (SECRET_FIELDS.has(k)) out[k] = typeof v === 'string' ? redactValue(v) : (v == null ? v : '‹redacted›');
-    else if (URL_FIELDS.has(k) && typeof v === 'string') out[k] = maskUrlUserinfo(v);
-    else if (typeof v === 'string' && isSecretEnv(k, v)) out[k] = redactValue(v);
-    else out[k] = v;
+// SCD-SEC-3: credential-bearing field NAMES that appear NESTED in the Dokploy object
+// (e.g. github.githubPrivateKey, gitlab.appPassword, mounts[].content file bodies).
+const SECRET_FIELD_RE = /privatekey|private_key|password|passwd|secret|token|sshkey|ssh_key|dockerauth|credential|content/i;
+
+// Redact a Dokploy app/compose object for safe `show` inspection (SCD-SEC-2 + SCD-SEC-3).
+// Recurses into nested objects/arrays so credentials below the top level (github relation,
+// mounts[].content, …) can't leak. Depth-capped against pathological/cyclic structures.
+function redactObject(value, key, depth = 0) {
+  if (depth > 8) return '‹redacted (max depth)›';
+  if (Array.isArray(value)) return value.map(v => redactObject(v, key, depth + 1));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = redactObject(v, k, depth + 1);
+    return out;
   }
-  return out;
+  if (typeof value === 'string') {
+    // Redact by field name (incl. nested github/gitlab private keys + mounts[].content) and
+    // secret-looking env-style keys; mask URL userinfo anywhere. Deliberately NOT redacting
+    // by value-shape here, so non-secret IDs (applicationId, composeId) stay visible in `show`.
+    if (key && URL_FIELDS.has(key)) return maskUrlUserinfo(value); // show the repo, hide creds
+    if (key && (SECRET_FIELDS.has(key) || SECRET_FIELD_RE.test(key) || keyLooksSecret(key))) return redactValue(value);
+    if (URL_USERINFO_RE.test(value)) return maskUrlUserinfo(value);
+  }
+  return value;
 }
 
 module.exports = {

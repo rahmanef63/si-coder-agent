@@ -48,7 +48,12 @@ const VALIDATORS = {
 // Parse ~/.bashrc into a plain KEY->value map, stripping the leading `export `
 // so the result is comparable to process.env. Shared by both scripts.
 function readShellRcEnv() {
-  return parseEnvString(readShellRc().replace(/^\s*export\s+/gm, ''));
+  const env = parseEnvString(readShellRc().replace(/^\s*export\s+/gm, ''));
+  // Reverse the POSIX single-quote escaping that shSingleQuote/appendExportToShellRc emit:
+  // a literal ' is written as '\'' inside the quoted value (bash decodes it on `source`),
+  // so undo it for the JS readback (presence + redacted-preview display).
+  for (const k of Object.keys(env)) env[k] = env[k].replace(/'\\''/g, "'");
+  return env;
 }
 
 module.exports = { DOMAIN_VARS, VALIDATORS, readShellRcEnv };

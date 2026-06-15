@@ -434,6 +434,15 @@ test('deriveCloudUrl: preview/project keys and malformed input -> null', () => {
   assert.equal(deriveCloudUrl('prod:|eyJ2IjoxfQ'), null, 'empty name -> null');
 });
 
+test('deriveCloudUrl (CC-R1): a deployment name with non-[a-z0-9-] chars -> null', () => {
+  // The name is interpolated into https://<name>.convex.cloud — reject anything that
+  // could escape the hostname label so a malformed key can't produce a bogus URL.
+  assert.equal(deriveCloudUrl('prod:evil.com/path|eyJ2IjoxfQ'), null, 'slash/dot -> null');
+  assert.equal(deriveCloudUrl('prod:foo@evil|eyJ2IjoxfQ'), null, '@ -> null');
+  assert.equal(deriveCloudUrl('prod:UPPER-case|eyJ2IjoxfQ'), null, 'uppercase -> null');
+  assert.equal(deriveCloudUrl('prod:has space|eyJ2IjoxfQ'), null, 'space -> null');
+});
+
 test('readInjectedUrl: reads the URL var from a temp .env.local (and null when absent)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-injected-'));
   try {
