@@ -28,6 +28,61 @@ function parseArgs(argv) {
   return out;
 }
 
+// Per-service restart-policy injector — no YAML-parser dependency. Walks the
+// compose file line by line, tracking the current service block (a 4-space
+// `  <name>:` key under a 2-space `services:` block). Within each service block
+// we note whether a `restart:` key already exists; if not, we insert
+// `restart: unless-stopped` immediately after that service's `image:` line.
+// Returns { composeFile, patched: [names], skipped: [names] }.
+function patchRestartPolicy(composeFile) {
+  const lines = composeFile.split('\n');
+  const out = [];
+  const patched = [];
+  const skipped = [];
+
+  // Indexes (in `lines`) of each service block's start + its image line, plus
+  // whether it already declares a restart policy.
+  const services = []; // { name, start, end, imageLine, hasRestart }
+  let inServices = false;
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Top-level `services:` (no indentation).
+    if (/^services:\s*$/.test(line)) { inServices = true; if (cur) cur.end = i; cur = null; continue; }
+    // Any other top-level key ends the services section.
+    if (/^[^\s#][^:]*:/.test(line)) { inServices = false; if (cur) { cur.end = i; cur = null; } continue; }
+    if (!inServices) continue;
+    // A service header: exactly 2-space indent, `  name:` with nothing after the colon.
+    const svc = line.match(/^ {2}([A-Za-z0-9._-]+):\s*$/);
+    if (svc) {
+      if (cur) cur.end = i;
+      cur = { name: svc[1], start: i, end: lines.length, imageLine: -1, hasRestart: false };
+      services.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    // Keys nested under the service are indented >= 4 spaces.
+    if (/^ {4}image:\s/.test(line) && cur.imageLine === -1) cur.imageLine = i;
+    if (/^ {4}restart:\s/.test(line)) cur.hasRestart = true;
+  }
+
+  // Build the set of line indexes after which to inject the restart line.
+  const injectAfter = new Map(); // imageLine -> indent string
+  for (const s of services) {
+    if (s.hasRestart) { skipped.push(s.name); continue; }
+    if (s.imageLine === -1) continue; // no image line to anchor to; leave alone
+    injectAfter.set(s.imageLine, '    ');
+    patched.push(s.name);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    out.push(lines[i]);
+    if (injectAfter.has(i)) out.push(`${injectAfter.get(i)}restart: unless-stopped`);
+  }
+
+  return { composeFile: out.join('\n'), patched, skipped };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const { project, app, domain } = args;
@@ -79,14 +134,20 @@ async function main() {
   // host reboot (live-restore off) leaves the backend permanently down while
   // Dokploy still reports the last deploy as 'done' (2026-06-07 incident:
   // tech.rahmanef.com data layer dark for 8 days). Patch it in idempotently.
-  if (current.composeFile && !current.composeFile.includes('restart:')) {
-    const patched = current.composeFile.replace(
-      /(\n    image: [^\n]+\n)/g,
-      '$1    restart: unless-stopped\n',
-    );
-    if (patched !== current.composeFile) {
-      await dokploy.updateCompose({ composeId: composeApp.composeId, composeFile: patched });
-      console.log('🔁 Added restart: unless-stopped to compose services');
+  //
+  // Done PER-SERVICE, not all-or-nothing: the old whole-file `!includes('restart:')`
+  // guard meant a single service already carrying a restart policy blocked the
+  // patch for EVERY other service. We instead inject `restart: unless-stopped`
+  // after each service's `image:` line only when that service's block lacks a
+  // restart key, and log exactly which services were patched vs. left alone.
+  if (current.composeFile) {
+    const patched = patchRestartPolicy(current.composeFile);
+    if (patched.composeFile !== current.composeFile) {
+      await dokploy.updateCompose({ composeId: composeApp.composeId, composeFile: patched.composeFile });
+      console.log(`🔁 Added restart: unless-stopped to service(s): ${patched.patched.join(', ')}`);
+    }
+    if (patched.skipped.length) {
+      console.log(`ℹ️ restart policy already present on service(s): ${patched.skipped.join(', ')}`);
     }
   }
 
@@ -188,6 +249,13 @@ async function main() {
         const { deploySchema } = require(path.resolve(__dirname, '../../../lib/convex'));
         try { await deploySchema({ apiDomain, adminKey }); console.log('✅ Convex schema pushed'); }
         catch (e) { failures.push(`schema push: ${e.message}`); console.error(`❌ schema push failed: ${e.message}`); }
+      } else if (hasSchema && !apiDomain) {
+        // Don't let a present schema be silently dropped: without --domain there
+        // is no apiDomain to push it to, so warn loudly and tell the operator how
+        // to push it (re-run with --domain root.tld). Non-fatal (not a failure)
+        // so a domain-less deploy still succeeds.
+        console.warn('⚠️ convex/schema.ts present but schema was NOT pushed — no --domain (apiDomain) supplied to push it to.');
+        console.warn('   Re-run with --domain <root.tld> to push the schema, or push manually against api-<root.tld>.');
       } else if (!hasSchema) {
         console.log('ℹ️ convex/schema.ts absent — skipping schema push');
       }

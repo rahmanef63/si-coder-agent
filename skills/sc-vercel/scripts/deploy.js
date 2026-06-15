@@ -100,8 +100,13 @@ async function main() {
   await vercel.setBuildCommand(proj.id, buildCommand);
   console.log(`🛠️  build command set: ${buildCommand}`);
 
-  // 6. Add the custom domain (tolerate 409 already-assigned).
-  await vercel.addDomain(proj.id, domain);
+  // 6. Add the custom domain (tolerate 409 already-assigned to THIS project, but
+  //    surface a 409 where the domain is owned by another project/team — SCV-3).
+  const domRes = await vercel.addDomain(proj.id, domain);
+  if (domRes && domRes.conflict) {
+    console.error(`❌ domain ${domain} is owned by another Vercel project/team (409). Remove it there or pick a different host.`);
+    process.exit(1);
+  }
   console.log(`🌐 domain attached: ${domain}`);
 
   // 7. Read the exact DNS record Vercel requires for this host.
@@ -138,7 +143,9 @@ async function main() {
       prod,
     });
   } catch (e) {
-    if (/403/.test(e.message)) {
+    // Anchor to the 'Vercel 403' prefix the client throws (lib/vercel.js formats errors as
+    // `Vercel <status> <endpoint>: ...`) so a stray 403 inside a JSON body can't false-match.
+    if (/Vercel 403\b/.test(e.message)) {
       console.error('❌ triggerDeploy 403 — the Vercel GitHub App is likely not installed on the repo/org.');
       console.error('   Install it at https://vercel.com/account/integrations then re-run.');
     }
@@ -157,9 +164,16 @@ async function main() {
       process.exit(1);
     }
     await new Promise(r => setTimeout(r, 4000));
-    last = await vercel.getDeployment(dpl.id);
-    state = last.readyState;
-    console.log(`   ... readyState=${state}`);
+    // A transient blip (network hiccup, Vercel 5xx, timeout) must NOT abort the whole
+    // deploy. Swallow it, log, and keep polling until the 15-min buildDeadline above
+    // catches a genuine stall.
+    try {
+      last = await vercel.getDeployment(dpl.id);
+      state = last.readyState;
+      console.log(`   ... readyState=${state}`);
+    } catch (e) {
+      console.warn(`   ... poll blip (continuing): ${e.message}`);
+    }
   }
   if (state === 'ERROR') {
     console.error(`❌ deploy ERROR: ${last.errorMessage || 'unknown'}`);

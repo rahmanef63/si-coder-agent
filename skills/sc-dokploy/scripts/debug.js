@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // debug.js — Status and recent-deployment inspection.
-const { getClient, parseArgs, findProject, allApplications, allCompose } = require('./_shared');
+const { getClient, parseArgs, findProject, allApplications } = require('./_shared');
+// SCD-COR-2: reuse compose.js findCompose so --compose status gets the same ambiguity
+// detection (throws on same-named composes across projects) + --project disambiguation.
+const { findCompose } = require('./compose');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -28,13 +31,7 @@ async function main() {
       return;
     }
     if (args.compose) {
-      const projects = await dokploy.listProjects();
-      let target = null;
-      for (const p of projects) {
-        const c = allCompose(p).find(x => x.name === args.compose);
-        if (c) { target = c; break; }
-      }
-      if (!target) { console.error(`compose '${args.compose}' not found`); process.exit(1); }
+      const { compose: target } = await findCompose(dokploy, args.compose, args.project);
       const full = await dokploy.getCompose(target.composeId);
       console.log(JSON.stringify({
         name: full.name,
@@ -44,7 +41,7 @@ async function main() {
       }, null, 2));
       return;
     }
-    console.error('Usage: debug.js status --project X --app Y  |  --compose Z');
+    console.error('Usage: debug.js status --project X --app Y  |  --compose Z [--project X]');
     process.exit(1);
   }
   if (cmd === 'deployments') {

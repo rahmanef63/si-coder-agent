@@ -7,6 +7,15 @@ description: "Convex Cloud (managed) deploy operations. Run 'npx convex deploy' 
 
 Use this skill when the user wants to deploy, debug, or maintain a **Convex Cloud (managed)** backend — the online-path counterpart to `/sc-convex` (self-hosted on Dokploy). The repo lives at `https://github.com/rahmanef63/si-coder-agent`.
 
+```mermaid
+flowchart LR
+    A["/sc-convex-cloud"] --> B["scripts/deploy-cloud.js<br/>CONVEX_DEPLOY_KEY (env, never echoed)"]
+    B --> C["npx convex deploy<br/>→ Convex Cloud"]
+    C --> D["inject NEXT_PUBLIC_CONVEX_URL<br/>into the build"]
+    D --> E["probe *.convex.cloud<br/>/version + JWKS"]
+    E --> F["ready ✅"]
+```
+
 ## NEVER ask the user to run Convex CLI by hand
 
 All Convex Cloud deploys go through `scripts/deploy-cloud.js`. **Do not** instruct the user to run `npx convex deploy` interactively, nor to hand-set `NEXT_PUBLIC_CONVEX_URL`. The deploy key is passed via the script's `env` and never echoed. If a deploy fails, debug it with `scripts/check-cloud.js` and fix root cause — do not punt the Convex CLI call to the user.

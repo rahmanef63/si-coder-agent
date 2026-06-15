@@ -20,9 +20,23 @@ function risksFor(trig, yamlText, runs) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const since = args.since || new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const repos = args.repo
-    ? [{ name: args.repo, private: true, archived: false }]
-    : listRepos().filter(r => !r.archived).map(r => ({ name: r.name, private: r.private, archived: r.archived }));
+  let repos;
+  if (args.repo) {
+    // Fetch real visibility/archived state — never assume private (a public
+    // repo audited via --repo was previously mislabeled).
+    let isPrivate = true, isArchived = false;
+    try {
+      const meta = ghApi(`repos/${OWNER}/${args.repo}`, { jq: '.private,.archived' });
+      const [priv, arch] = meta.split('\n');
+      isPrivate = priv === 'true';
+      isArchived = arch === 'true';
+    } catch (e) {
+      warn(`could not fetch metadata for ${args.repo}, assuming private: ${e.message}`);
+    }
+    repos = [{ name: args.repo, private: isPrivate, archived: isArchived }];
+  } else {
+    repos = listRepos().filter(r => !r.archived).map(r => ({ name: r.name, private: r.private, archived: r.archived }));
+  }
 
   const report = { since, owner: OWNER, repos: [] };
 

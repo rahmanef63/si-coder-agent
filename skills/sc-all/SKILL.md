@@ -7,6 +7,20 @@ description: "End-to-end zero-human full-stack deployment to Dokploy. Orchestrat
 
 Use this skill when the user wants to ship a fresh project end-to-end in one command. This is the modular replacement for the legacy `/use-si-coder` monolith — both remain available in parallel.
 
+```mermaid
+flowchart LR
+    P1["1 · onboarding<br/>verify env"] --> P2["2 · GitHub<br/>repo + push"]
+    P2 --> T{"--target"}
+    T -->|dokploy| D3["3 · Dokploy project"]
+    D3 --> D4["4 · Convex self-hosted<br/>admin key + JWT"]
+    D4 --> D5["5 · Dokploy app"]
+    D5 --> D6["6 · DNS + poll"]
+    T -->|vercel| V3["3 · Convex Cloud<br/>coupled build"]
+    V3 --> V4["4 · Vercel project<br/>+ domain"]
+    V4 --> D6
+    D6 --> Live["live URL ✅"]
+```
+
 ## Pre-requisites
 
 Required env (see `/sc-onboarding` if any are missing):

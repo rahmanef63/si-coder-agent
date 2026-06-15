@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // webhook.js — GitHub webhook CRUD (push → VPS endpoint)
-const { parseArgs, ghApi, OWNER, ok, err, log } = require('./_shared');
+const { parseArgs, ghApi, OWNER, ok, err, warn, log } = require('./_shared');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -17,6 +17,16 @@ async function main() {
   if (cmd === 'create') {
     const { url, events = 'push' } = args;
     if (!url) { err('--url required'); process.exit(1); }
+    // SKILL.md documents https:// endpoints — reject anything that isn't http(s),
+    // and warn loudly on plain http:// (the webhook secret travels in cleartext).
+    let parsed;
+    try { parsed = new URL(url); } catch { err(`--url is not a valid URL: ${url}`); process.exit(1); }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      err(`--url must be http(s), got ${parsed.protocol}//`); process.exit(1);
+    }
+    if (parsed.protocol === 'http:') {
+      warn(`--url uses http:// — the webhook secret will be sent in CLEARTEXT. Use https:// in production.`);
+    }
     // S10: never take the secret on argv (leaks to ps/shell history). Read from env or stdin.
     let secret = process.env.SC_GIT_WEBHOOK_SECRET || '';
     if (!secret && !process.stdin.isTTY) {

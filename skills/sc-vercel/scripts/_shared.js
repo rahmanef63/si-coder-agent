@@ -17,9 +17,18 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--')) {
-      const k = a.slice(2);
+      const body = a.slice(2);
+      const eq = body.indexOf('=');
+      if (eq !== -1) {
+        // --key=value (handles empty value and '=' inside the value)
+        o[body.slice(0, eq)] = body.slice(eq + 1);
+        continue;
+      }
+      const k = body;
       const n = argv[i + 1];
-      if (!n || n.startsWith('--')) o[k] = true;
+      // Don't consume a following flag (starts with '--') as this flag's value;
+      // treat the flag as a boolean instead.
+      if (n === undefined || n.startsWith('--')) o[k] = true;
       else { o[k] = n; i++; }
     } else {
       o._.push(a);

@@ -129,6 +129,46 @@ Standard order to move a repo off cloud Actions:
 | Multi-collaborator + branch protect | runner.js register + keep YAML `runs-on: [self-hosted]` |
 | Dormant | nuke.js |
 
+## Cost-reduction flow
+
+How the subcommands compose to move a repo off GitHub Actions cloud minutes:
+
+```mermaid
+flowchart TD
+    A["audit.js<br/>measure burn rate<br/>(runs, risk tags)"] --> B["disable.js<br/>strip on: triggers →<br/>workflow_dispatch-only<br/>(.bak backup)"]
+    B --> C{Replacement<br/>for each trigger?}
+
+    C -->|push / pull_request CI| D["Local CI<br/>ci.js + hook.js<br/>(pre-push husky)"]
+    C -->|PR gate / branch protect| E["runner.js<br/>self-hosted runner @ VPS<br/>(runs-on: [self-hosted])"]
+    C -->|schedule: cron| F["cron.js<br/>VPS crontab entry"]
+    C -->|push → deploy| G["webhook.js<br/>push webhook → VPS endpoint"]
+
+    D --> H["status.js<br/>POST commit status<br/>(pass/fail, no Actions)"]
+    E --> H
+    G --> H
+
+    A -.dormant repo.-> N["nuke.js<br/>disable Actions entirely"]
+
+    H --> Z(["$0 cloud minutes<br/>web stays current"])
+    F --> Z
+    N --> Z
+```
+
+## Environment variables
+
+These env vars change script behavior; each has a sensible default, so set only what you need to override.
+
+| Variable | Default | Read by | Purpose |
+|---|---|---|---|
+| `GH_OWNER` | `rahmanef63` | `_shared.js` (all subcommands) | GitHub owner/org for every `gh api` call. |
+| `PROJECTS_DIR` | `~/projects` | `_shared.js` (all subcommands) | Root dir scanned for local repo clones (`workflowFiles`, `localRepoPath`). |
+| `SC_GIT_WEBHOOK_SECRET` | _(empty)_ | `webhook.js` (`create`) | HMAC secret for the created webhook. Read from env (or stdin) so it never lands on argv / shell history. |
+| `SC_GIT_VPS_HOST` | `srv614914` | `runner.js` | SSH host where the self-hosted runner is bootstrapped/registered. |
+| `SC_GIT_RUNNER_HOME` | `~/actions-runner` | `runner.js` | Install path of the runner on the VPS. |
+| `SC_GIT_RUNNER_VERSION` | `2.319.1` | `runner.js` | actions-runner release version to download during `setup`. |
+
+`cron.js` reads no env vars — it edits the local crontab directly.
+
 ## Reference
 
 - `gh api repos/{owner}/{repo}/actions/workflows` — list workflows

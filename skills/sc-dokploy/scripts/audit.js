@@ -4,6 +4,16 @@ const { getClient, parseArgs, allApplications, allCompose } = require('./_shared
 const path = require('path');
 const { parseEnvString } = require(path.resolve(__dirname, '../../../lib/env'));
 
+// SCD-COR-3: INSTANCE_SECRET is a self-hosted Convex backend requirement, not a generic
+// compose concern. Only flag MISSING_INSTANCE_SECRET when the compose actually looks like
+// a Convex backend, otherwise every non-Convex compose is a false positive.
+function looksLikeConvex(full, cEnv) {
+  if (cEnv.CONVEX_CLOUD_ORIGIN || cEnv.CONVEX_SITE_ORIGIN) return true;
+  const haystack = `${full.composeFile || ''}\n${full.appName || ''}\n${full.name || ''}`.toLowerCase();
+  // Convex self-hosted ships as ghcr.io/get-convex/convex-backend (+ the Dokploy template).
+  return haystack.includes('convex-backend') || haystack.includes('get-convex') || haystack.includes('convex');
+}
+
 function findDuplicates(domains = []) {
   // Use a Set, not a bare object: hosts named like Object.prototype members
   // (toString, constructor, …) are truthy on first sight via prototype inheritance
@@ -51,7 +61,7 @@ async function main() {
       try { full = await dokploy.getCompose(c.composeId); }
       catch (e) { findings.push({ project: p.name, kind: 'compose', name: c.name, issue: 'FETCH_ERROR', error: e.message }); continue; }
       const cEnv = parseEnvString(full.env || '');
-      if (!cEnv.INSTANCE_SECRET) {
+      if (!cEnv.INSTANCE_SECRET && looksLikeConvex(full, cEnv)) {
         findings.push({ project: p.name, kind: 'compose', name: c.name, issue: 'MISSING_INSTANCE_SECRET' });
       }
       const domains = full.domains || [];

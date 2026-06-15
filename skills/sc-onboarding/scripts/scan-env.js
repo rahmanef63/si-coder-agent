@@ -1,8 +1,29 @@
 #!/usr/bin/env node
 // scan-env.js — Detect which required env vars are set per domain. Used by both AI mode and CLI mode.
+const os = require('os');
+const fs = require('fs');
 const path = require('path');
 const { scanProcessEnv, appendExportToShellRc } = require(path.resolve(__dirname, '../../../lib/env'));
 const { DOMAIN_VARS, VALIDATORS, readShellRcEnv } = require(path.resolve(__dirname, '../lib/onboarding-domains'));
+
+// Read the keys currently present inside the managed si-coder block of ~/.bashrc.
+// Used to report the ACTUAL number of exports written, since appendExportToShellRc
+// silently skips keys that are invalid identifiers or already exported (unmanaged)
+// outside the block — the pre-write count of `updates` would overstate those.
+function managedBlockKeys(shellRcPath = path.join(os.homedir(), '.bashrc')) {
+  const keys = new Set();
+  let content = '';
+  try { content = fs.readFileSync(shellRcPath, 'utf8'); } catch { return keys; }
+  const re = /# --- si-coder onboarding[^\n]*\n([\s\S]*?)# --- end si-coder onboarding ---/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    for (const rawLine of m[1].split(/\r?\n/)) {
+      const mm = /^export\s+([A-Za-z_][A-Za-z0-9_]*)=/.exec(rawLine.trim());
+      if (mm) keys.add(mm[1]);
+    }
+  }
+  return keys;
+}
 
 // Boolean flags never consume the following token, so positional KEY=VALUE
 // pairs after `--write` are parsed as pairs, not swallowed as the flag's value.
@@ -82,8 +103,28 @@ function writeUpdates(updates) {
     for (const k of failed) console.error(`${k} failed validation`);
     process.exit(1);
   }
+  // Snapshot the managed block before/after so we report the ACTUAL number of
+  // exports that landed, not the pre-write count of `updates` (which overstates
+  // when appendExportToShellRc skips invalid or already-unmanaged keys).
+  const before = managedBlockKeys();
   appendExportToShellRc(updates);
-  console.log(`✅ appended ${Object.keys(updates).length} export(s) to ~/.bashrc`);
+  const after = managedBlockKeys();
+
+  const requested = Object.keys(updates);
+  // A requested key counts as written if it's now in the managed block AND it
+  // was either newly added or its line changed (re-runs may leave a key present
+  // but unchanged). We can't compare values cheaply, so report newly-present +
+  // requested keys that survived, and surface skips explicitly.
+  const written = requested.filter(k => after.has(k));
+  const skipped = requested.filter(k => !after.has(k));
+  const added = [...after].filter(k => !before.has(k)).length;
+
+  if (written.length === requested.length) {
+    console.log(`✅ wrote ${written.length} export(s) to ~/.bashrc (${added} new this run)`);
+  } else {
+    console.log(`✅ wrote ${written.length}/${requested.length} requested export(s) to ~/.bashrc (${added} new this run)`);
+    console.log(`   skipped (invalid key or already exported outside the block): ${skipped.join(', ')}`);
+  }
   console.log('   run: source ~/.bashrc');
 }
 

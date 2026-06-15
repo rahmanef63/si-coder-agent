@@ -45,7 +45,16 @@ function gh(args, { json = false, stdin = null } = {}) {
     encoding: 'utf8',
     input: stdin || undefined,
     maxBuffer: 100 * 1024 * 1024,
+    timeout: 30000, // kill a hung gh op instead of stalling forever
   });
+  // spawnSync sets .error (ETIMEDOUT) and/or .signal (SIGTERM) when the timeout fires.
+  if (res.error && res.error.code === 'ETIMEDOUT') {
+    throw new Error(`gh ${args.join(' ')} timed out after 30s`);
+  }
+  if (res.error) throw res.error;
+  if (res.signal) {
+    throw new Error(`gh ${args.join(' ')} killed by signal ${res.signal} (likely 30s timeout)`);
+  }
   if (res.status !== 0) {
     throw new Error(`gh ${args.join(' ')} failed:\n${res.stderr || res.stdout}`);
   }
@@ -116,12 +125,21 @@ function workflowFiles(repo) {
   } catch { return []; }
 }
 
+// ISO-8601 date or datetime — anything else is rejected before it touches the URL.
+const ISO8601_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]+)?$/;
+
 function runCount(repo, since) {
+  // Validate + encode `since` (user-supplied via --since) so it can't smuggle
+  // extra query params or characters into the API URL.
+  if (!ISO8601_RE.test(since)) {
+    throw new Error(`invalid --since value: ${JSON.stringify(since)} (expected ISO-8601 e.g. 2026-04-15)`);
+  }
+  const safeSince = encodeURIComponent(since);
   try {
     // Read total_count (not page-1 length, which clamps at per_page=100 and
     // understates burn on the hottest repos). per_page=1 keeps the payload tiny.
     // Encode the `>` operator (%3E) so the URL is canonical.
-    const out = ghApi(`repos/${OWNER}/${repo}/actions/runs?per_page=1&created=%3E${since}`, { jq: '.total_count' });
+    const out = ghApi(`repos/${OWNER}/${repo}/actions/runs?per_page=1&created=%3E${safeSince}`, { jq: '.total_count' });
     return parseInt(out, 10) || 0;
   } catch { return 0; }
 }
@@ -132,7 +150,14 @@ function runCount(repo, since) {
 // single-line scalar `on: push`, and flow-seq `on: [push, pull_request]`.
 function detectTriggers(yamlText) {
   const t = { push: false, pr: false, schedule: false, dispatch: false, workflowRun: false, paths: false, branches: [], cron: [] };
-  const lines = (yamlText || '').split('\n');
+  // Strip YAML comments before matching so a commented-out trigger like `# push:`
+  // or `on: push  # disabled` isn't misclassified as active. Full-line comments
+  // become empty; a trailing ` #...` is dropped. (Good enough for trigger blocks;
+  // `#` inside quoted scalars is rare in `on:` and not worth a full YAML parse.)
+  const lines = (yamlText || '').split('\n').map(line => {
+    const stripped = line.replace(/^\s*#.*$/, '').replace(/\s+#.*$/, '');
+    return stripped;
+  });
   let inOn = false, indent = 0;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
@@ -166,7 +191,15 @@ function backup(filePath) {
 }
 
 function gitInRepo(repoPath, args) {
-  const res = spawnSync('git', args, { cwd: repoPath, encoding: 'utf8' });
+  const res = spawnSync('git', args, { cwd: repoPath, encoding: 'utf8', timeout: 30000 });
+  // spawnSync sets .error (ETIMEDOUT) and/or .signal (SIGTERM) when the timeout fires.
+  if (res.error && res.error.code === 'ETIMEDOUT') {
+    throw new Error(`git ${args.join(' ')} timed out after 30s`);
+  }
+  if (res.error) throw res.error;
+  if (res.signal) {
+    throw new Error(`git ${args.join(' ')} killed by signal ${res.signal} (likely 30s timeout)`);
+  }
   if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
   return res.stdout.trim();
 }

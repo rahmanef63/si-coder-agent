@@ -70,4 +70,10 @@ async function main() {
   process.exit(1);
 }
 
-main().catch(e => { console.error('❌', e.message); process.exit(1); });
+// Only run the CLI when invoked directly — allow importing findCompose (SCD-COR-2:
+// debug.js reuses the same ambiguity detection + --project support).
+if (require.main === module) {
+  main().catch(e => { console.error('❌', e.message); process.exit(1); });
+}
+
+module.exports = { findCompose };

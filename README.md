@@ -21,6 +21,21 @@ Both paths share the **same flow shape** — `GitHub → backend → frontend �
 | DNS | Hostinger A-record → VPS | Hostinger CNAME (sub) / A (apex) → Vercel |
 | Pick when | You own the box, want full control, $0 marginal cost | You want a managed edge, no VPS to babysit |
 
+```mermaid
+flowchart LR
+    A["Local app<br/>Next.js + Convex"] --> B["/sc-onboarding<br/>credentials → ~/.bashrc"]
+    B --> C["GitHub repo<br/>create + push (SSH)"]
+    C --> D{"/sc-all --target"}
+    D -->|"dokploy<br/>(self-hosted)"| E1["Dokploy app<br/>your VPS"]
+    D -->|"vercel<br/>(online)"| F1["Vercel<br/>managed edge"]
+    E1 --> E2[("Convex self-hosted<br/>Docker Compose")]
+    F1 --> F2[("Convex Cloud<br/>managed")]
+    E2 --> E3["Hostinger DNS<br/>A → VPS"]
+    F2 --> F3["Hostinger DNS<br/>CNAME / A → Vercel"]
+    E3 --> Z(["Live, verified URL ✅"])
+    F3 --> Z
+```
+
 ## Skill catalog
 
 After `bash install.sh`, these slash commands are available. **Implemented** commands do the work; **stubs** are boilerplate and exit with code `2` until someone fills them in (contributions welcome).
@@ -94,6 +109,52 @@ node ~/path/to/si-coder-agent/scripts/deploy.js --project "<PROJECT>" --app "<AP
 
 Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. All scripts share thin REST clients in `lib/`. CommonJS, Node 18+ native `fetch`, no runtime deps.
 
+```mermaid
+flowchart TB
+    subgraph cmds["/sc-* slash commands"]
+        all["sc-all<br/>orchestrator"]
+        dok["sc-dokploy"]
+        cvx["sc-convex"]
+        cc["sc-convex-cloud"]
+        vrc["sc-vercel"]
+        git["sc-git"]
+        onb["sc-onboarding"]
+    end
+    all --> dok
+    all --> cvx
+    all --> cc
+    all --> vrc
+    subgraph libs["lib/ — thin REST clients, zero runtime deps"]
+        ld["dokploy.js"]
+        lg["github.js"]
+        lcx["convex.js"]
+        lcc["convex-cloud.js"]
+        lv["vercel.js"]
+        lh["hostinger.js"]
+        le["env.js"]
+        guard["proc.js · tls.js<br/>(no-shell · TLS-verify)"]
+    end
+    dok --> ld
+    cvx --> lcx
+    cc --> lcc
+    vrc --> lv
+    git --> lg
+    onb --> le
+    subgraph ext["External APIs"]
+        eGh(["GitHub"])
+        eDok(["Dokploy"])
+        eVrc(["Vercel"])
+        eCvx(["Convex"])
+        eHost(["Hostinger DNS"])
+    end
+    ld --> eDok
+    lg --> eGh
+    lv --> eVrc
+    lcx --> eCvx
+    lcc --> eCvx
+    lh --> eHost
+```
+
 ```
 si-coder-agent/
 ├── SKILL.md           umbrella; points to sc-*
@@ -128,26 +189,33 @@ si-coder-agent/
 │   ├── sc-git/SKILL.md + scripts/
 │   ├── sc-onboarding/
 │   │   ├── SKILL.md
+│   │   ├── lib/onboarding-domains.js   single source: domain registry + validators
 │   │   ├── scripts/scan-env.js
 │   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,clerk,vercel,supabase}.md
+│   ├── use-si-coder/SKILL.md   vendored legacy-monolith doc (@convex-dev/auth lessons)
 │   └── sc-{cf,stripe,resend,clerk,supabase}/   STUBS — boilerplate only
 ├── scripts/
 │   └── deploy.js      legacy monolith (still functional)
 ├── test/
 │   ├── deploy-helpers.test.js  pure helpers from scripts/deploy.js
-│   └── lib.test.js             lib/tls, lib/convex, lib/hostinger, lib/env
+│   ├── lib.test.js             lib/tls, lib/convex, lib/hostinger, lib/env
+│   ├── resilience.test.js      fetch retry/backoff + bounded-timeout branches
+│   └── sc-git.test.js          sc-git helper coverage
 └── bin/
     └── onboard.js     one-shot CLI wizard
 ```
 
 ## Security
 
-All `sc-*` skills were hardened **2026-06-14**:
+Every skill (legacy `/use-si-coder` and all `/sc-*`) is adversarially audited and hardened:
 
 - **No shell** — every external call uses `execFileSync` (no `sh -c`), so no command injection.
 - **TLS always verified** — never disabled, even for self-signed probes.
-- **No secret leaks** — tokens never appear in logs, build args, or git URLs.
-- **`0600` secret files** — credential files are written owner-read/write only.
+- **No secret leaks** — tokens never appear in argv (`ps`-safe), logs, build args, or git URLs.
+- **Redact-by-default inspection** — `sc-dokploy` `env`/`show` redact secrets by key **and** value-shape (+ URL userinfo), and mask non-`env` credential fields (`customGitUrl` PAT, registry password, SSH keys).
+- **Validated env keys** — onboarding rejects non-identifier env-var names before writing `~/.bashrc` (no key-name shell injection).
+- **Every external fetch bounded** — `AbortController` timeout + retry/backoff on 429/5xx across all REST clients, so a hung API can't stall a zero-human run.
+- **`0600` secret files** — `~/.bashrc` and credential files are written owner-read/write only.
 - **Shell-safe `~/.bashrc`** — values are single-quote escaped and merged in place.
 
 ## Development & tests

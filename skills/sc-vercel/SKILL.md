@@ -7,6 +7,18 @@ description: "Vercel deploy as online frontend host. Create project bound to a G
 
 > **Status:** implemented (online path).
 
+```mermaid
+flowchart TD
+    A["/sc-vercel"] --> B["find/create Vercel project<br/>(bound to GitHub repo)"]
+    B --> C["set CONVEX_DEPLOY_KEY (encrypted)"]
+    C --> D["set coupled build cmd<br/>npx convex deploy --cmd 'npm run build'"]
+    D --> E["add custom domain / subdomain"]
+    E --> F["read required DNS from Vercel<br/>(array-normalized + IPv4 guard)"]
+    F --> G["Hostinger DNS<br/>CNAME (sub) / A (apex)"]
+    G --> H["trigger deploy + poll readyState<br/>(15-min cap, blip-tolerant)"]
+    H --> I["live URL ✅<br/>NEXT_PUBLIC_CONVEX_URL injected at build"]
+```
+
 ## When to use
 
 - You want Vercel's edge network for the Next.js frontend, with the Convex backend on **Convex Cloud** (managed).

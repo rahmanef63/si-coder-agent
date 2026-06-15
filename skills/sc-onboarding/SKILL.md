@@ -15,7 +15,7 @@ Triggered when the user runs `/sc-onboarding` from Claude / OpenClaw / Gemini.
 
 The AI MUST:
 1. **Ask which domains they want.** Present a checklist (core deploy domains shown;
-   see the "Required vars per domain" table below or `lib/onboarding-domains.js`
+   see the "Required vars per domain" table below or `skills/sc-onboarding/lib/onboarding-domains.js`
    `DOMAIN_VARS` for the full list, including the stub domains):
    - `[ ] github` (always required for any deploy)
    - `[ ] dokploy` (Dokploy CRUD + deploy targets)
@@ -37,6 +37,30 @@ The AI MUST:
 
 NEVER ask the user to paste a value if it is already exported. Never log the value back to the user — confirm by hash/length only.
 
+## Flow
+
+```mermaid
+flowchart TD
+    A([/sc-onboarding]) --> B[Pick domains<br/>ticked checklist]
+    B --> C[Scan sources:<br/>process.env + ~/.bashrc]
+    C --> D[Resolve DOMAIN_VARS<br/>required + optional<br/>per ticked domain]
+    D --> E{For each var:<br/>already set in<br/>env or ~/.bashrc?}
+    E -- yes --> F[Skip<br/>never re-prompt]
+    E -- no --> G{required?}
+    G -- required --> H[Prompt for value<br/>missing required]
+    G -- optional --> I[Prompt for value<br/>missing optional<br/>blank = skip]
+    H --> J[Validate against VALIDATORS]
+    I --> J
+    J -- fail --> H
+    J -- pass --> K[Collect into updates]
+    F --> L
+    K --> L{any updates<br/>to write?}
+    L -- no --> M([Done — nothing to write])
+    L -- yes --> N[Merge into managed block<br/># --- si-coder onboarding --- ... end<br/>dedup keys, single-quote escape]
+    N --> O[Write ~/.bashrc<br/>chmod 0600]
+    O --> P([source ~/.bashrc])
+```
+
 ### Mode B — One-shot CLI (non-AI)
 
 For users who clone the repo and want a scripted setup:
@@ -47,11 +71,15 @@ node bin/onboard.js                    # interactive readline wizard
 node bin/onboard.js --domains convex,dokploy,github   # non-interactive checklist
 ```
 
-The CLI reads `steps/<domain>.md` for prompts + validators and writes to `~/.bashrc`.
+The CLI (`bin/onboard.js`) reads `steps/<domain>.md` only for the human-readable prompt
+text/context it shows per domain. The per-key **validators** are NOT in the step markdown —
+they live in the `VALIDATORS` registry in `skills/sc-onboarding/lib/onboarding-domains.js`
+(the same source of truth `scripts/scan-env.js` uses), which `bin/onboard.js` imports and
+applies before writing to `~/.bashrc`.
 
 ## Required vars per domain
 
-Mirrors `lib/onboarding-domains.js` `DOMAIN_VARS` (the single source of truth).
+Mirrors `skills/sc-onboarding/lib/onboarding-domains.js` `DOMAIN_VARS` (the single source of truth).
 
 | Domain | Required | Optional |
 |---|---|---|

@@ -33,6 +33,24 @@ When the user asks to deploy a project:
 2. **Docker Compose**: Ensure the project has a `docker-compose.yml` that defines the frontend, backend (Convex DB), etc. (Or at least a Dockerfile for simple apps).
 3. **Execute Deployment Script**: Run the Node.js deployment script from inside the project directory.
 
+```mermaid
+flowchart TD
+    Start["scripts/deploy.js<br/>(cwd = your app)"] --> GH["GitHub: create private repo<br/>+ push via SSH"]
+    GH --> Guard{".env leak guard<br/>git check-ignore"}
+    Guard -->|secret unignored| Abort["ABORT before push"]
+    Guard -->|clean| Compose{"docker-compose.yml?"}
+    Compose -->|yes| CVX["Convex compose template<br/>INSTANCE_SECRET + domains"]
+    CVX --> Key["generate admin key<br/>(health-poll) → Dokploy env"]
+    Key --> TLS["wait for valid TLS"]
+    TLS --> Schema["npx convex deploy<br/>(env-only, no argv)"]
+    Compose -->|no| Dockerfile{"Dockerfile?"}
+    Schema --> Dockerfile
+    Dockerfile -->|yes| App["Dokploy application<br/>GitHub provider, PAT-less"]
+    App --> DNS["Hostinger A records<br/>main + api-/site-/dash-"]
+    DNS --> Poll["trigger deploy + poll status"]
+    Poll --> Done["live URL ✅"]
+```
+
 ## Features
 - **Zero-Human Intervention**: The script creates repos, pushes code, creates projects, and triggers deployments automatically.
 - **Hostinger DNS Automation**: If `HOSTINGER_API_TOKEN` is present in the environment, the script automatically adds `A` records for your main domain and Convex backend subdomains (`api-`, `dash-`, `site-`) pointing to your Dokploy server.

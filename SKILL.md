@@ -24,6 +24,20 @@ This is the parent skill for the SI Coder family. After installing (see `install
 - **(A) Self-hosted** — GitHub → Dokploy app + self-hosted Convex compose → Hostinger A-record → verify. `/sc-all --target dokploy`
 - **(B) Online** — GitHub → Vercel frontend + Convex Cloud backend → Hostinger CNAME/A to Vercel → verify. `/sc-all --target vercel`
 
+```mermaid
+flowchart TD
+    O["/sc-all"] --> G["/sc-git<br/>repo create + push"]
+    G --> T{"--target?"}
+    T -->|dokploy| H1["/sc-dokploy<br/>project · app · compose · domains"]
+    H1 --> C1["/sc-convex<br/>self-hosted backend + admin key + JWT"]
+    C1 --> D1["Hostinger A → VPS"]
+    T -->|vercel| H2["/sc-convex-cloud<br/>managed backend (coupled build)"]
+    H2 --> C2["/sc-vercel<br/>GitHub-bound project + domain"]
+    C2 --> D2["Hostinger CNAME / A → Vercel"]
+    D1 --> V["verify live URL"]
+    D2 --> V
+```
+
 **Stubs (5, exit code 2 until implemented):** `/sc-cf` (Cloudflare), `/sc-stripe` (payments), `/sc-resend` (email), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt).
 
 The **legacy `/use-si-coder`** continues to work in parallel — it runs the monolithic `scripts/deploy.js` which still bundles GitHub + Dokploy + Convex + Hostinger DNS.
