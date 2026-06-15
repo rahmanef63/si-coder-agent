@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // projects.js — Dokploy project CRUD
-const { getClient, parseArgs, findProject } = require('./_shared');
+const { getClient, parseArgs, findProject, allApplications, allCompose } = require('./_shared');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -11,8 +11,8 @@ async function main() {
     const projects = await dokploy.listProjects();
     console.table(projects.map(p => ({
       name: p.name,
-      apps: p.environments?.[0]?.applications?.length ?? 0,
-      compose: p.environments?.[0]?.compose?.length ?? 0,
+      apps: allApplications(p).length,
+      compose: allCompose(p).length,
     })));
     return;
   }

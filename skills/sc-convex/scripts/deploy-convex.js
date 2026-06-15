@@ -7,6 +7,13 @@ const { configureDns } = require(path.resolve(__dirname, '../../../lib/hostinger
 const { parseEnvString } = require(path.resolve(__dirname, '../../../lib/env'));
 const { generateAdminKey, generateAuthKeys, setBackendEnv } = require(path.resolve(__dirname, '../../../lib/convex'));
 
+// Backend boot is polled, not slept-on: a cold image pull / slow host can take
+// well over the old fixed 15s. Retry the admin-key generation (which runs a
+// `docker exec` against the freshly-deployed container) until the container is
+// up or the budget is exhausted.
+const BACKEND_BOOT_ATTEMPTS = 12;
+const BACKEND_BOOT_DELAY_MS = 5000;
+
 function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
@@ -26,8 +33,16 @@ async function main() {
   const { project, app, domain } = args;
   const withAuth = !!args['with-auth-keys'];
 
-  if (!project || !app) {
-    console.error('Usage: deploy-convex.js --project <PROJECT> --app <APP_NAME> [--domain root.tld] [--with-auth-keys]');
+  const USAGE = 'Usage: deploy-convex.js --project <PROJECT> --app <APP_NAME> [--domain root.tld] [--with-auth-keys]';
+  // A bare flag (no value / followed by another --flag) yields `true` from
+  // parseArgs. Reject those so e.g. `--domain` with no value can't become the
+  // literal host `api-true`, or `--app` the compose name `true-db`.
+  if (typeof project !== 'string' || typeof app !== 'string') {
+    console.error(USAGE);
+    process.exit(1);
+  }
+  if ('domain' in args && typeof domain !== 'string') {
+    console.error('--domain requires a value (root.tld)\n' + USAGE);
     process.exit(1);
   }
 
@@ -112,10 +127,15 @@ async function main() {
   }
   if (siteDomain) updates.CONVEX_SITE_ORIGIN = `https://${siteDomain}`;
 
+  // Generated auth keys are pushed ONLY via the newline-safe JSON REST path
+  // (setBackendEnv, below) — never through updateComposeEnv. The line-based
+  // compose .env serializer cannot represent the multiline RS256 PEM; routing
+  // JWT_PRIVATE_KEY through it silently truncates the key to its BEGIN line on
+  // the next env merge (the PEM body lines are orphan, no-`=` lines that
+  // parseEnvString drops). Keep them out of `updates` entirely.
+  let authKeys = null;
   if (withAuth) {
-    const keys = generateAuthKeys();
-    updates.JWT_PRIVATE_KEY = keys.JWT_PRIVATE_KEY;
-    updates.JWKS = keys.JWKS;
+    authKeys = generateAuthKeys();
     console.log('🔐 Generated RS256 JWT_PRIVATE_KEY + JWKS');
   }
 
@@ -125,37 +145,64 @@ async function main() {
   console.log('🚀 Triggering compose deployment...');
   await dokploy.deployCompose(composeApp.composeId);
 
-  // Wait, then admin key + schema (if convex/schema.ts exists)
+  // Admin key is generated once the compose deploy has been triggered — it is
+  // logically independent of schema/auth, so it runs unconditionally. The
+  // schema push is gated on convex/schema.ts existing; the auth env push only
+  // needs adminKey + apiDomain (not a schema), so it runs whenever withAuth is
+  // set and we have an apiDomain.
   const fs = require('fs');
   const failures = [];
+  const hasSchema = fs.existsSync(path.join(process.cwd(), 'convex/schema.ts'));
   const maskSecret = (s = '') => (String(s).length <= 4 ? '****' : `len=${String(s).length} …${String(s).slice(-4)}`);
-  if (fs.existsSync(path.join(process.cwd(), 'convex/schema.ts'))) {
-    console.log('⏳ Waiting 15s for backend to boot...');
-    await new Promise(r => setTimeout(r, 15000));
-
+  {
     const latest = await dokploy.getCompose(composeApp.composeId);
     const runtimeName = latest.appName || composeApp.appName;
     const containerName = `${runtimeName}-backend-1`;
 
+    // Poll instead of a single fixed sleep: the backend container may take far
+    // longer than one delay to come up (cold image pull / slow host). Retry the
+    // docker-exec-backed admin-key generation until it succeeds or the budget is
+    // exhausted, surfacing only the last error.
+    async function generateAdminKeyWithBoot() {
+      let lastErr;
+      for (let attempt = 1; attempt <= BACKEND_BOOT_ATTEMPTS; attempt++) {
+        try {
+          return generateAdminKey({ containerName });
+        } catch (e) {
+          lastErr = e;
+          if (attempt < BACKEND_BOOT_ATTEMPTS) {
+            console.log(`⏳ backend not ready (attempt ${attempt}/${BACKEND_BOOT_ATTEMPTS}): ${e.message}; retrying in ${BACKEND_BOOT_DELAY_MS / 1000}s...`);
+            await new Promise(r => setTimeout(r, BACKEND_BOOT_DELAY_MS));
+          }
+        }
+      }
+      throw lastErr;
+    }
+
     try {
-      const adminKey = generateAdminKey({ containerName });
+      const adminKey = await generateAdminKeyWithBoot();
       await dokploy.updateComposeEnv(composeApp.composeId, { CONVEX_ADMIN_KEY: adminKey });
       console.log(`🔑 admin key saved to compose env (masked: ${maskSecret(adminKey)})`);
 
-      if (apiDomain) {
+      if (hasSchema && apiDomain) {
         const { deploySchema } = require(path.resolve(__dirname, '../../../lib/convex'));
         try { await deploySchema({ apiDomain, adminKey }); console.log('✅ Convex schema pushed'); }
         catch (e) { failures.push(`schema push: ${e.message}`); console.error(`❌ schema push failed: ${e.message}`); }
+      } else if (!hasSchema) {
+        console.log('ℹ️ convex/schema.ts absent — skipping schema push');
       }
 
-      if (withAuth) {
+      if (withAuth && apiDomain) {
         try {
           await setBackendEnv({
             apiDomain, adminKey,
-            changes: { JWT_PRIVATE_KEY: updates.JWT_PRIVATE_KEY, JWKS: updates.JWKS },
+            changes: { JWT_PRIVATE_KEY: authKeys.JWT_PRIVATE_KEY, JWKS: authKeys.JWKS },
           });
           console.log('✅ JWT_PRIVATE_KEY + JWKS set via REST API');
         } catch (e) { failures.push(`auth env set: ${e.message}`); console.error(`❌ auth env set failed: ${e.message}`); }
+      } else if (withAuth && !apiDomain) {
+        failures.push('auth env set: --with-auth-keys requires --domain (no apiDomain to push JWKS to)');
+        console.error('❌ auth env set: --with-auth-keys requires --domain');
       }
     } catch (e) {
       failures.push(`admin-key generation: ${e.message}`);

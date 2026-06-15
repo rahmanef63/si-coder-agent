@@ -36,12 +36,20 @@ async function main() {
     return;
   }
   if (cmd === 'create-compose') {
-    if (!args['compose-id'] || !args.host) { console.error('Usage: domains.js create-compose --compose-id <id> --host <host> --port <n> --service <name>'); process.exit(1); }
+    if (!args['compose-id'] || !args.host || !args.port || !args.service || args.port === true || args.service === true) {
+      console.error('Usage: domains.js create-compose --compose-id <id> --host <host> --port <n> --service <name>');
+      process.exit(1);
+    }
+    const port = Number(args.port);
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      console.error('--port must be 1..65535');
+      process.exit(1);
+    }
     try {
       await dokploy.createDomain({
         composeId: args['compose-id'],
         host: args.host,
-        port: Number(args.port),
+        port,
         serviceName: args.service,
         https: true,
         certificateType: 'letsencrypt',

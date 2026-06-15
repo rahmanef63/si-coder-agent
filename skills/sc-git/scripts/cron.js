@@ -36,7 +36,17 @@ async function main() {
   if (cmd === 'list') {
     const es = entries();
     if (!es.length) { log('(no sc-git cron entries)'); return; }
-    console.table(es.map(e => ({ name: e.name, schedule: e.line.split(/\s+/).slice(0, 5).join(' '), cmd: e.line.split(/\s+/).slice(5).join(' ').slice(0, 60) })));
+    console.table(es.map(e => {
+      const parts = e.line.split(/\s+/);
+      // vixie-cron macros (@daily, @reboot, @hourly, ...) are a single schedule
+      // token; the standard form is 5 fields. Cut accordingly.
+      const cut = parts[0].startsWith('@') ? 1 : 5;
+      return {
+        name: e.name,
+        schedule: parts.slice(0, cut).join(' '),
+        cmd: parts.slice(cut).join(' ').slice(0, 60),
+      };
+    }));
     return;
   }
 
@@ -44,7 +54,9 @@ async function main() {
     const { name, schedule, cmd: shellCmd } = args;
     if (!name || !schedule || !shellCmd) { err('Usage: cron.js add --name X --schedule "0 19 * * 0" --cmd "bash ..."'); process.exit(1); }
     const cur = readCron();
-    if (cur.includes(`${TAG_PREFIX} ${name}`)) { warn('entry with that name already exists. remove first.'); return; }
+    // Exact-token match (same identity remove/entries use), not String.includes,
+    // so `--name sync` is NOT blocked by an existing `sync-notion` entry.
+    if (entries().some(e => e.name === name)) { warn('entry with that name already exists. remove first.'); return; }
     const newText = (cur.trim() + '\n' + `${TAG_PREFIX} ${name}\n${schedule} ${shellCmd}\n`).trimStart();
     writeCron(newText);
     ok(`added cron '${name}' (${schedule})`);

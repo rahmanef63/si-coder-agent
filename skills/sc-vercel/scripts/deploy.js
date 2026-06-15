@@ -16,11 +16,22 @@ const { configureDnsRecord } = require(path.resolve(__dirname, '../../../lib/hos
 // Read owner/name from the local `origin` git remote in `cwd`.
 function deriveFromGitRemote(cwd) {
   try {
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd }).toString().trim();
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd }).toString().trim().replace(/\/$/, '');
     const m = url.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/);
     if (m) return `${m[1]}/${m[2]}`;
   } catch (e) {
     // no remote / not a repo — caller handles the null case
+  }
+  return null;
+}
+
+// Read the current branch name in `cwd` (e.g. 'main', 'master'). null if detached/unknown.
+function deriveBranchFromGit(cwd) {
+  try {
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd }).toString().trim();
+    if (branch && branch !== 'HEAD') return branch;
+  } catch (e) {
+    // not a repo / detached HEAD — caller falls back to 'main'
   }
   return null;
 }
@@ -35,7 +46,7 @@ async function main() {
   const decoupled = !!args.decoupled;
 
   if (!project || !domain) {
-    console.error('Usage: deploy.js --project <name> --app <name> --domain <host> [--git-owner <o> --git-repo <r>] [--prod] [--decoupled] [--cwd <path>]');
+    console.error('Usage: deploy.js --project <name> --app <name> --domain <host> [--git-owner <o> --git-repo <r>] [--ref <branch>] [--prod] [--decoupled] [--cwd <path>]');
     process.exit(1);
   }
 
@@ -56,7 +67,10 @@ async function main() {
     process.exit(1);
   }
   const [gitOwner, gitName] = gitRepo.split('/');
-  console.log(`📦 Vercel deploy: project=${project} app=${app} repo=${gitRepo} domain=${domain}`);
+
+  // Resolve the git ref to deploy: explicit flag, else the repo's current branch, else 'main'.
+  const ref = args.ref || args.branch || deriveBranchFromGit(cwd) || 'main';
+  console.log(`📦 Vercel deploy: project=${project} app=${app} repo=${gitRepo} ref=${ref} domain=${domain}`);
 
   // 3. Find or create the project bound to the GitHub repo.
   const proj = await vercel.findOrCreateProject({ name: project, gitRepo, framework: 'nextjs' });
@@ -77,8 +91,12 @@ async function main() {
   }
   console.log('🔐 env vars set (CONVEX_DEPLOY_KEY -> production, encrypted)');
 
-  // 5. Couple Convex Cloud deploy + Next.js build (injects NEXT_PUBLIC_CONVEX_URL).
-  const buildCommand = "npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL";
+  // 5. Build command. Default (coupled): Convex Cloud deploys first and injects
+  // NEXT_PUBLIC_CONVEX_URL into the Next.js build. Decoupled: plain build — the
+  // URL comes from the env var set above, NOT from --cmd injection (no double-set).
+  const buildCommand = decoupled
+    ? 'npm run build'
+    : "npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL";
   await vercel.setBuildCommand(proj.id, buildCommand);
   console.log(`🛠️  build command set: ${buildCommand}`);
 
@@ -116,7 +134,7 @@ async function main() {
       name: project,
       org: gitOwner,
       repo: gitName,
-      ref: 'main',
+      ref,
       prod,
     });
   } catch (e) {

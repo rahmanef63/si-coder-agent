@@ -376,3 +376,105 @@ test('appendExportToShellRc: updates win over a prior managed value', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// SEC-1: a key the user exported OUTSIDE the managed block must NOT be silently
+// overridden. appendExportToShellRc skips it (so the user's value still wins on
+// `source`) and the managed block carries only the un-conflicting keys.
+test('appendExportToShellRc: does NOT override a user export outside the managed block', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-rc-sec-'));
+  const rc = path.join(dir, 'rc');
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (...a) => { warned += a.join(' ') + '\n'; };
+  try {
+    fs.writeFileSync(rc, [
+      'export GITHUB_TOKEN=ghp_existing',
+      '',
+    ].join('\n'), { mode: 0o644 });
+
+    appendExportToShellRc({ GITHUB_TOKEN: 'ghp_OVERWRITTEN', NEW_KEY: 'fresh' }, rc);
+    const out = fs.readFileSync(rc, 'utf8');
+
+    // The user's pre-existing export is untouched and is the only GITHUB_TOKEN line.
+    assert.match(out, /export GITHUB_TOKEN=ghp_existing/, 'user export preserved');
+    assert.doesNotMatch(out, /ghp_OVERWRITTEN/, 'managed block must not add a shadowing override');
+    assert.equal(
+      (out.match(/export GITHUB_TOKEN=/g) || []).length, 1,
+      'exactly one GITHUB_TOKEN export (no shadowing duplicate)',
+    );
+    // The non-conflicting key is still written into the managed block.
+    assert.match(out, /export NEW_KEY='fresh'/, 'non-conflicting key still managed');
+    // A warning surfaced the skip (documented "never overwrite silently").
+    assert.match(warned, /GITHUB_TOKEN already exported/, 'skip is warned, not silent');
+  } finally {
+    console.warn = origWarn;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// convex-cloud.js (CC-3) — deriveCloudUrl / readInjectedUrl pure contracts +
+// probeCloud timeout bounding (CC-1).
+// ---------------------------------------------------------------------------
+const { deriveCloudUrl, readInjectedUrl, probeCloud } = require('../lib/convex-cloud');
+
+test('deriveCloudUrl: prod key -> https://<name>.convex.cloud', () => {
+  assert.equal(
+    deriveCloudUrl('prod:qualified-jaguar-123|eyJ2IjoxfQ'),
+    'https://qualified-jaguar-123.convex.cloud',
+  );
+});
+
+test('deriveCloudUrl: preview/project keys and malformed input -> null', () => {
+  assert.equal(deriveCloudUrl('preview:branch-name|eyJ2IjoxfQ'), null, 'preview key carries no deployment name');
+  assert.equal(deriveCloudUrl('project:my-proj|eyJ2IjoxfQ'), null, 'project key carries no deployment name');
+  assert.equal(deriveCloudUrl('no-colon-here'), null, 'no colon -> null');
+  assert.equal(deriveCloudUrl(''), null, 'empty -> null');
+  assert.equal(deriveCloudUrl(null), null, 'null -> null');
+  assert.equal(deriveCloudUrl('prod:|eyJ2IjoxfQ'), null, 'empty name -> null');
+});
+
+test('readInjectedUrl: reads the URL var from a temp .env.local (and null when absent)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-injected-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, '.env.local'),
+      'SOMETHING=else\nNEXT_PUBLIC_CONVEX_URL=https://happy-otter-7.convex.cloud\n',
+    );
+    assert.equal(
+      readInjectedUrl({ cwd: dir }),
+      'https://happy-otter-7.convex.cloud',
+      'reads the default urlEnvVar',
+    );
+    assert.equal(
+      readInjectedUrl({ cwd: dir, urlEnvVar: 'MISSING_VAR' }),
+      null,
+      'missing var -> null',
+    );
+    // No file at all -> null (no throw).
+    assert.equal(
+      readInjectedUrl({ cwd: dir, envFile: '.env.nope' }),
+      null,
+      'missing file -> null',
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('probeCloud: a hung URL yields { error: "timeout after Nms" } (CC-1)', async () => {
+  const origFetch = global.fetch;
+  // Honor the AbortSignal so the per-request timeout fires fast and we never hang.
+  global.fetch = (url, { signal } = {}) => new Promise((_resolve, reject) => {
+    if (signal) signal.addEventListener('abort', () => {
+      const err = new Error('aborted'); err.name = 'AbortError'; reject(err);
+    });
+  });
+  try {
+    const results = await probeCloud({ deploymentUrl: 'https://happy-otter-7.convex.cloud', timeoutMs: 20 });
+    assert.match(results.version.error, /timeout after 20ms/, 'hung probe is bounded, not hung');
+    assert.match(results.jwks.error, /timeout after 20ms/, 'jwks probe also bounded');
+  } finally {
+    global.fetch = origFetch;
+  }
+});

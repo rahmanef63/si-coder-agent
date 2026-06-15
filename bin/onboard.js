@@ -4,46 +4,8 @@
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
-const { appendExportToShellRc, scanProcessEnv, readShellRc, parseEnvString } = require(path.resolve(__dirname, '../lib/env'));
-
-const DOMAIN_VARS = {
-  github:    { required: ['GITHUB_TOKEN'], optional: [] },
-  dokploy:   { required: ['DOKPLOY_API_URL', 'DOKPLOY_API_KEY'], optional: [] },
-  convex:    { required: [], optional: ['CONVEX_ADMIN_KEY'] },
-  hostinger: { required: [], optional: ['HOSTINGER_API_TOKEN'] },
-  // STUB domains — scripts not implemented yet, but vars pre-registered.
-  cf:        { required: [], optional: ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'] },
-  stripe:    { required: [], optional: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'] },
-  resend:    { required: [], optional: ['RESEND_API_KEY', 'RESEND_FROM_DOMAIN'] },
-  clerk:     { required: [], optional: ['CLERK_SECRET_KEY', 'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CLERK_FRONTEND_API_URL'] },
-  vercel:        { required: ['VERCEL_TOKEN'], optional: ['VERCEL_TEAM_ID'] },
-  'convex-cloud':{ required: ['CONVEX_DEPLOY_KEY'], optional: ['CONVEX_DEPLOYMENT'] },
-  supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
-};
-
-const VALIDATORS = {
-  GITHUB_TOKEN: v => (v.startsWith('ghp_') || v.startsWith('github_pat_')) && v.length >= 40,
-  DOKPLOY_API_URL: v => v.startsWith('https://'),
-  DOKPLOY_API_KEY: v => v.length >= 24,
-  HOSTINGER_API_TOKEN: v => v.length >= 32,
-  CONVEX_ADMIN_KEY: v => v.includes('|') && v.length >= 32,
-  CONVEX_DEPLOY_KEY: v => v.includes('|') && /^(prod|preview|project):/.test(v) && v.length >= 32,
-  CONVEX_DEPLOYMENT: v => v.length >= 6, // e.g. "prod:happy-animal-123" or a deployment name
-  CLOUDFLARE_API_TOKEN: v => v.length >= 32,
-  CLOUDFLARE_ACCOUNT_ID: v => v.length >= 16,
-  STRIPE_SECRET_KEY: v => /^sk_(test|live)_/.test(v),
-  STRIPE_PUBLISHABLE_KEY: v => /^pk_(test|live)_/.test(v),
-  STRIPE_WEBHOOK_SECRET: v => v.startsWith('whsec_'),
-  RESEND_API_KEY: v => v.startsWith('re_'),
-  RESEND_FROM_DOMAIN: v => /\./.test(v),
-  CLERK_SECRET_KEY: v => /^sk_(test|live)_/.test(v),
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: v => /^pk_(test|live)_/.test(v),
-  NEXT_PUBLIC_CLERK_FRONTEND_API_URL: v => v.startsWith('https://'),
-  VERCEL_TOKEN: v => v.length >= 24,
-  VERCEL_TEAM_ID: v => v.length >= 8,
-  SUPABASE_ACCESS_TOKEN: v => v.startsWith('sbp_'),
-  SUPABASE_ORG_ID: v => v.length >= 16,
-};
+const { appendExportToShellRc, scanProcessEnv } = require(path.resolve(__dirname, '../lib/env'));
+const { DOMAIN_VARS, VALIDATORS, readShellRcEnv } = require(path.resolve(__dirname, '../skills/sc-onboarding/lib/onboarding-domains'));
 
 function parseArgs(argv) {
   const o = {};
@@ -65,16 +27,32 @@ function readStepDoc(domain) {
   return null;
 }
 
+// One-line blurb per domain; falls back to the required/optional summary so a
+// newly-registered DOMAIN_VARS entry always shows up in the menu (no drift).
+const DOMAIN_BLURBS = {
+  github: 'always required for deploy',
+  dokploy: 'Dokploy CRUD + deploy',
+  convex: 'Convex self-hosted',
+  hostinger: 'DNS automation, optional',
+  cf: 'Cloudflare, future',
+  stripe: 'Stripe payments (stub)',
+  resend: 'Resend email (stub)',
+  clerk: 'Clerk auth (stub)',
+  vercel: 'Vercel online frontend',
+  'convex-cloud': 'Convex Cloud backend',
+  supabase: 'Supabase backend (stub)',
+};
+
 function askDomainsInteractive(rl) {
   return new Promise(resolve => {
     console.log('\nWhich domains to set up? (comma-separated)\n');
-    console.log('  [1] github     (always required for deploy)');
-    console.log('  [2] dokploy    (Dokploy CRUD + deploy)');
-    console.log('  [3] convex     (Convex self-hosted)');
-    console.log('  [4] hostinger  (DNS automation, optional)');
-    console.log('  [5] cf         (Cloudflare, future)');
-    console.log('  [6] vercel        (Vercel online frontend)');
-    console.log('  [7] convex-cloud  (Convex Cloud backend)\n');
+    const names = Object.keys(DOMAIN_VARS);
+    names.forEach((name, i) => {
+      const blurb = DOMAIN_BLURBS[name]
+        || `required: ${DOMAIN_VARS[name].required.join(', ') || '—'}`;
+      console.log(`  [${i + 1}] ${name.padEnd(13)} (${blurb})`);
+    });
+    console.log('');
     rl.question('Pick (e.g. "github,dokploy,convex"): ', (ans) => {
       const picked = ans.split(',').map(s => s.trim()).filter(Boolean);
       resolve(picked.length === 0 ? ['github', 'dokploy'] : picked);
@@ -86,6 +64,13 @@ function promptValue(rl, key) {
   return new Promise(resolve => {
     rl.question(`  ${key} = `, val => resolve(val.trim()));
   });
+}
+
+// Reveal at most ~25% of a value (cap 4 chars) so short secrets aren't echoed whole.
+function redactValue(val) {
+  if (!val) return '';
+  const n = Math.min(4, Math.floor(val.length / 4));
+  return `${val.slice(0, n)}…`;
 }
 
 async function main() {
@@ -106,13 +91,13 @@ async function main() {
 
   // What is already present?
   const fromProc = scanProcessEnv(allKeys.map(x => x.key)).present;
-  const rcEnv = parseEnvString(readShellRc().replace(/^\s*export\s+/gm, ''));
+  const rcEnv = readShellRcEnv();
 
   const updates = {};
   let lastDomain = null;
   for (const { key, required, domain } of allKeys) {
     if (fromProc[key] || rcEnv[key]) {
-      console.log(`  ✅ ${key} already set (${(fromProc[key] || rcEnv[key]).slice(0, 12)}…), skipping`);
+      console.log(`  ✅ ${key} already set (${redactValue(fromProc[key] || rcEnv[key])}), skipping`);
       continue;
     }
     if (domain !== lastDomain) {

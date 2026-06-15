@@ -75,7 +75,7 @@ If any required env var missing → run `/sc-onboarding` first.
 ### Phase 4 — Convex backend (if `docker-compose.yml` exists OR `convex/` dir exists)
 Delegate to `sc-convex` AUTOMATICALLY — never wait for the user to type `/sc-convex`:
 - Fresh project (compose): `scripts/deploy-convex.js --project <P> --app <A> --domain <D> --with-auth-keys`
-- Existing self-hosted (just convex/): `sc-git/hook.js install --repo <name>` — installs the pre-push hook that auto-deploys Convex on every push that touches `convex/`. After install, the user just `git push` and the hook does `pnpm exec convex deploy --yes` against the self-hosted backend (CLI auto-detects from `.env.local`). Zero manual Convex commands forever.
+- Existing self-hosted (just convex/): `node skills/sc-git/scripts/hook.js install --repo <name>` — installs the pre-push hook that auto-deploys Convex on every push that touches `convex/`. After install, the user just `git push` and the hook does `pnpm exec convex deploy --yes` against the self-hosted backend (CLI auto-detects from `.env.local`). Zero manual Convex commands forever.
 
 ### Phase 5 — Frontend application (if `Dockerfile` exists)
 - `lib/dokploy.js` → `createApplication` if missing
@@ -94,9 +94,13 @@ Delegate to `sc-convex` AUTOMATICALLY — never wait for the user to type `/sc-c
 The original monolith remains at `scripts/deploy.js`. It is still functional and parallel-supported:
 
 ```bash
+# export DOKPLOY_API_URL / DOKPLOY_API_KEY / GITHUB_TOKEN (and optional
+# HOSTINGER_API_TOKEN) in the environment first — secrets are read ONLY from
+# env (never argv) so `ps aux` cannot leak them. Only non-secret
+# project/app/domain go on the command line.
 cd ~/projects/<app_name>
 node ~/projects/opensource/si-coder-agent/scripts/deploy.js \
-  "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<PROJECT>" "<APP_NAME>" "$GITHUB_TOKEN" "<DOMAIN>"
+  --project "<PROJECT>" --app "<APP_NAME>" --domain "<DOMAIN>"
 ```
 
 ## Failure modes (where to look)
@@ -107,4 +111,4 @@ node ~/projects/opensource/si-coder-agent/scripts/deploy.js \
 | Convex auth crash | `sc-convex` SKILL — "Connection lost while action was in flight" table |
 | DNS not resolving | `lib/hostinger.js` log output; check Hostinger portfolio coverage |
 | Domain rejected | already exists, treat as no-op |
-| `--` parsing breaks CLI | use `scripts/set-auth-env.js` (REST), not `npx convex env set` |
+| `--` parsing breaks CLI | use `skills/sc-convex/scripts/set-auth-env.js` (REST), not `npx convex env set` |

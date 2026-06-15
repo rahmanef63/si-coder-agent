@@ -24,7 +24,9 @@ async function main() {
   const adminKey = args['admin-key'] || process.env.CONVEX_ADMIN_KEY;
   const doGenerate = !!args.generate;
 
-  if (!domain || !adminKey) {
+  // typeof checks reject bare flags (parseArgs yields `true` for `--domain`
+  // with no value), so `api-${domain}` can't become the literal host `api-true`.
+  if (typeof domain !== 'string' || typeof adminKey !== 'string') {
     console.error('Usage: set-auth-env.js --domain <root.tld> --admin-key KEY [--generate]');
     process.exit(1);
   }

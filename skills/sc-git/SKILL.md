@@ -77,8 +77,8 @@ Registers a runner at VPS srv614914. Multi-repo via labels `[self-hosted, linux,
 ```bash
 node scripts/runner.js setup                          # bootstrap runner host
 node scripts/runner.js register --repo <name>         # join repo
-node scripts/runner.js list                           # all registered
-node scripts/runner.js remove --repo <name>
+node scripts/runner.js list --repo <name>             # registered runners + their ids
+node scripts/runner.js remove --repo <name> --id <id> # --id from `runner.js list --repo <name>`
 ```
 
 ### `status.js` — Commit status API

@@ -2,32 +2,7 @@
 // audit.js — scan all repos for workflow burn risk
 const fs = require('fs');
 const path = require('path');
-const { parseArgs, ghApi, listRepos, workflowFiles, runCount, OWNER, log, warn } = require('./_shared');
-
-function detectTriggers(yamlText) {
-  const t = { push: false, pr: false, schedule: false, dispatch: false, workflowRun: false, paths: false, branches: [], cron: [] };
-  const lines = yamlText.split('\n');
-  let inOn = false, indent = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    if (/^on:\s*$/.test(l) || /^on:\s*\[/.test(l) || /^"on":/.test(l)) { inOn = true; indent = l.search(/\S/); continue; }
-    if (inOn) {
-      const cur = l.search(/\S/);
-      if (l.trim() && cur <= indent) inOn = false;
-    }
-    if (inOn || /^on:\s/.test(l)) {
-      if (/(^|\s)push\s*:/.test(l) || /^\s+-\s*push/.test(l)) t.push = true;
-      if (/(^|\s)pull_request\s*:/.test(l) || /^\s+-\s*pull_request/.test(l)) t.pr = true;
-      if (/(^|\s)schedule\s*:/.test(l)) t.schedule = true;
-      if (/(^|\s)workflow_dispatch\s*:/.test(l) || /^\s+-\s*workflow_dispatch/.test(l)) t.dispatch = true;
-      if (/(^|\s)workflow_run\s*:/.test(l)) t.workflowRun = true;
-      if (/^\s+paths:/.test(l)) t.paths = true;
-      const cron = l.match(/cron:\s*['"]([^'"]+)['"]/); if (cron) t.cron.push(cron[1]);
-      const br = l.match(/branches:\s*\[([^\]]+)\]/); if (br) t.branches.push(...br[1].split(',').map(s => s.trim().replace(/['"]/g, '')));
-    }
-  }
-  return t;
-}
+const { parseArgs, ghApi, listRepos, workflowFiles, runCount, detectTriggers, OWNER, log, warn } = require('./_shared');
 
 function risksFor(trig, yamlText, runs) {
   const r = [];

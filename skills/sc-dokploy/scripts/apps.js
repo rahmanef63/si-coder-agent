@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // apps.js — Dokploy application CRUD
-const { getClient, parseArgs, findProject } = require('./_shared');
+const { getClient, parseArgs, findProject, allApplications, redactObject } = require('./_shared');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -10,7 +10,7 @@ async function main() {
   if (cmd === 'list') {
     if (!args.project) { console.error('Usage: apps.js list --project <name>'); process.exit(1); }
     const p = await findProject(dokploy, args.project);
-    const apps = p.environments?.[0]?.applications || [];
+    const apps = allApplications(p);
     console.table(apps.map(a => ({
       name: a.name,
       id: a.applicationId,
@@ -22,16 +22,18 @@ async function main() {
   if (cmd === 'show') {
     if (!args.project || !args.app) { console.error('Usage: apps.js show --project <name> --app <name>'); process.exit(1); }
     const p = await findProject(dokploy, args.project);
-    const a = p.environments?.[0]?.applications?.find(x => x.name === args.app);
+    const a = allApplications(p).find(x => x.name === args.app);
     if (!a) { console.error(`app '${args.app}' not found`); process.exit(1); }
     const full = await dokploy.getApplication(a.applicationId);
-    console.log(JSON.stringify(full, null, 2));
+    // SCD-SEC-2 + SCD-COR-1: redact env AND other credential-bearing fields (no more
+    // misleading "use the env subcommand" hint — apps.js has no such subcommand).
+    console.log(JSON.stringify(redactObject(full), null, 2));
     return;
   }
   if (cmd === 'deploy') {
     if (!args.project || !args.app) { console.error('Usage: apps.js deploy --project <name> --app <name>'); process.exit(1); }
     const p = await findProject(dokploy, args.project);
-    const a = p.environments?.[0]?.applications?.find(x => x.name === args.app);
+    const a = allApplications(p).find(x => x.name === args.app);
     if (!a) { console.error(`app '${args.app}' not found`); process.exit(1); }
     await dokploy.deployApplication(a.applicationId);
     console.log(`🚀 deploy triggered for ${args.app} (${a.applicationId})`);

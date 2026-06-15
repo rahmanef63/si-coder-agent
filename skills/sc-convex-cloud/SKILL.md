@@ -34,7 +34,7 @@ If `CONVEX_DEPLOY_KEY` is missing, route the user to `/sc-onboarding`.
 
 ## Scripts
 
-All scripts live in `~/.claude/skills/sc-convex-cloud/scripts/` (symlink from this repo).
+All scripts live in `skills/sc-convex-cloud/scripts/` (repo-relative; the usage blocks below assume this cwd). On install, this skill is symlinked into `~/.claude/skills/sc-convex-cloud/`, so the same paths resolve there too.
 
 ### `deploy-cloud.js`
 Run a Convex Cloud deploy. Coupled build (default) runs the frontend build via `--cmd` and injects `NEXT_PUBLIC_CONVEX_URL`; `--backend-only` pushes just the backend (when Vercel runs the coupled build itself). Prints `NEXT_PUBLIC_CONVEX_URL=<url>` — never the deploy key.

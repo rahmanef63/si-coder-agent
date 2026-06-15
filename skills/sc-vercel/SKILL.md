@@ -54,7 +54,7 @@ npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVE
 Read live from Vercel's domain config; do not hardcode:
 
 - **Subdomain** (e.g. `app.example.com`) → `CNAME` to `recommendedCNAME[0].value` (fallback `cname.vercel-dns.com`).
-- **Apex** (e.g. `example.com`) → `A` to `recommendedIPv4[0].value` (fallback `76.76.21.21`).
+- **Apex** (e.g. `example.com`) → `A` to the first IP of `recommendedIPv4[rank=1].value` (an array; pick `value[0]`, fallback `76.76.21.21`).
 - **TXT** ownership challenge from `verification[]` when the domain reports `verified:false` — added first, then `verifyDomain` is called.
 
 `CONVEX_DEPLOY_KEY` is a secret: passed via env to the Vercel encrypted env, and never echoed by any script. Only `NEXT_PUBLIC_CONVEX_URL` (public) is printed.
@@ -73,6 +73,7 @@ node skills/sc-vercel/scripts/deploy.js \
 | `--app <name>` | Logical app name (defaults to `--project`) |
 | `--domain <host>` | Full host to attach — apex `example.com` OR subdomain `app.example.com` |
 | `--git-owner <o>` / `--git-repo <r>` | GitHub `owner/name`; if absent, read from `git remote get-url origin` |
+| `--ref <branch>` / `--branch <branch>` | Git ref/branch to deploy; if absent, derived from `git rev-parse --abbrev-ref HEAD`, else `main` (use this for `master`-default repos) |
 | `--prod` | Deploy the production target / alias |
 | `--decoupled` | Opt-out of coupled build: set `NEXT_PUBLIC_CONVEX_URL` from env instead of `--cmd` injection |
 | `--cwd <path>` | Working dir for git-remote resolution (default: process cwd) |

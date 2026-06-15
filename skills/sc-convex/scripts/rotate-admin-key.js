@@ -26,7 +26,9 @@ async function main() {
   const envFile = args['env-file'];
   const envVarName = args['env-name'] || 'CONVEX_SELF_HOSTED_ADMIN_KEY';
 
-  if (!composeName) { console.error('Usage: rotate-admin-key.js --compose-name <APP>-db [--env-file ./.env] [--env-name CONVEX_SELF_HOSTED_ADMIN_KEY]'); process.exit(1); }
+  // typeof check rejects a bare `--compose-name` flag (parseArgs yields `true`),
+  // so the compose lookup can't match on the boolean `true`.
+  if (typeof composeName !== 'string') { console.error('Usage: rotate-admin-key.js --compose-name <APP>-db [--env-file ./.env] [--env-name CONVEX_SELF_HOSTED_ADMIN_KEY]'); process.exit(1); }
 
   const apiUrl = process.env.DOKPLOY_API_URL;
   const apiKey = process.env.DOKPLOY_API_KEY;
