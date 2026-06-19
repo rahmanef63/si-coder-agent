@@ -6,15 +6,50 @@ const { spawnSync } = require('child_process');
 const { parseArgs, localRepoPath, gitInRepo, log, ok, err, warn } = require('./_shared');
 
 const SCRIPT_PATH = path.resolve(__dirname, 'ci.js');
+// Hook body has TWO independent guards:
+//   1. local CI (typecheck/lint/test) — always runs.
+//   2. self-hosted Convex auto-deploy — runs ONLY when the repo carries a
+//      convex/ dir + .env.local exposes CONVEX_SELF_HOSTED_URL +
+//      CONVEX_SELF_HOSTED_ADMIN_KEY, and only when the pending commits
+//      touch convex/. Backend leads frontend so the Dokploy rebuild that
+//      follows this push never lands ahead of the Convex schema.
+// If the repo lacks self-hosted Convex (no convex/ dir, or no env keys),
+// guard 2 is a silent no-op — the hook is safe to install in any repo.
 const HOOK_BODY = `#!/usr/bin/env bash
-# sc-git pre-push: run local CI before push
+# sc-git pre-push: local CI + self-hosted Convex auto-deploy
 set -e
-node "${SCRIPT_PATH}" || {
+
+# Guard 1 — local CI
+node "${SCRIPT_PATH}" --skip build || {
   echo ""
   echo "❌ sc-git ci failed. push blocked."
   echo "   override (NOT recommended): git push --no-verify"
   exit 1
 }
+
+# Guard 2 — self-hosted Convex auto-deploy (silent no-op if not configured)
+if [ -d convex ] && [ -f .env.local ] \\
+   && grep -q "^CONVEX_SELF_HOSTED_URL=" .env.local 2>/dev/null \\
+   && grep -q "^CONVEX_SELF_HOSTED_ADMIN_KEY=" .env.local 2>/dev/null; then
+  LOCAL_SHA=$(git rev-parse HEAD 2>/dev/null || true)
+  REMOTE_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+  if [ -n "$REMOTE_SHA" ] && [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+    CONVEX_DIFF=$(git diff --name-only "$REMOTE_SHA"..HEAD -- convex/ 2>/dev/null || true)
+    if [ -n "$CONVEX_DIFF" ]; then
+      echo ""
+      echo "▶ sc-git: convex/ changed → auto-deploy self-hosted Convex FIRST"
+      # Convex CLI v1.27+ auto-detects self-hosted from env. No flags needed.
+      set -a; . ./.env.local; set +a
+      pnpm exec convex deploy --yes || {
+        echo ""
+        echo "❌ Convex self-hosted deploy failed. push aborted."
+        echo "   Fix Convex deploy first; do NOT --no-verify (frontend would land ahead of backend)."
+        exit 1
+      }
+      echo "✓ Convex deploy complete. Continuing push."
+    fi
+  fi
+fi
 `;
 
 function install(repoPath) {
