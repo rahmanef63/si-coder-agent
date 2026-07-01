@@ -4,10 +4,11 @@
 
 Enables automatic A-record creation for your main domain + `api-`, `dash-`, `site-` Convex subdomains. Without it, you must add DNS records manually before deployment.
 
-**How to get one**:
-1. Hostinger hPanel → Advanced → API
-2. Generate a developer token
-3. Copy the value
+**Get it:** https://hpanel.hostinger.com/profile/api (hPanel → Profile → API)
+1. Click **Generate token**, name it, pick a (short) expiration → **Generate**
+2. Copy it now — the value is hidden once you leave the API page
+
+No scope picker: the token has full account access (DNS zone management included).
 
 **Validator**: length ≥ 32.
 

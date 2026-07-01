@@ -1,7 +1,7 @@
 # Vercel credentials
 
 ## `VERCEL_TOKEN` (required)
-Personal Access Token. https://vercel.com/account/tokens → Create.
+Account Access Token. https://vercel.com/account/tokens → Create → name it, scope **Full Account** (or the team it must reach — else team calls 403), Create Token. Shown once, copy now.
 **Validator**: length ≥ 24.
 
 ## `VERCEL_TEAM_ID` (optional)

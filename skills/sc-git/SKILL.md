@@ -5,12 +5,12 @@ description: "GitHub repo CRUD + Actions cost reduction. Audit workflow burn rat
 
 # /sc-git — GitHub Actions Replacement & Repo CRUD
 
-Use when user wants to **stop GitHub Actions cloud minutes burn**, audit workflow files across rahmanef63 repos, migrate CI/CD to pre-push hooks + VPS, or do generic repo/workflow CRUD via `gh` API.
+Use when user wants to **stop GitHub Actions cloud minutes burn**, audit workflow files across your repos, migrate CI/CD to pre-push hooks + VPS, or do generic repo/workflow CRUD via `gh` API.
 
 ## Pre-requisites
 - `gh` CLI authed with `repo` + `workflow` + `admin:repo_hook` scopes
-- Local clones live in `/home/rahman/projects/<repo>` (some repos remote-only — skill handles both)
-- VPS `srv614914` accessible via SSH for runner/cron subcommands
+- Local clones live in `~/projects/<repo>` (override with `PROJECTS_DIR`) (some repos remote-only — skill handles both)
+- your VPS (set `SC_GIT_VPS_HOST`) accessible via SSH for runner/cron subcommands
 
 ## CORE RULES
 
@@ -18,14 +18,14 @@ Use when user wants to **stop GitHub Actions cloud minutes burn**, audit workflo
 2. **Never force-push, never push directly to main**: all changes land via new branch `chore/reduce-github-actions-usage`. PR is user's call.
 3. **Never touch secrets / env / deploy targets**: skill only edits triggers (`on:`), `concurrency:`, `paths:`. Leaves `env:`, `secrets:`, `runs-on:`, job steps alone unless explicitly told.
 4. **Never run failing workflows on cloud**: when listing recent runs, do not retrigger.
-5. **Self-hosted runner only on private repos**: GitHub strongly recommends. All rahmanef63 active repos are private — safe. Refuse runner setup if target repo `isPrivate === false`.
+5. **Self-hosted runner only on private repos**: GitHub strongly recommends. If all your active repos are private, this is safe. Refuse runner setup if target repo `isPrivate === false`.
 6. **`gh` CLI, not raw curl**: reuse the existing `gh` auth + scopes. Fall back to `gh api` for endpoints without dedicated subcommands.
 7. **Idempotent**: re-running `disable` on already-disabled workflow is a no-op (detect existing `workflow_dispatch:` only + no `push:`/`pull_request:`/`schedule:`).
 
 ## Scripts
 
 ### `audit.js` — Sweep + report
-Scans all rahmanef63 repos, lists workflows, recent run volume, identifies burn risks.
+Scans all your repos, lists workflows, recent run volume, identifies burn risks.
 
 ```bash
 node scripts/audit.js                       # markdown report stdout
@@ -72,7 +72,7 @@ node scripts/hook.js uninstall --repo <name>
 ```
 
 ### `runner.js` — Self-hosted GH Actions runner
-Registers a runner at VPS srv614914. Multi-repo via labels `[self-hosted, linux, x64]`. Free minutes forever.
+Registers a runner at your VPS (`SC_GIT_VPS_HOST`). Multi-repo via labels `[self-hosted, linux, x64]`. Free minutes forever.
 
 ```bash
 node scripts/runner.js setup                          # bootstrap runner host
@@ -116,7 +116,7 @@ Standard order to move a repo off cloud Actions:
 3. `node scripts/disable.js --repo <name>` — strip auto-triggers (backup retained).
 4. (Optional, if PR gate needed) `node scripts/runner.js register --repo <name>` then revert YAML `runs-on:` → `[self-hosted]`.
 5. (Optional, for schedule:) move cron to VPS via `cron.js add`.
-6. Verify: `gh api repos/rahmanef63/<name>/actions/runs?per_page=5 --jq '.workflow_runs[].name'` — should be empty for new pushes.
+6. Verify: `gh api repos/<owner>/<name>/actions/runs?per_page=5 --jq '.workflow_runs[].name'` — should be empty for new pushes.
 
 ## Common patterns by repo type
 
@@ -160,10 +160,10 @@ These env vars change script behavior; each has a sensible default, so set only 
 
 | Variable | Default | Read by | Purpose |
 |---|---|---|---|
-| `GH_OWNER` | `rahmanef63` | `_shared.js` (all subcommands) | GitHub owner/org for every `gh api` call. |
+| `GH_OWNER` | authed `gh` user (`gh api user`), else set `GH_OWNER` | `_shared.js` (all subcommands) | GitHub owner/org for every `gh api` call. |
 | `PROJECTS_DIR` | `~/projects` | `_shared.js` (all subcommands) | Root dir scanned for local repo clones (`workflowFiles`, `localRepoPath`). |
 | `SC_GIT_WEBHOOK_SECRET` | _(empty)_ | `webhook.js` (`create`) | HMAC secret for the created webhook. Read from env (or stdin) so it never lands on argv / shell history. |
-| `SC_GIT_VPS_HOST` | `srv614914` | `runner.js` | SSH host where the self-hosted runner is bootstrapped/registered. |
+| `SC_GIT_VPS_HOST` | `<your-vps-host>` | `runner.js` | SSH host where the self-hosted runner is bootstrapped/registered. Required for the runner subcommand. |
 | `SC_GIT_RUNNER_HOME` | `~/actions-runner` | `runner.js` | Install path of the runner on the VPS. |
 | `SC_GIT_RUNNER_VERSION` | `2.319.1` | `runner.js` | actions-runner release version to download during `setup`. |
 

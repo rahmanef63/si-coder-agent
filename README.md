@@ -88,7 +88,7 @@ node skills/sc-convex-cloud/scripts/deploy-cloud.js
 # 2. Frontend (Vercel) + custom domain + Hostinger DNS + deploy
 node skills/sc-vercel/scripts/deploy.js \
   --project myapp --app myapp --domain app.example.com \
-  --git-owner rahmanef63 --git-repo myapp --prod
+  --git-owner <your-gh-user> --git-repo myapp --prod
 
 # Or orchestrated — runs both, skips Dokploy + self-hosted Convex:
 /sc-all --target vercel

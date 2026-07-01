@@ -2,7 +2,8 @@
 
 ## `CONVEX_DEPLOY_KEY` (required)
 Production deploy key for your Convex **Cloud** project.
-**How to get one**: Convex Dashboard → your project → production deployment → Settings → General → "Generate Production Deploy Key".
+**How to get one**: https://dashboard.convex.dev/deployment/settings → pick the **production** deployment → **General** tab → "Generate Production Deploy Key", enable the `deployment:deploy` permission, copy.
+Headless (for scripts): `npx convex login` then `npx convex deployment token create ci`.
 Format: `prod:<deployment-name>|eyJ2...`. Treat as a SECRET — never commit or log.
 **Validator**: contains `|`, starts with `prod:`/`preview:`/`project:`, length ≥ 32.
 

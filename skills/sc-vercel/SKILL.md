@@ -76,7 +76,7 @@ Read live from Vercel's domain config; do not hardcode:
 ```
 node skills/sc-vercel/scripts/deploy.js \
   --project myapp --app myapp --domain app.example.com \
-  --git-owner rahmanef63 --git-repo myapp --prod
+  --git-owner <your-gh-user> --git-repo myapp --prod
 ```
 
 | Flag | Meaning |

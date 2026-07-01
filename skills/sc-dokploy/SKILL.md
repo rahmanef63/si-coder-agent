@@ -9,7 +9,7 @@ Use this skill when the user wants to inspect, change, or clean up Dokploy state
 
 ## Pre-requisites
 - `DOKPLOY_API_URL`, `DOKPLOY_API_KEY` — Dokploy admin
-- SSH fallback to the Dokploy host (for orphan swarm services / Traefik file CRUD the REST API does NOT expose): `ssh -i ~/.ssh/id_n8n rahman@srv614914` with passwordless sudo.
+- SSH fallback to the Dokploy host (for orphan swarm services / Traefik file CRUD the REST API does NOT expose): `ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host>` with passwordless sudo.
 
 If missing, route to `/sc-onboarding`.
 
@@ -23,10 +23,10 @@ Dokploy REST API covers projects, applications, compose, domains, deploy/start/s
 For those, SSH in directly. Useful one-liners:
 
 ```bash
-ssh -i ~/.ssh/id_n8n rahman@srv614914 'sudo -n docker service ls'
-ssh -i ~/.ssh/id_n8n rahman@srv614914 'sudo -n ls /etc/dokploy/traefik/dynamic/'
-ssh -i ~/.ssh/id_n8n rahman@srv614914 'sudo -n docker service rm <name>'
-ssh -i ~/.ssh/id_n8n rahman@srv614914 'sudo -n rm /etc/dokploy/traefik/dynamic/<name>.yml'  # Traefik file watcher reloads in ~5-10s
+ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host> 'sudo -n docker service ls'
+ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host> 'sudo -n ls /etc/dokploy/traefik/dynamic/'
+ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host> 'sudo -n docker service rm <name>'
+ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host> 'sudo -n rm /etc/dokploy/traefik/dynamic/<name>.yml'  # Traefik file watcher reloads in ~5-10s
 ```
 
 **Orphan-service pattern**: when a Dokploy app is recreated, the old swarm service and its Traefik dynamic config can survive deletion. Both compete for the same `Host(...)` rule. Symptom: prod serves an old image even after a fresh deploy. Diagnosis: `docker service ls` shows two services for the same project, and two `.yml` files in `traefik/dynamic/` bind the same domain. Fix: remove the orphan file + service.

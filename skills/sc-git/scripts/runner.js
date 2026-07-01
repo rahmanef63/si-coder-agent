@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// runner.js — self-hosted GitHub Actions runner at VPS srv614914
+// runner.js — self-hosted GitHub Actions runner (host from $SC_GIT_VPS_HOST)
 // Prints commands to run on VPS rather than auto-executing (safer + transparent)
 const { parseArgs, ghApi, repoExists, OWNER, log, ok, err, warn } = require('./_shared');
 
-const VPS_HOST = process.env.SC_GIT_VPS_HOST || 'srv614914';
+const VPS_HOST = process.env.SC_GIT_VPS_HOST || '<your-vps-host>';
+const VPS_LABEL = VPS_HOST.replace(/[^a-zA-Z0-9_-]/g, '') || 'runner'; // safe runner label derived from the host
 const RUNNER_HOME = process.env.SC_GIT_RUNNER_HOME || '~/actions-runner';
 const RUNNER_VERSION = process.env.SC_GIT_RUNNER_VERSION || '2.319.1';
 
@@ -25,7 +26,7 @@ cd ${RUNNER_HOME}
   --url https://github.com/${OWNER}/${repo} \\
   --token ${token} \\
   --name vps-${repo} \\
-  --labels self-hosted,linux,x64,vps-srv614914 \\
+  --labels self-hosted,linux,x64,vps-${VPS_LABEL} \\
   --work _work \\
   --unattended \\
   --replace

@@ -41,6 +41,18 @@ const DOMAIN_BLURBS = {
   vercel: 'Vercel online frontend',
   'convex-cloud': 'Convex Cloud backend',
   supabase: 'Supabase backend (stub)',
+  sync: 'Tailscale rsync vps<->local',
+};
+
+// Per-domain "you're set — verify with this" next step, shown only for picked domains.
+const VERIFY_HINTS = {
+  github: '/sc-git status                                            # (or: gh api user) verify GitHub auth',
+  dokploy: 'node skills/sc-dokploy/scripts/projects.js list          # verify Dokploy auth',
+  convex: '/sc-convex                                                # deploy a self-hosted Convex backend',
+  'convex-cloud': 'node skills/sc-convex-cloud/scripts/check-cloud.js  # verify Convex Cloud deploy key',
+  vercel: '/sc-vercel                                                # deploy the online frontend',
+  hostinger: '# Hostinger token ready — used automatically for DNS records',
+  sync: 'node skills/sc-sync/scripts/sync.js <vps-local|local-vps>  # dry-run first',
 };
 
 function askDomainsInteractive(rl) {
@@ -128,7 +140,9 @@ async function main() {
   console.log(`\n✅ Wrote ${Object.keys(updates).length} export(s) to ~/.bashrc`);
   console.log('\nNext:');
   console.log('  source ~/.bashrc');
-  console.log('  node skills/sc-dokploy/scripts/projects.js list   # verify Dokploy auth');
+  const hints = domains.filter(d => VERIFY_HINTS[d]);
+  if (hints.length) for (const d of hints) console.log('  ' + VERIFY_HINTS[d]);
+  else console.log('  # done — run the /sc-* skill for the domain you configured');
 }
 
 main().catch(e => { console.error('❌', e.message); process.exit(1); });

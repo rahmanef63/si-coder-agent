@@ -1,0 +1,9 @@
+# Never commit real credentials. The tool invites a local .env
+# (`cp .env.example .env`; rotate-admin-key.js can write ./.env; set-auth-env.js
+# can emit a private-key .pem) — keep all of it out of git.
+node_modules/
+.env
+.env.*
+!.env.example
+*.pem
+*.key

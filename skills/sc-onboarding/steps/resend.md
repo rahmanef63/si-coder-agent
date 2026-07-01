@@ -4,12 +4,14 @@
 
 Server-side Resend key.
 
-**How to get one**: https://resend.com/api-keys → Create API Key (scope to the sending domain).
+**Get it:** https://resend.com/api-keys → **Create API Key** → set Permission = **Sending access** (least privilege) and pick your **Domain**. Copy it now — shown once.
 
 **Validator**: starts with `re_`.
 
 ## `RESEND_FROM_DOMAIN` (optional)
 
-The verified sending domain (e.g. `mail.example.com`). `/sc-resend verify-domain.js` will register this with Resend and auto-create the DKIM/SPF/DMARC DNS records via `/sc-cf` or `lib/hostinger.js`.
+The verified sending domain (e.g. `mail.example.com`).
+
+**Get it:** https://resend.com/domains → **Add Domain** → add the shown DKIM/SPF records at your DNS provider → **Verify DNS Records**. `/sc-resend` will automate this via `/sc-cf` or `lib/hostinger.js`.
 
 **Validator**: contains a dot.

@@ -4,8 +4,23 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const OWNER = process.env.GH_OWNER || 'rahmanef63';
 const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(os.homedir(), 'projects');
+
+// Resolve the GitHub owner lazily: prefer $GH_OWNER, else derive it from the
+// authed `gh` user so the tool targets YOUR account with zero config — and no
+// maintainer username ships hardcoded in this public repo. Cached; only fires
+// for subcommands that actually read OWNER (audit/status/runner/nuke/webhook),
+// never for local-only ones (ci/hook).
+let _owner = process.env.GH_OWNER || null;
+function resolveOwner() {
+  if (_owner) return _owner;
+  try { _owner = gh(['api', 'user', '--jq', '.login']).trim(); } catch { /* handled below */ }
+  if (!_owner) {
+    err('GH_OWNER not set and could not resolve the authed gh user. Run `gh auth login` or set GH_OWNER=<your-github-username>.');
+    process.exit(1);
+  }
+  return _owner;
+}
 
 // Flags whose value is free text and may legitimately start with '--'
 // (e.g. `--description "--force was needed"`, `--cmd "node x --flag"`). For
@@ -102,7 +117,7 @@ function listRepos() {
 }
 
 function repoExists(repo) {
-  try { ghApi(`repos/${OWNER}/${repo}`); return true; } catch { return false; }
+  try { ghApi(`repos/${resolveOwner()}/${repo}`); return true; } catch { return false; }
 }
 
 function localRepoPath(repo) {
@@ -125,7 +140,7 @@ function workflowFiles(repo) {
   }
   // remote-only
   try {
-    const list = ghApi(`repos/${OWNER}/${repo}/actions/workflows`).workflows || [];
+    const list = ghApi(`repos/${resolveOwner()}/${repo}/actions/workflows`).workflows || [];
     return list.map(w => ({ name: path.basename(w.path), abs: w.path, local: false, id: w.id, state: w.state }));
   } catch { return []; }
 }
@@ -144,7 +159,7 @@ function runCount(repo, since) {
     // Read total_count (not page-1 length, which clamps at per_page=100 and
     // understates burn on the hottest repos). per_page=1 keeps the payload tiny.
     // Encode the `>` operator (%3E) so the URL is canonical.
-    const out = ghApi(`repos/${OWNER}/${repo}/actions/runs?per_page=1&created=%3E${safeSince}`, { jq: '.total_count' });
+    const out = ghApi(`repos/${resolveOwner()}/${repo}/actions/runs?per_page=1&created=%3E${safeSince}`, { jq: '.total_count' });
     return parseInt(out, 10) || 0;
   } catch { return 0; }
 }
@@ -224,9 +239,12 @@ function err(...a) { console.error('❌', ...a); }
 function ok(...a) { console.log('✅', ...a); }
 
 module.exports = {
-  OWNER, PROJECTS_DIR,
+  PROJECTS_DIR,
   parseArgs, gh, ghApi,
   listRepos, repoExists, localRepoPath, workflowFiles, runCount, detectTriggers,
   backup, gitInRepo, ensureBranch,
   log, warn, err, ok,
 };
+// OWNER is a lazy getter so consumers keep `const { OWNER } = require('./_shared')`
+// unchanged — destructuring resolves it once, on demand, per subcommand.
+Object.defineProperty(module.exports, 'OWNER', { enumerable: true, get: resolveOwner });

@@ -14,10 +14,9 @@ Examples:
 
 The Dokploy admin API key, sent as `x-api-key` header (NOT `Authorization: Bearer`).
 
-**How to get one**:
-1. Log into your Dokploy dashboard
-2. Profile → API Keys → Generate
-3. Copy the value
+**Get it** (self-hosted — created inside your own panel): `<your Dokploy panel>/dashboard/settings/profile` → **API/CLI** section → Generate → copy the token.
+
+**Permissions**: log in as an admin (admins generate directly; non-admins need permission granted first). The token inherits your account's access — an admin token = full API.
 
 **Validator**: length ≥ 24.
 

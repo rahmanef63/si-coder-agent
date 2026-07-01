@@ -74,6 +74,8 @@ Generate a fresh admin key from the running backend container, write to Dokploy 
 node scripts/rotate-admin-key.js --compose-name <APP_NAME>-db [--env-file ./.env.local]
 ```
 
+> `SC_DOCKER_SUDO` — `1` force sudo for docker, `0` forbid, unset = auto-detect (used by `dockerExec`, `lib/proc.js`).
+
 ### `set-auth-env.js`
 Set `JWT_PRIVATE_KEY` and `JWKS` (and any extra vars) on a self-hosted backend via admin REST API. Avoids the CLI `--` parsing bug.
 

@@ -134,7 +134,7 @@ async function main() {
   // The stock Dokploy 'convex' template ships WITHOUT a restart policy, so a
   // host reboot (live-restore off) leaves the backend permanently down while
   // Dokploy still reports the last deploy as 'done' (2026-06-07 incident:
-  // tech.rahmanef.com data layer dark for 8 days). Patch it in idempotently.
+  // a production data layer dark for 8 days). Patch it in idempotently.
   //
   // Done PER-SERVICE, not all-or-nothing: the old whole-file `!includes('restart:')`
   // guard meant a single service already carrying a restart policy blocked the
