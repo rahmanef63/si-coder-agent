@@ -19,6 +19,7 @@ const DOMAIN_VARS = {
   vercel:        { required: ['VERCEL_TOKEN'], optional: ['VERCEL_TEAM_ID'] },
   'convex-cloud':{ required: ['CONVEX_DEPLOY_KEY'], optional: ['CONVEX_DEPLOYMENT'] },
   supabase:  { required: [], optional: ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_ORG_ID'] },
+  sync:      { required: ['SYNC_ROLE', 'SYNC_VPS_TS_ADDR', 'SYNC_LOCAL_TS_ADDR'], optional: ['SYNC_REMOTE_USER', 'SYNC_REMOTE_PATH'] },
 };
 
 const VALIDATORS = {
@@ -43,6 +44,11 @@ const VALIDATORS = {
   VERCEL_TEAM_ID: v => v.length >= 8,
   SUPABASE_ACCESS_TOKEN: v => v.startsWith('sbp_'),
   SUPABASE_ORG_ID: v => v.length >= 16,
+  SYNC_ROLE: v => v === 'vps' || v === 'local',
+  SYNC_VPS_TS_ADDR: v => v.length > 0 && /^[a-zA-Z0-9.:_-]+$/.test(v),
+  SYNC_LOCAL_TS_ADDR: v => v.length > 0 && /^[a-zA-Z0-9.:_-]+$/.test(v),
+  SYNC_REMOTE_USER: v => v.length > 0,
+  SYNC_REMOTE_PATH: v => v.length > 0,
 };
 
 // Parse ~/.bashrc into a plain KEY->value map, stripping the leading `export `

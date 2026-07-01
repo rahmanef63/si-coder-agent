@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Skills](https://img.shields.io/badge/skills-7%20implemented%20%2B%205%20stubs-8A2BE2)](#skill-catalog)
+[![Skills](https://img.shields.io/badge/skills-8%20implemented%20%2B%205%20stubs-8A2BE2)](#skill-catalog)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-skill%20bundle-D97757)](https://claude.com/claude-code)
 
 **SI Coder Agent** is a modular set of `/sc-*` slash commands for Claude Code (and any agent that loads Skills) that take a local Next.js + Convex app from source to a live, verified URL with **zero human steps**. It creates the GitHub repo, pushes code, provisions the backend and frontend, wires up DNS, triggers the build, and polls until the site responds. Built for solo developers and agents who want to ship full stacks without clicking through dashboards. No runtime dependencies — just Node 18+ and your API tokens.
@@ -49,6 +49,7 @@ After `bash install.sh`, these slash commands are available. **Implemented** com
 | `/sc-vercel` | ✅ | Vercel online frontend: GitHub-bound project, Convex-coupled build, custom domain/subdomain, Hostinger DNS | `VERCEL_TOKEN` (+`VERCEL_TEAM_ID` opt), `CONVEX_DEPLOY_KEY`, `HOSTINGER_API_TOKEN` (opt) |
 | `/sc-git` | ✅ | GitHub repo CRUD + Actions cost reduction: audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron | `GITHUB_TOKEN` |
 | `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing, writes `~/.bashrc` (merge-in-place). Non-AI: `node bin/onboard.js` | — |
+| `/sc-sync` | ✅ | Tailscale rsync of gitignored files between VPS and local machine (same repo, shared via git, some docs kept out of `.gitignore`) | `SYNC_ROLE`, `SYNC_VPS_TS_ADDR`, `SYNC_LOCAL_TS_ADDR` |
 | `/sc-cf` | 🚧 stub | Cloudflare — DNS A/AAAA/CNAME (Hostinger alt), Workers/Pages, R2, Zero Trust tunnel | — |
 | `/sc-stripe` | 🚧 stub | Payments — products/prices, webhooks, customer portal, restricted keys | — |
 | `/sc-resend` | 🚧 stub | Email — domain verify (DKIM/SPF/DMARC), API keys, template send | — |
@@ -191,7 +192,8 @@ si-coder-agent/
 │   │   ├── SKILL.md
 │   │   ├── lib/onboarding-domains.js   single source: domain registry + validators
 │   │   ├── scripts/scan-env.js
-│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,clerk,vercel,supabase}.md
+│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,clerk,vercel,supabase,sync}.md
+│   ├── sc-sync/SKILL.md + scripts/   Tailscale rsync of gitignored files (vps <-> local)
 │   ├── use-si-coder/SKILL.md   vendored legacy-monolith doc (@convex-dev/auth lessons)
 │   └── sc-{cf,stripe,resend,clerk,supabase}/   STUBS — boilerplate only
 ├── scripts/

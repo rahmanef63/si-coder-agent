@@ -23,6 +23,7 @@ The AI MUST:
    - `[ ] hostinger` (optional DNS automation)
    - `[ ] vercel` (Vercel online frontend)
    - `[ ] convex-cloud` (Convex Cloud backend)
+   - `[ ] sync` (Tailscale rsync of gitignored files between VPS and local)
    - `[ ] cf` (Cloudflare, future) · `stripe` · `clerk` · `supabase` · `resend` (stubs)
 2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
 3. **For each missing var, prompt the user via `AskUserQuestion`** with the per-var description from `steps/<domain>.md`. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
@@ -89,6 +90,7 @@ Mirrors `skills/sc-onboarding/lib/onboarding-domains.js` `DOMAIN_VARS` (the sing
 | hostinger | — | `HOSTINGER_API_TOKEN` (recommended) |
 | vercel | `VERCEL_TOKEN` | `VERCEL_TEAM_ID` |
 | convex-cloud | `CONVEX_DEPLOY_KEY` | `CONVEX_DEPLOYMENT` |
+| sync | `SYNC_ROLE`, `SYNC_VPS_TS_ADDR`, `SYNC_LOCAL_TS_ADDR` | `SYNC_REMOTE_USER`, `SYNC_REMOTE_PATH` |
 | cf (stub) | — | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
 | stripe (stub) | — | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | clerk (stub) | — | `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` |
