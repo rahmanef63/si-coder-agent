@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // projects.js — Dokploy project CRUD
-const { getClient, parseArgs, findProject, allApplications, allCompose } = require('./_shared');
+const { getClient, parseArgs, findProject, allApplications, allCompose, redactObject } = require('./_shared');
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -27,7 +27,9 @@ async function main() {
     const name = args._[1];
     if (!name) { console.error('Usage: projects.js show <name>'); process.exit(1); }
     const p = await findProject(dokploy, name);
-    console.log(JSON.stringify(p, null, 2));
+    // SCD-SEC-2: redact env + credential-bearing fields across the nested project tree
+    // (environments[].applications[].env, compose[].env, customGitUrl userinfo) — not a raw dump.
+    console.log(JSON.stringify(redactObject(p), null, 2));
     return;
   }
   console.error('Usage: projects.js <list|create|show> [name]');

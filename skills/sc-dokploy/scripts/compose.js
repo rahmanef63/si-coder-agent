@@ -9,13 +9,18 @@ async function findCompose(dokploy, name, projectName) {
   const matches = [];
   for (const p of projects) {
     if (projectName && p.name !== projectName) continue;
-    const c = allCompose(p).find(x => x.name === name);
-    if (c) matches.push({ project: p, compose: c });
+    // SCD-COR-3: a single project can hold two same-named composes across environments
+    // (prod + staging). .filter (not .find) so a same-named sibling in another env can't
+    // silently resolve to the first — surface it as an ambiguity instead.
+    const envNameById = new Map((p.environments || []).map(e => [e.environmentId, e.name]));
+    for (const c of allCompose(p).filter(x => x.name === name)) {
+      matches.push({ project: p, compose: c, environment: envNameById.get(c.environmentId) || c.environmentId || '?' });
+    }
   }
   if (matches.length === 0) throw new Error(`compose '${name}' not found${projectName ? ` in project '${projectName}'` : ' in any project'}`);
   if (matches.length > 1) {
-    const projNames = matches.map(m => m.project.name).join(', ');
-    throw new Error(`compose name '${name}' is ambiguous — exists in: ${projNames}. Pass --project <name> to disambiguate.`);
+    const where = matches.map(m => `${m.project.name}/${m.environment}`).join(', ');
+    throw new Error(`compose name '${name}' is ambiguous — exists in: ${where}. Pass --project <name> to disambiguate.`);
   }
   return matches[0];
 }

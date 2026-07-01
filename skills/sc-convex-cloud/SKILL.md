@@ -1,6 +1,6 @@
 ---
 name: sc-convex-cloud
-description: "Convex Cloud (managed) deploy operations. Run 'npx convex deploy' against a Cloud deployment using CONVEX_DEPLOY_KEY, output the injected NEXT_PUBLIC_CONVEX_URL, and probe the *.convex.cloud deployment (/version + JWKS). The online-path counterpart to /sc-convex (self-hosted on Dokploy)."
+description: "Convex Cloud (managed) deploy operations. Run 'npx convex deploy' against a Cloud deployment using CONVEX_DEPLOY_KEY, output the injected NEXT_PUBLIC_CONVEX_URL, and probe the deployment (/version on *.convex.cloud + JWKS on *.convex.site). The online-path counterpart to /sc-convex (self-hosted on Dokploy)."
 ---
 
 # /sc-convex-cloud — Convex Cloud (managed)
@@ -12,7 +12,7 @@ flowchart LR
     A["/sc-convex-cloud"] --> B["scripts/deploy-cloud.js<br/>CONVEX_DEPLOY_KEY (env, never echoed)"]
     B --> C["npx convex deploy<br/>→ Convex Cloud"]
     C --> D["inject NEXT_PUBLIC_CONVEX_URL<br/>into the build"]
-    D --> E["probe *.convex.cloud<br/>/version + JWKS"]
+    D --> E["probe /version (*.convex.cloud)<br/>+ JWKS (*.convex.site)"]
     E --> F["ready ✅"]
 ```
 
@@ -58,10 +58,12 @@ node scripts/deploy-cloud.js \
 ```
 
 ### `check-cloud.js`
-Probe a Cloud deployment's `/version` + `/.well-known/jwks.json`. Derives the URL from `CONVEX_DEPLOY_KEY` when `--url` is omitted. Prints a status table; exits 2 if any probe is not ok.
+Probe a Cloud deployment's `/version` (on the `*.convex.cloud` host) + `/.well-known/jwks.json` (on the `*.convex.site` host — that's where `@convex-dev/auth` serves JWKS). Derives the URL from `CONVEX_DEPLOY_KEY` when `--url` is omitted. Prints a status table. `/version` is required; JWKS is **advisory** (a deployment without `@convex-dev/auth` has none) and only gates the exit code when you pass `--expect-auth`. Exits 2 if a required probe is not ok.
 
 ```bash
 node scripts/check-cloud.js --url https://<name>.convex.cloud
+# require JWKS too (the deployment is expected to run @convex-dev/auth):
+node scripts/check-cloud.js --url https://<name>.convex.cloud --expect-auth
 # or, deriving from the prod deploy key:
 node scripts/check-cloud.js
 ```
@@ -72,6 +74,6 @@ node scripts/check-cloud.js
 |---|---|---|
 | Client connects to wrong backend | `NEXT_PUBLIC_CONVEX_URL` not injected | Ensure `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` is set on the coupled build |
 | Browser shows `CONVEX_URL` unset | Missing `NEXT_PUBLIC_` prefix override | Pass `--url-env NEXT_PUBLIC_CONVEX_URL` (default) — never the bare `CONVEX_URL` |
-| `/.well-known/jwks.json` returns 500 | `@convex-dev/auth` keys not configured on the Cloud deployment | Configure JWT keys on the Cloud deployment via the dashboard / env |
+| JWKS (`*.convex.site`) not 200 | `@convex-dev/auth` keys not configured on the deployment (or a probe pointed at the wrong host) | JWKS is served on `*.convex.site`, NOT `*.convex.cloud`; configure `@convex-dev/auth` keys on the deployment via the dashboard / env. Advisory unless `check-cloud.js --expect-auth` |
 | `deploy-cloud.js` exits 1 immediately | `CONVEX_DEPLOY_KEY` missing | Set it (route to `/sc-onboarding`) — never run the CLI by hand |
 | `check-cloud.js` cannot derive URL | preview key (branch-derived name not in key) | Pass `--url https://<name>.convex.cloud` explicitly |

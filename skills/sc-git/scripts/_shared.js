@@ -1,5 +1,5 @@
 // _shared.js — common helpers for sc-git scripts
-const { execSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -93,7 +93,12 @@ function ghApi(endpoint, { method = 'GET', body = null, rawBody = null, input = 
 }
 
 function listRepos() {
-  return ghApi(`users/${OWNER}/repos?per_page=100&type=owner`, { paginate: true });
+  // `users/:owner/repos` returns PUBLIC repos only — it silently drops every
+  // private repo (verified live: 0 private via that endpoint, 106 via this one),
+  // so the default audit sweep would skip them. `user/repos` is the authed-user
+  // endpoint and honors `affiliation=owner` to keep it to repos we own. Response
+  // shape ({name,private,archived}) is identical, so audit.js callers are unchanged.
+  return ghApi('user/repos?per_page=100&affiliation=owner', { paginate: true });
 }
 
 function repoExists(repo) {

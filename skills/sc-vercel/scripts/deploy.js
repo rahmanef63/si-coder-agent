@@ -44,6 +44,7 @@ async function main() {
   const domain = args.domain;
   const prod = !!args.prod;
   const decoupled = !!args.decoupled;
+  if (decoupled && !process.env.NEXT_PUBLIC_CONVEX_URL) { console.error('--decoupled requires NEXT_PUBLIC_CONVEX_URL in env'); process.exit(1); }
 
   if (!project || !domain) {
     console.error('Usage: deploy.js --project <name> --app <name> --domain <host> [--git-owner <o> --git-repo <r>] [--ref <branch>] [--prod] [--decoupled] [--cwd <path>]');
@@ -114,6 +115,7 @@ async function main() {
   console.log(`📋 required DNS: ${dns.recordType} ${domain} -> ${dns.value}${dns.misconfigured ? ' (currently misconfigured)' : ''}`);
 
   // 8. Configure Hostinger DNS (or print manual instructions).
+  let dnsApplied = false; // stays false when DNS is skipped (no token / external registrar)
   if (hostingerToken) {
     if (dns.txt) {
       console.log(`📝 ownership TXT required: ${dns.txt.name} -> ${dns.txt.value}`);
@@ -123,7 +125,8 @@ async function main() {
         console.log('✅ domain verification requested');
       } catch (e) { console.warn(`⚠️ verify failed: ${e.message}`); }
     }
-    await configureDnsRecord({ fullDomain: domain, type: dns.recordType, target: dns.value, hostingerToken });
+    const dnsRes = await configureDnsRecord({ fullDomain: domain, type: dns.recordType, target: dns.value, hostingerToken });
+    dnsApplied = !dnsRes.skipped;
   } else {
     console.log('\n⚠️ No HOSTINGER_API_TOKEN — add these DNS records manually:');
     if (dns.txt) console.log(`   TXT ${dns.txt.name} -> ${dns.txt.value}`);
@@ -209,7 +212,7 @@ async function main() {
   console.log(`project id:       ${proj.id}`);
   console.log(`deployment URL:   https://${last.url}`);
   console.log(`custom domain:    https://${domain}`);
-  console.log(`DNS applied:      ${dns.recordType} ${domain} -> ${dns.value}`);
+  if (dnsApplied) console.log(`DNS applied:      ${dns.recordType} ${domain} -> ${dns.value}`);
   if (cloudUrl) console.log(`Convex Cloud URL: ${cloudUrl}`);
   console.log('\n✅ sc-vercel deploy done.');
 }

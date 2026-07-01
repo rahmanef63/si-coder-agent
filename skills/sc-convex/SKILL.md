@@ -62,14 +62,16 @@ node scripts/deploy-convex.js \
 Probe `api-/site-/dash-` subdomains + `/version` + `/.well-known/jwks.json` + admin-key validity. Prints a status table.
 
 ```bash
-node scripts/check-backend.js --domain <root-domain.tld> [--admin-key "$CONVEX_ADMIN_KEY"]
+node scripts/check-backend.js --domain <root-domain.tld> [--admin-key "$CONVEX_ADMIN_KEY"] [--expect-auth]
 ```
+
+`--expect-auth` makes a missing/non-200 JWKS (`/.well-known/jwks.json`) fatal; omit it and JWKS is advisory only (informational, non-fatal) — a backend deployed without `@convex-dev/auth` legitimately has no JWKS.
 
 ### `rotate-admin-key.js`
 Generate a fresh admin key from the running backend container, write to Dokploy Compose env, optionally update local `.env`.
 
 ```bash
-node scripts/rotate-admin-key.js --compose-name <APP_NAME>-db [--env-file ./.env]
+node scripts/rotate-admin-key.js --compose-name <APP_NAME>-db [--env-file ./.env.local]
 ```
 
 ### `set-auth-env.js`

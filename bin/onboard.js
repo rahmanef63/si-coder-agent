@@ -78,7 +78,7 @@ async function main() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   console.log('\n🚀 si-coder onboarding wizard\n');
-  const domains = args.domains
+  const domains = typeof args.domains === 'string'
     ? args.domains.split(',').map(s => s.trim())
     : await askDomainsInteractive(rl);
 

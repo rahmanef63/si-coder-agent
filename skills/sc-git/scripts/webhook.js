@@ -33,15 +33,17 @@ async function main() {
       try { secret = require('fs').readFileSync(0, 'utf8').trim(); } catch {}
     }
     const eventList = events.split(',').map(s => s.trim()).filter(Boolean);
-    // S13: send active as a typed boolean and events[] as repeated raw fields.
-    const rawBody = { active: true, 'events': eventList };
-    const body = {
-      'name': 'web',
-      'config[url]': url,
-      'config[content_type]': 'json',
+    // S10/S13: send the whole payload as JSON on stdin (gh api --input -) so the
+    // secret never lands on the gh child's argv (visible via /proc/<pid>/cmdline).
+    // config is a real nested object; active stays a typed boolean, events an array.
+    const payload = {
+      name: 'web',
+      active: true,
+      events: eventList,
+      config: { url, content_type: 'json' },
     };
-    if (secret) body['config[secret]'] = secret;
-    const hook = ghApi(`repos/${OWNER}/${repo}/hooks`, { method: 'POST', rawBody, body });
+    if (secret) payload.config.secret = secret;
+    const hook = ghApi(`repos/${OWNER}/${repo}/hooks`, { method: 'POST', input: payload });
     ok(`webhook ${hook.id} created → ${url}`);
     return;
   }

@@ -6,6 +6,7 @@ const { makeClient } = require(path.resolve(__dirname, '../../../lib/dokploy'));
 const { configureDns } = require(path.resolve(__dirname, '../../../lib/hostinger'));
 const { parseEnvString } = require(path.resolve(__dirname, '../../../lib/env'));
 const { generateAdminKey, generateAuthKeys, setBackendEnv } = require(path.resolve(__dirname, '../../../lib/convex'));
+const { waitForValidTls } = require(path.resolve(__dirname, '../../../lib/tls'));
 
 // Backend boot is polled, not slept-on: a cold image pull / slow host can take
 // well over the old fixed 15s. Retry the admin-key generation (which runs a
@@ -179,6 +180,13 @@ async function main() {
       } catch (e) { console.warn(`⚠️ ${d.host}: ${e.message}`); }
     }
     await dokploy.cleanupComposeDomains(composeApp.composeId, backendDomains.map(d => d.host));
+
+    // Cert-gate BOTH downstream HTTPS pushes on a valid Let's Encrypt cert.
+    // deploySchema() waits for TLS internally, but a schema-less first deploy
+    // skips it and would race the not-yet-issued cert straight to the
+    // --with-auth-keys REST call (setBackendEnv has no TLS wait). Hoisting the
+    // wait here gates the schema push AND the auth-key push regardless of schema.
+    await waitForValidTls(apiDomain);
   }
 
   const updates = { INSTANCE_SECRET: instanceSecret, INSTANCE_NAME: app };

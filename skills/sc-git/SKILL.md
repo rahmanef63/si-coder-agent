@@ -63,8 +63,8 @@ node scripts/ci.js --skip lint,test          # skip steps
 node scripts/ci.js --quiet                   # only show fail output
 ```
 
-### `hook.js` — Pre-push husky setup
-Installs husky + `.husky/pre-push` that runs `node ~/.claude/skills/sc-git/scripts/ci.js`. Aborts push on fail.
+### `hook.js` — Native pre-push hook setup
+Installs a native `.git/hooks/pre-push` (no husky dependency). Guard 1 always runs local CI via `node <skill>/scripts/ci.js --skip build` and aborts the push on failure. Guard 2 auto-deploys self-hosted Convex FIRST, but only when the repo has a `convex/` dir, `.env.local` exposes `CONVEX_SELF_HOSTED_URL` + `CONVEX_SELF_HOSTED_ADMIN_KEY`, and the pending commits touched `convex/` (silent no-op otherwise). Any existing pre-push hook is backed up to `pre-push.bak`.
 
 ```bash
 node scripts/hook.js install --repo <name>
@@ -138,7 +138,7 @@ flowchart TD
     A["audit.js<br/>measure burn rate<br/>(runs, risk tags)"] --> B["disable.js<br/>strip on: triggers →<br/>workflow_dispatch-only<br/>(.bak backup)"]
     B --> C{Replacement<br/>for each trigger?}
 
-    C -->|push / pull_request CI| D["Local CI<br/>ci.js + hook.js<br/>(pre-push husky)"]
+    C -->|push / pull_request CI| D["Local CI<br/>ci.js + hook.js<br/>(native pre-push hook)"]
     C -->|PR gate / branch protect| E["runner.js<br/>self-hosted runner @ VPS<br/>(runs-on: [self-hosted])"]
     C -->|schedule: cron| F["cron.js<br/>VPS crontab entry"]
     C -->|push → deploy| G["webhook.js<br/>push webhook → VPS endpoint"]

@@ -39,14 +39,14 @@ flowchart TD
     GH --> Guard{".env leak guard<br/>git check-ignore"}
     Guard -->|secret unignored| Abort["ABORT before push"]
     Guard -->|clean| Compose{"docker-compose.yml?"}
-    Compose -->|yes| CVX["Convex compose template<br/>INSTANCE_SECRET + domains"]
+    Compose -->|yes| CVX["Convex compose template (backend + dashboard)<br/>api-/site-/dash- DNS + domains<br/>+ INSTANCE_SECRET"]
     CVX --> Key["generate admin key<br/>(health-poll) → Dokploy env"]
     Key --> TLS["wait for valid TLS"]
     TLS --> Schema["npx convex deploy<br/>(env-only, no argv)"]
     Compose -->|no| Dockerfile{"Dockerfile?"}
     Schema --> Dockerfile
-    Dockerfile -->|yes| App["Dokploy application<br/>GitHub provider, PAT-less"]
-    App --> DNS["Hostinger A records<br/>main + api-/site-/dash-"]
+    Dockerfile -->|yes| App["Dokploy application (Next.js frontend)<br/>GitHub provider, PAT-less"]
+    App --> DNS["Hostinger A record<br/>main domain"]
     DNS --> Poll["trigger deploy + poll status"]
     Poll --> Done["live URL ✅"]
 ```
@@ -75,7 +75,7 @@ node ~/path/to/si-coder-agent/scripts/deploy.js \
   --project "<PROJECT_NAME>" --app "<APP_NAME>" --domain "<DOMAIN>"
 ```
 
-The only values you ever write by hand are `<PROJECT_NAME>`, `<APP_NAME>`, and `<DOMAIN>`. No secret occupies an argv slot.
+The only **command-line** values you write by hand are `<PROJECT_NAME>`, `<APP_NAME>`, and `<DOMAIN>` — no secret occupies an argv slot. Two **opt-in** behaviors are gated behind environment variables (both unset by default): `SC_ALLOW_FORCE_PUSH=1` appends `--force` to the `git push` (deploy.js ~541/615), and `SC_ALLOW_REMOTE_REWRITE=1` permits rewriting a pre-existing local `origin` remote that points elsewhere (deploy.js ~578). Leave both unset unless you specifically need them.
 
 Flags (all non-secret):
 
@@ -97,19 +97,24 @@ The script will:
 1. Contact the GitHub API using `GITHUB_TOKEN` to create a new private repository named `APP_NAME` (skips if it already exists).
 2. Initialize local Git, commit files (including `convex/_generated`), and `git push` to GitHub via SSH (`git@github.com:<owner>/<app>.git`).
 3. Fetch Dokploy projects to find or create `PROJECT_NAME`.
-4. Auto-detect `docker-compose.yml` / `Dockerfile`. If a compose file exists, it deploys the Dokploy **`convex` compose template** (grouping the Frontend + Convex Self-Hosted DB). If a `Dockerfile` exists, it creates/updates a standard **Dokploy Application**.
+4. Auto-detect `docker-compose.yml` / `Dockerfile`. If a compose file exists, it deploys the Dokploy **`convex` compose template** (the Convex backend + dashboard — **not** the frontend) and sets the `api-`/`site-`/`dash-` DNS + backend domains **before** deploying the Convex schema. If a `Dockerfile` exists, it creates/updates a standard **Dokploy Application** — this is the path by which the **Next.js frontend deploys separately** (its main-domain DNS is set here).
 5. Bind the Dokploy application to its source **without ever embedding a PAT in the git URL**: it first looks for a configured **Dokploy GitHub provider** (`/github.githubProviders`) and uses `application.saveGithubProvider` + `sourceType: "github"`. If no provider exists, it falls back to a **PAT-less public git URL** (`https://github.com/<owner>/<repo>.git`, `sourceType: "git"`) and warns that private repos then need an SSH deploy key / GitHub App configured in Dokploy. A PAT is never persisted into `customGitUrl`.
 6. Create the `DOMAIN` (and the `api-/site-/dash-` backend domains for the compose path) in Dokploy, silently skipping any that already exist, then prune stale / `*.traefik.me` domains.
 7. Sync the compose env (without rotating existing Convex secrets), auto-generate the Convex admin key from the running backend container, push the Convex schema via `npx convex deploy`, then trigger the application deployment and poll until `done` / `error`.
 
-### Secret-leak guard (before `git add .`)
+### Secret-leak guards (before `git add .`)
 
-Before the script ever stages your project, it runs a guard (`ensureGitignoreSafety`):
+Before the script ever stages your project, it runs **two** guards. The first, `ensureGitignoreSafety`, runs before `git init` and inspects the **repo root**:
 
 - Ensures `.gitignore` exists and covers `.env`, `.env.*` (re-including `.env.example`), `node_modules`, `.next`, `.DS_Store`.
 - **Asks git itself** (`git check-ignore`) whether each discovered `.env*` file is actually ignored, so it honors negations, nested `.gitignore` files, and your global excludes — not a hand-rolled matcher. A trailing `!.env` / `!.env.*` re-include (which git's last-match-wins precedence would use to **un-ignore** your secrets) causes a hard abort.
-- **Scope of the dotenv abort is dotenv-only and repo-root only.** It aborts the deploy only for unignored `.env` / `.env.<suffix>` files at the project root (other than `.env.example`).
-- For **other** common secret files at the repo root (`id_rsa`, `*.pem`, `*.p12`, `*.key`, `serviceAccount*.json`, …) it **warns but does not abort** — naming conventions vary, so you decide. If sensitive, add them to `.gitignore` before deploying. Nested non-dotenv secrets are **not** scanned.
+- Hard-aborts on any unignored `.env` / `.env.<suffix>` file at the project root (other than `.env.example`).
+- For **other** common secret files at the repo root (`id_rsa`, `*.pem`, `*.p12`, `*.key`, `serviceAccount*.json`, …) it **warns but does not abort** — naming conventions vary, so you decide. If sensitive, add them to `.gitignore` before deploying.
+
+The second guard, `scanNestedDotenvLeaks`, runs **after** `git init` (so `git check-ignore` is authoritative) and walks the **whole tree** — because `git add .` stages every directory, not just the root (it skips `.git/` and `node_modules/`):
+
+- **HARD-ABORTS** on any unignored nested `.env` / `.env.*` (e.g. `apps/web/.env`, `convex/.env.local`) — the same dotenv rule as the root guard, but tree-wide.
+- **WARNS** (does not abort) on nested non-dotenv secrets (`id_rsa`, `*.pem`, `*.key`, `serviceAccount*.json`, …) that `git add .` would otherwise stage. Add them to `.gitignore` if sensitive.
 
 ### Admin Key Sync Rule
 
@@ -121,166 +126,16 @@ Never leave the backend container, Dokploy env, and local env file on different 
 
 ## Convex Self-Hosted Authentication (`@convex-dev/auth`)
 
-### ⚠️ CRITICAL: Required Environment Variables
+Full `@convex-dev/auth` setup — generating `JWT_PRIVATE_KEY` + `JWKS`, the required backend env-var table, the PBKDF2 password-hashing override (Scrypt/bcrypt time out on the Dokploy proxy), the `ConvexClientProvider` "route `auth:*` via HTTP" pattern, the `NEXT_PUBLIC_CONVEX_URL` build-time Dockerfile gotcha, and "Connection lost while action was in flight" diagnosis — is owned by **`/sc-convex`**. Use its `scripts/set-auth-env.js --generate` (automated admin REST `/api/update_environment_variables`) instead of hand-rolling keys or a raw `curl`.
 
-When using `@convex-dev/auth` (Password, OAuth, etc.), the library requires **environment variables on the Convex backend server** (NOT in `.env.local`):
+**Caveat (progressive disclosure):** `scripts/deploy.js` sets `INSTANCE_SECRET`, `INSTANCE_NAME`, `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`, and the Convex admin key on the compose env, but it does **NOT** auto-set `JWT_PRIVATE_KEY` / `JWKS`. A project using `@convex-dev/auth` will crash on `signIn` ("Connection lost while action was in flight") until you set those two on the backend via `/sc-convex`.
 
-| Variable | Format | Purpose | Where to Set |
-|---|---|---|---|
-| `JWT_PRIVATE_KEY` | PEM (PKCS8) RSA private key | Signs JWT tokens via `importPKCS8()` in `tokens.js` | Dokploy → Compose env |
-| `JWKS` | JSON `{"keys":[{...}]}` | Served at `/.well-known/jwks.json` for JWT verification | Dokploy → Compose env |
-| `CONVEX_SITE_ORIGIN` | URL | Auto-mapped to `process.env.CONVEX_SITE_URL` in functions | Already set by deploy.js |
-| `CONVEX_CLOUD_ORIGIN` | URL | Auto-mapped to `process.env.CONVEX_CLOUD_URL` in functions | Already set by deploy.js |
-
-### Generating JWT Keys
-
-```bash
-node -e "
-const { generateKeyPairSync, createPublicKey } = require('crypto');
-const { privateKey, publicKey } = generateKeyPairSync('rsa', {
-  modulusLength: 2048,
-  publicKeyEncoding: { type: 'spki', format: 'pem' },
-  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-});
-const jwk = createPublicKey(publicKey).export({ format: 'jwk' });
-jwk.alg = 'RS256'; jwk.use = 'sig'; jwk.kid = 'convex-self-hosted-1';
-console.log('JWT_PRIVATE_KEY:', privateKey);
-console.log('JWKS:', JSON.stringify({ keys: [jwk] }));
-"
-```
-
-### Variable Mapping (Self-Hosted)
-
-Docker-compose env → `process.env` in Convex functions:
-- `CONVEX_SITE_ORIGIN` → `process.env.CONVEX_SITE_URL`
-- `CONVEX_CLOUD_ORIGIN` → `process.env.CONVEX_CLOUD_URL`
-
-### Auth File Structure
+Auth file layout (kept here because `/sc-convex` doesn't spell it out):
 
 ```
 convex/
-├── auth.ts              # convexAuth({ providers: [Password({...})] })
-│                        # Exports: auth, signIn, signOut, store, isAuthenticated
-├── auth.config.ts       # { providers: [{ domain: process.env.CONVEX_SITE_URL }] }
-├── http.ts              # httpRouter + auth.addHttpRoutes(http)
-└── schema.ts            # defineSchema({ ...authTables, ...featureTables })
-```
-
-### Sign-In/Sign-Up Flow
-
-1. Client calls `signIn("password", {email, password, flow, name})` via `useAuthActions()`
-2. Convex runs action `auth:signIn` → `signInImpl()` → `handleCredentials()`
-3. Password provider's `authorize()` creates/retrieves account
-4. `callSignIn()` → `maybeGenerateTokensForSession()` → `generateToken()`
-5. `generateToken()` calls `requireEnv("JWT_PRIVATE_KEY")` to sign JWT with RS256
-6. If `JWT_PRIVATE_KEY` is missing → action crashes → **"Connection lost while action was in flight"**
-
-### Common Error: "Connection lost while action was in flight"
-
-This error means the **WebSocket reconnected while the action was in-flight** — the Convex client calls `requestManager.restart()` on every WebSocket `onOpen`, which kills all in-flight actions. The server may have already completed the action (users visible in dashboard!) but the client never received the response.
-
-**Root causes (in order of likelihood for self-hosted Dokploy):**
-
-| Cause | Symptom | Fix |
-|---|---|---|
-| **`NEXT_PUBLIC_CONVEX_URL` is wrong/dummy at build time** | Users created in DB but browser shows error; WebSocket connects to wrong server | Fix Dockerfile — see below |
-| Missing `JWT_PRIVATE_KEY` on Convex backend | Action crashes before creating user | Set in Dokploy → Compose env |
-| Missing `JWKS` on Convex backend | `/.well-known/jwks.json` returns 500 | Set in Dokploy → Compose env |
-| Dokploy proxy closes idle WebSocket | Error only after sitting on page | Route auth actions via HTTP (see ConvexClientProvider below) |
-| Scrypt/bcrypt password hashing timeout | Action takes >60s → proxy kills WS | Use PBKDF2 10k iterations or SHA-256 via WebCrypto |
-
-### ⚠️ CRITICAL: NEXT_PUBLIC_CONVEX_URL at Build Time
-
-`NEXT_PUBLIC_*` vars are **inlined into the JS bundle at `next build`**. If the Dockerfile sets a dummy URL for the build, the deployed app connects to the wrong server:
-
-```dockerfile
-# ❌ WRONG — dummy URL gets embedded in all JS, auth/queries fail silently
-ENV NEXT_PUBLIC_CONVEX_URL=https://dummy-for-build.convex.cloud
-
-# ✅ CORRECT — use real URL as ARG default, allows Dokploy build arg override
-ARG NEXT_PUBLIC_CONVEX_URL=https://api-<appname>.<your-domain>
-ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
-```
-
-Diagnosis: If users appear in Convex dashboard but browser shows "Connection lost", check whether the deployed JS has the real URL embedded. The WebSocket will be connecting to the dummy domain.
-
-### Password Hashing: Do NOT use Scrypt/bcrypt on Dokploy
-
-The default `@convex-dev/auth` uses Scrypt which times out on Dokploy proxy (>60s). Use PBKDF2 via WebCrypto (10k iterations ≈ 50ms):
-
-```typescript
-// convex/auth.ts — inside Password({ ... })
-crypto: {
-  async hashSecret(password: string) {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-    const hashBuffer = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 10000, hash: "SHA-256" }, keyMaterial, 256);
-    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
-    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, "0")).join("");
-    return `pbkdf2_${saltHex}_${hashHex}`;
-  },
-  async verifySecret(password: string, hash: string) {
-    if (hash.startsWith("pt_")) return hash === `pt_${password}`; // legacy plaintext
-    const parts = hash.split("_");
-    if (parts[0] !== "pbkdf2" || parts.length !== 3) return false;
-    const salt = new Uint8Array(parts[1].match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-    const hashBuffer = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 10000, hash: "SHA-256" }, keyMaterial, 256);
-    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
-    return hashHex === parts[2];
-  },
-},
-```
-
-### Frontend Auth Setup (Next.js + Self-Hosted Convex)
-
-```tsx
-// src/app/ConvexClientProvider.tsx
-// ⚠️ ConvexHttpClient is from 'convex/browser', NOT 'convex/react'
-"use client";
-import { ConvexReactClient } from "convex/react";
-import { ConvexHttpClient } from "convex/browser";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { type ReactNode, useState } from "react";
-
-export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  const [convex] = useState(() => {
-    const client = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-    const http = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-    const origAction = client.action.bind(client);
-    // Route auth actions via HTTP to prevent "Connection lost while action was in flight"
-    // when Dokploy proxy closes idle WebSocket connections mid-flight.
-    (client as any).action = (ref: any, args?: any) => {
-      const name = (ref as any)?._name ?? String(ref);
-      if (typeof name === "string" && name.startsWith("auth:")) {
-        return http.action(ref as any, args);
-      }
-      return origAction(ref, args);
-    };
-    return client;
-  });
-  return <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>;
-}
-```
-
-**Why**: The `@convex-dev/auth` browser client calls `auth:signIn` via `authenticatedCall` → `client.action()` → WebSocket. If the WebSocket reconnects during the action (idle proxy timeout), the action is killed. Routing via HTTP avoids this entirely.
-
-### Setting JWT_PRIVATE_KEY via REST API (PEM key breaks CLI)
-
-The `npx convex env set JWT_PRIVATE_KEY "-----BEGIN..."` fails because `--` prefix is parsed as a CLI flag. Use the admin REST API instead:
-
-```bash
-curl -X POST https://api-<appname>.<your-domain>/api/update_environment_variables \
-  -H "Authorization: Convex <ADMIN_KEY>" \
-  -H "Content-Type: application/json" \
-  --data-raw "$(node -e "
-    const key = require('fs').readFileSync('/tmp/jwt_private_key.txt', 'utf8');
-    const jwks = require('fs').readFileSync('/tmp/jwks.txt', 'utf8');
-    console.log(JSON.stringify({ changes: [
-      { name: 'JWT_PRIVATE_KEY', value: key },
-      { name: 'JWKS', value: jwks }
-    ]}));
-  ")"
+├── auth.ts          # convexAuth({ providers: [Password({...})] }) → exports auth, signIn, signOut, store, isAuthenticated
+├── auth.config.ts   # { providers: [{ domain: process.env.CONVEX_SITE_URL }] }
+├── http.ts          # httpRouter + auth.addHttpRoutes(http)
+└── schema.ts        # defineSchema({ ...authTables, ...featureTables })
 ```

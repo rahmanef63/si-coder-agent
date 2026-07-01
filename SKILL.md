@@ -7,7 +7,7 @@ description: "Zero human involvement full-stack deployment. Umbrella skill that 
 
 This is the parent skill for the SI Coder family. After installing (see `install.sh`), the following slash commands are available:
 
-**Implemented (7):**
+**Implemented (8):**
 
 | Command | Domain | Purpose |
 |---|---|---|
@@ -18,6 +18,7 @@ This is the parent skill for the SI Coder family. After installing (see `install
 | `/sc-vercel` | Vercel | Online frontend bound to a GitHub repo; build couples Convex Cloud deploy, custom domain/subdomain, Hostinger DNS (CNAME sub / A apex) |
 | `/sc-git` | GitHub | Repo CRUD + Actions cost reduction (audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron) |
 | `/sc-onboarding` | Setup | Scan env, prompt only for missing credentials, write to `~/.bashrc` (merge-in-place, single-quote escaped) |
+| `/sc-sync` | Sync | rsync gitignored files between a VPS and local machine over Tailscale (same repo, mirrored checkout); dry-run first, `--apply` to copy |
 
 ### Two deploy paths (same flow shape)
 
@@ -36,6 +37,7 @@ flowchart TD
     C2 --> D2["Hostinger CNAME / A → Vercel"]
     D1 --> V["verify live URL"]
     D2 --> V
+    SY["/sc-sync<br/>aux · rsync gitignored files<br/>between VPS and local (out-of-band)"]
 ```
 
 **Stubs (5, exit code 2 until implemented):** `/sc-cf` (Cloudflare), `/sc-stripe` (payments), `/sc-resend` (email), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt).
@@ -72,7 +74,6 @@ si-coder-agent/
 ├── install.sh         ← symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 ├── lib/               ← shared modules
 │   ├── dokploy.js     ← Dokploy REST
-│   ├── github.js      ← GitHub REST + repo CRUD
 │   ├── hostinger.js   ← Hostinger DNS (A/CNAME)
 │   ├── convex.js      ← Convex self-hosted (Dokploy compose)
 │   ├── convex-cloud.js← Convex Cloud (managed) deploy
@@ -87,7 +88,8 @@ si-coder-agent/
 │   ├── sc-convex-cloud/{SKILL.md, scripts/}
 │   ├── sc-vercel/{SKILL.md, scripts/}
 │   ├── sc-git/{SKILL.md, scripts/}
-│   └── sc-onboarding/{SKILL.md, scripts/, steps/}
+│   ├── sc-onboarding/{SKILL.md, scripts/, steps/}
+│   └── sc-sync/{SKILL.md, scripts/}
 ├── scripts/
 │   └── deploy.js      ← legacy monolith, still functional
 └── bin/

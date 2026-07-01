@@ -66,7 +66,8 @@ node scripts/compose.js deploy --compose <composeName>
 ```bash
 node scripts/domains.js list-app --app-id <id>
 node scripts/domains.js list-compose --compose-id <id>
-node scripts/domains.js create-app --app-id <id> --host <host> [--port N] [--service NAME]
+node scripts/domains.js create-app --app-id <id> --host <host> [--port N]
+node scripts/domains.js create-compose --compose-id <id> --host <host> --port <n> --service <name>
 node scripts/domains.js delete --domain-id <id>
 ```
 

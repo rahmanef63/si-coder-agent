@@ -47,7 +47,10 @@ async function main() {
     deployCloud({ deployKey, buildCmd, urlEnvVar, cwd, message });
   }
 
-  const url = readInjectedUrl({ urlEnvVar, cwd }) || deriveCloudUrl(deployKey);
+  // Prefer the URL derived from the just-deployed key over .env.local, which may
+  // still hold a STALE dev URL from a prior `npx convex dev`. deriveCloudUrl returns
+  // null for preview/project keys → fall back to the injected env in that case.
+  const url = deriveCloudUrl(deployKey) || readInjectedUrl({ urlEnvVar, cwd });
   if (url) console.log(`${urlEnvVar}=${url}`);
   else console.warn(`⚠️ could not resolve ${urlEnvVar} (preview key or no injected env) — read it from the build log`);
 }

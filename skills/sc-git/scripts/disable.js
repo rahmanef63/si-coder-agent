@@ -150,8 +150,13 @@ async function main() {
     return;
   }
 
-  // git: commit (already on BRANCH)
-  gitInRepo(repoPath, ['add', '.github/workflows/']);
+  // git: commit (already on BRANCH). Stage ONLY the patched files by explicit
+  // path — `git add .github/workflows/` would also stage the *.yml.bak backups
+  // backup() just wrote, and CORE RULE 1 keeps .bak files out of commits.
+  const patchedPaths = results
+    .filter(r => r.status === 'patched')
+    .map(r => path.join('.github', 'workflows', r.file));
+  gitInRepo(repoPath, ['add', '--', ...patchedPaths]);
   try {
     gitInRepo(repoPath, ['commit', '-m', COMMIT_MSG]);
   } catch (e) {

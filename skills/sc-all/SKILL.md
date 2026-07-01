@@ -13,8 +13,8 @@ flowchart LR
     P2 --> T{"--target"}
     T -->|dokploy| D3["3 · Dokploy project"]
     D3 --> D4["4 · Convex self-hosted<br/>admin key + JWT"]
-    D4 --> D5["5 · Dokploy app"]
-    D5 --> D6["6 · DNS + poll"]
+    D4 --> D5["5 · Dokploy app<br/>+ DNS + poll"]
+    D5 --> D6["6 · Verify<br/>check-backend"]
     D6 --> Live["live URL ✅"]
     T -->|vercel| V4["V4 · Convex Cloud<br/>coupled build"]
     V4 --> V5["V5 · Vercel project<br/>+ domain + DNS"]
@@ -53,7 +53,7 @@ All mandates from `sc-convex` and `sc-dokploy` apply. Specifically:
 
 ## Umbrella semantics
 
-`/sc-all` is the **umbrella command**. Invoking it automatically pulls in every sub-skill below (sc-onboarding, GitHub repo create+push via `lib/github.js`, sc-dokploy, **sc-convex**, sc-git hook install). The user **never** needs to invoke `/sc-convex` separately — if `docker-compose.yml` is present, sc-convex is run as Phase 4. If a `convex/` dir is present without compose (existing self-hosted), sc-git's pre-push hook is installed so all subsequent pushes auto-deploy Convex without any manual command.
+`/sc-all` is the **umbrella command**. Invoking it automatically pulls in every sub-skill below (sc-onboarding, GitHub repo create+push via `scripts/deploy.js` (inline `fetchGitHub` + `POST /user/repos`), sc-dokploy, **sc-convex**, sc-git hook install). The user **never** needs to invoke `/sc-convex` separately — if `docker-compose.yml` is present, sc-convex is run as Phase 4. If a `convex/` dir is present without compose (existing self-hosted), sc-git's pre-push hook is installed so all subsequent pushes auto-deploy Convex without any manual command.
 
 Concretely:
 - Existing self-hosted project: `/sc-all` installs/refreshes the sc-git pre-push hook with Convex auto-deploy guard. After that, `git push` alone handles everything — backend deploys to Convex self-hosted first, then frontend rebuilds via Dokploy webhook. **Never instruct the user to run `npx convex deploy`, `pnpm convex:deploy`, or any Convex CLI command by hand.**
@@ -80,8 +80,8 @@ Phase 2 (GitHub) is shared across both targets.
 If any required env var missing → run `/sc-onboarding` first.
 
 ### Phase 2 — GitHub
-- `lib/github.js` → `ensureRepo()` (create private repo if missing)
-- `lib/github.js` → `pushLocalRepo()` (init/commit/push via SSH)
+- `scripts/deploy.js` → `fetchGitHub('/repos/<owner>/<name>')`, then `POST /user/repos` on 404 (create private repo if missing)
+- git init/commit/push via SSH (`REPO_URL_RE`-guarded; `ensureGitignoreSafety` runs before `git add`)
 
 ### Phase 3 — Dokploy project
 - `lib/dokploy.js` → `findOrCreateProject(project)`

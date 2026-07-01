@@ -158,7 +158,13 @@ function reportEnv({ domains }) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const domains = (args.domains || 'github,dokploy,convex,hostinger').split(',').map(s => s.trim()).filter(Boolean);
+  const raw = typeof args.domains === 'string' ? args.domains : 'github,dokploy,convex,hostinger';
+  const domains = raw.split(',').map(s => s.trim()).filter(Boolean);
+  // collectKeys() silently skips domains not in DOMAIN_VARS; surface typos to
+  // STDERR (keeps --json stdout clean) so a mistyped --domains isn't a silent no-op.
+  for (const d of domains) {
+    if (!DOMAIN_VARS[d]) console.error(`⚠️ unknown domain "${d}", skip`);
+  }
 
   if (args['write-stdin']) {
     // Preferred secret path: read newline-delimited KEY=VALUE pairs from stdin

@@ -127,7 +127,6 @@ flowchart TB
     all --> vrc
     subgraph libs["lib/ — thin REST clients, zero runtime deps"]
         ld["dokploy.js"]
-        lg["github.js"]
         lcx["convex.js"]
         lcc["convex-cloud.js"]
         lv["vercel.js"]
@@ -139,7 +138,6 @@ flowchart TB
     cvx --> lcx
     cc --> lcc
     vrc --> lv
-    git --> lg
     onb --> le
     subgraph ext["External APIs"]
         eGh(["GitHub"])
@@ -149,7 +147,6 @@ flowchart TB
         eHost(["Hostinger DNS"])
     end
     ld --> eDok
-    lg --> eGh
     lv --> eVrc
     lcx --> eCvx
     lcc --> eCvx
@@ -165,7 +162,6 @@ si-coder-agent/
 ├── install.sh         symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 ├── lib/
 │   ├── dokploy.js       Dokploy REST client + CRUD helpers
-│   ├── github.js        GitHub REST + git push helpers
 │   ├── hostinger.js     Hostinger DNS A/CNAME-record sync
 │   ├── convex.js        admin key / schema deploy / JWT keys / probe
 │   ├── convex-cloud.js  Convex Cloud deploy / URL derive / probe
@@ -200,9 +196,11 @@ si-coder-agent/
 │   └── deploy.js      legacy monolith (still functional)
 ├── test/
 │   ├── deploy-helpers.test.js  pure helpers from scripts/deploy.js
-│   ├── lib.test.js             lib/tls, lib/convex, lib/hostinger, lib/env
+│   ├── lib.test.js             lib/tls, lib/convex, lib/convex-cloud, lib/hostinger, lib/env
 │   ├── resilience.test.js      fetch retry/backoff + bounded-timeout branches
-│   └── sc-git.test.js          sc-git helper coverage
+│   ├── sc-git.test.js          sc-git helper coverage
+│   ├── sc-sync.test.js         sc-sync route() + isBlockedPath()
+│   └── vercel.test.js          lib/vercel DNS normalize + 409 disambiguation
 └── bin/
     └── onboard.js     one-shot CLI wizard
 ```
@@ -249,8 +247,8 @@ Tests use only Node built-ins (`node:test` + `node:assert`); no extra dev deps.
 1. `mkdir skills/sc-<name>/{scripts}`
 2. Write `skills/sc-<name>/SKILL.md` with frontmatter `name: sc-<name>` + `description:`.
 3. Put scripts under `skills/sc-<name>/scripts/*.js`. Import shared utils from `../../../lib/`.
-4. Add domain-required vars to `skills/sc-onboarding/scripts/scan-env.js` → `DOMAIN_VARS`.
-5. Add a validator to `bin/onboard.js` → `VALIDATORS`.
+4. Add domain-required vars to `skills/sc-onboarding/lib/onboarding-domains.js` → `DOMAIN_VARS`.
+5. Add a validator to `skills/sc-onboarding/lib/onboarding-domains.js` → `VALIDATORS` (single source of truth; `scripts/scan-env.js` and `bin/onboard.js` only import these).
 6. Add a step doc at `skills/sc-onboarding/steps/<name>.md`.
 7. Edit `install.sh` → add `link_skill "sc-<name>"`.
 8. Re-run `bash install.sh`.
