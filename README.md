@@ -252,6 +252,19 @@ bare directory form `node --test test/` — on some Node versions it resolves `t
 module entry and fails with `MODULE_NOT_FOUND` instead of discovering the `*.test.js` files.
 Tests use only Node built-ins (`node:test` + `node:assert`); no extra dev deps.
 
+### Releasing a version
+
+`npm version` is the whole release flow — `preversion` runs the tests, npm bumps
+`package.json` + commits + tags `vX.Y.Z`, and `postversion` pushes main with the tag.
+
+```bash
+npm version patch   # bugfix       0.3.0 -> 0.3.1
+npm version minor   # new skill/feature
+npm version major   # breaking change to an sc-* contract or env name
+```
+
+Failing tests abort the bump — nothing is committed, nothing is pushed.
+
 ## Core mandates (shared across all sc-*)
 
 1. **Self-hosted Convex by default** — never silently swap to Clerk. Use `@convex-dev/auth`.

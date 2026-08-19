@@ -17,6 +17,8 @@
     "sc": "node bin/sc.js",
     "doctor": "node bin/sc.js doctor",
     "deploy": "node scripts/deploy.js",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "preversion": "npm test",
+    "postversion": "git push --follow-tags origin main"
   }
 }
