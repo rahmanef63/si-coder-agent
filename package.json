@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Zero-human full-stack deployment skill bundle for AI agents (Claude Code / OpenClaw / Gemini): GitHub + Dokploy + Convex (self-hosted & Cloud) + Vercel + Hostinger DNS, via modular /sc-* slash commands.",
   "keywords": [
     "claude-code",
