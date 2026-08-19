@@ -244,8 +244,13 @@ Every skill (legacy `/use-si-coder` and all `/sc-*`) is adversarially audited an
 The canonical test entrypoint is:
 
 ```bash
-npm test        # runs node --test "test/**/*.test.js"
+npm test        # runs node --test --test-concurrency=1 "test/**/*.test.js"
 ```
+
+`--test-concurrency=1` is not optional: run the files in parallel and Node 22's test
+runner intermittently kills a random file with `uncaughtException: Unable to deserialize
+cloned data due to invalid or unsupported version` (~50% of runs). That is the runner's
+IPC channel corrupting, not our code — serial execution costs ~2s and is always green.
 
 Use `npm test` (or `node --test test/deploy-helpers.test.js` for a single file). Avoid the
 bare directory form `node --test test/` — on some Node versions it resolves `test/` as a
