@@ -67,9 +67,14 @@ After `bash install.sh`, these slash commands are available. **Implemented** com
 git clone https://github.com/rahmanef63/si-coder-agent.git
 cd si-coder-agent
 bash install.sh        # symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
-node bin/onboard.js    # interactive credential setup (non-AI)
+npm link               # puts the `sc` console on PATH (or just use `node bin/sc.js`)
+sc setup               # interactive credential setup (non-AI)
 source ~/.bashrc
 ```
+
+> `sc` here is **this repo's console**, installed by `npm link` from the clone.
+> Do **not** `apt install sc` — that is an unrelated Debian package (a terminal
+> spreadsheet calculator). If you already did: `sudo apt remove sc`.
 
 Driving via an AI agent instead? Just run `/sc-onboarding` — it scans your env, asks only for what's missing, and writes `~/.bashrc`.
 
