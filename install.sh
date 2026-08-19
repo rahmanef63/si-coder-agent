@@ -74,3 +74,26 @@ echo "   /sc-supabase     → Supabase backend alternative"
 echo ""
 echo "Legacy umbrella:"
 echo "   /use-si-coder    → one-shot monolith (runs repo-root scripts/deploy.js; secrets via env only)"
+
+# --- Interactive credential setup ------------------------------------------
+# Offer the wizard right after install so a first-time user goes from clone to
+# configured in one flow. The wizard prints where to get each secret and reads
+# them without echoing. Skipped automatically in CI / piped installs, or with
+# --no-onboard, so `curl … | bash` never blocks on a prompt.
+run_onboarding=1
+[[ "${1:-}" == "--no-onboard" ]] && run_onboarding=0
+[[ -t 0 && -t 1 ]] || run_onboarding=0   # not a TTY → non-interactive install
+
+if [[ "$run_onboarding" == "1" ]]; then
+  echo ""
+  read -r -p "Set up credentials now with the interactive wizard? [Y/n] " _ans
+  if [[ ! "$_ans" =~ ^[Nn] ]]; then
+    node "$REPO_DIR/bin/sc.js" setup
+  else
+    echo "Skipped. Run it anytime:  node $REPO_DIR/bin/sc.js setup"
+  fi
+else
+  echo ""
+  echo "Set up credentials when ready:  node $REPO_DIR/bin/sc.js setup"
+  echo "Verify them live with:          node $REPO_DIR/bin/sc.js doctor"
+fi

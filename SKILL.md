@@ -64,6 +64,22 @@ These apply across every sub-skill:
 7. **Clerk MCP for Clerk apps**: if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
 8. **Exact cloning**: if user wants a clone of an existing site, fetch and replicate layout, not a generic dashboard.
 
+## Output styles (optional)
+
+Owner-selectable token-savers that trim how much the agent *says*, never what a skill *does*.
+Set `SC_OUTPUT_STYLE` before running any `sc-*` skill:
+
+| `SC_OUTPUT_STYLE` | The agent should… |
+|---|---|
+| `off` (default) | use normal phrasing |
+| `caveman` | be terse — drop articles/filler/pleasantries, fragments OK — while keeping **all** technical substance and exact code/errors verbatim |
+| `ponytail` | act as a lazy senior dev — the shortest solution that works, no unrequested abstractions, code first, then ≤3 short lines of explanation |
+
+When `SC_OUTPUT_STYLE` is `caveman` or `ponytail`, adopt that style for all `sc-*` output. An
+unknown/empty value means `off`. This only affects phrasing — every mandate above still holds.
+Full text + a resolver CLI live in `references/output-styles.md` and `lib/output-styles.js`
+(ported from the MSO project's `OsConfig.tokenSaver`).
+
 ## Repo layout
 
 ```

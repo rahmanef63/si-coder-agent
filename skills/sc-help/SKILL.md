@@ -5,6 +5,34 @@ description: "Quick-reference card for the whole SI-Coder /sc-* skill bundle —
 
 # /sc-help — SI-Coder quick reference
 
+## `sc` — the provider console (new)
+
+| Command | What it answers |
+|---|---|
+| `sc providers` | which providers are configured, and what is missing |
+| `sc providers show <id>` | every var for one provider + where to get it |
+| `sc providers set <id>` | re-enter / rotate one provider's credentials |
+| `sc providers rm <id> --yes` | drop its vars from the `~/.bashrc` managed block |
+| `sc setup [--target t]` | interactive wizard for whatever is missing |
+| `sc doctor [--target t]` | **live** — calls each real API and names what it reached |
+| `sc preflight --target t` | the gate `/sc-all` runs before touching anything |
+
+`providers` = configured (presence + format). `doctor` = actually works (real API call).
+
+| `sc user` | profiles, and which folder uses which |
+| `sc user which` | why this directory resolves to that profile |
+| `sc user add <n> [--from-shell]` | create a profile (optionally import current env) |
+| `sc user map <folder> <n>` | bind a folder + children to a profile |
+| `sc env` / `sc run -- <cmd>` | apply the resolved profile to a shell / one command |
+
+Multiple identities on one machine: credentials in `~/.config/si-coder/profiles/<n>.env`,
+the folder map in `~/.config/si-coder/sc.md`. Longest matching path wins. A profile
+**overrides** the shell and **removes** credentials it does not own — `--no-profile` opts out.
+
+Run `sc` with no arguments for an arrow-key menu. Any command that picks a provider or a
+target opens a list instead of asking you to type the name: `↑/↓` move, `Space` toggle
+(multi-select), `a` all/none, `Enter` confirm, `Esc` cancel.
+
 One-shot cheat sheet for the `/sc-*` deploy bundle. Show this, then route the user to the
 specific skill. Not a mode — display and stop.
 

@@ -464,15 +464,17 @@ async function run() {
 
   const { project: projectName, app: appName, domain, target: rawTarget } = parseDeployArgs(process.argv.slice(2));
 
-  if (!apiUrl || !apiKey || !projectName || !appName || !githubToken) {
+  // Only ARGUMENT problems print the usage wall. A missing credential is a different
+  // failure with a different fix, and used to be buried in this same block — the preflight
+  // below names the exact var and the exact command instead.
+  if (!projectName || !appName) {
     console.error(
       'Usage: node deploy.js --project <PROJECT_NAME> --app <APP_NAME> [--domain <DOMAIN>] [--target dokploy|hybrid]\n' +
       '  (bare positionals also accepted: node deploy.js <PROJECT_NAME> <APP_NAME> [DOMAIN])\n' +
       '  --target dokploy (default): Dokploy frontend + self-hosted Convex compose.\n' +
       '  --target hybrid: Dokploy frontend (VPS) + Convex Cloud backend — needs CONVEX_DEPLOY_KEY.\n' +
-      '  Secrets are read ONLY from the environment (never argv, to avoid `ps aux` leakage):\n' +
-      '    DOKPLOY_API_URL, DOKPLOY_API_KEY, GITHUB_TOKEN (export these in ~/.bashrc).\n' +
-      '    CONVEX_DEPLOY_KEY (hybrid only). HOSTINGER_API_TOKEN is optional (DNS automation).'
+      '  Secrets are read ONLY from the environment (never argv, to avoid `ps aux` leakage).\n' +
+      '  Credentials are checked separately — run `sc doctor` to see what is set.'
     );
     process.exit(1);
   }
@@ -486,6 +488,46 @@ async function run() {
     console.error(`deploy.js: ${e.message}`);
     process.exit(1);
   }
+  // PREFLIGHT: every credential this target needs, checked in ONE place before any side
+  // effect. Previously each was discovered ad hoc, several phases in, so a missing token
+  // surfaced only after a repo had already been created and pushed. The registry in
+  // lib/providers.js is the source of truth, so this list can never drift from what
+  // `sc doctor` and `sc setup` use.
+  {
+    // Apply the profile that governs THIS directory before reading a single credential.
+    // Without it, `sc user map` would be advisory only: /sc-all would keep using whatever
+    // the login shell exported, which is exactly the cross-identity mistake profiles exist
+    // to prevent. --no-profile opts out for a one-off.
+    if (!process.argv.includes('--no-profile')) {
+      const P = require('../lib/profiles');
+      const { env, profile, shadowed } = P.loadEnvFor(process.cwd());
+      if (profile) {
+        console.log(`👤 profile: ${profile}`);
+        for (const k of P.REGISTRY_KEYS) {
+          if (env[k] !== undefined) process.env[k] = env[k];
+          else delete process.env[k];
+        }
+        if (shadowed.length) console.log(`   ignoring ${shadowed.length} shell var(s) this profile does not own: ${shadowed.join(', ')}`);
+      }
+    }
+
+    const { TARGET_PROVIDERS, PROVIDERS } = require('../lib/providers');
+    const byId = new Map(PROVIDERS.map(p => [p.id, p]));
+    const missing = [];
+    for (const id of TARGET_PROVIDERS[target] || []) {
+      for (const v of byId.get(id).vars) {
+        if (v.required && !process.env[v.key]) missing.push(`${v.key} (${id})`);
+      }
+    }
+    if (missing.length) {
+      console.error(`deploy.js: --target ${target} is missing required credentials:`);
+      for (const m of missing) console.error(`  • ${m}`);
+      console.error(`\nFix it interactively:  sc setup --target ${target}`);
+      console.error(`Then verify:           sc doctor --target ${target}`);
+      process.exit(1);
+    }
+  }
+
   const convexDeployKey = process.env.CONVEX_DEPLOY_KEY;
   let hybridConvexUrl = null;
   if (target === 'hybrid') {
@@ -507,16 +549,56 @@ async function run() {
   const { fetchDokploy, fetchGitHub } = makeFetchers({ baseUrl, apiKey, githubToken });
   const hostingerToken = process.env.HOSTINGER_API_TOKEN;
 
-  // M1 DRY: Hostinger A-record via lib/hostinger.configureDnsRecord (keep dns.lookup for server IP).
+  // M1 DRY: Hostinger A-record via lib/hostinger.configureDnsRecord.
+  // Two guards, both learned the hard way (see the antinrml.com audit, 2026-08-19):
+  //   1. lib/hostinger is hardcoded here, so this writes to the Hostinger zone whether or not
+  //      the domain is actually delegated there. antinrml.com is on Cloudflare -- the write
+  //      returns 200 against an INERT zone and nothing ever resolves. Check NS first and stop.
+  //   2. serverIp used to come from lookup(new URL(apiUrl).hostname). With the normal local
+  //      DOKPLOY_API_URL=http://127.0.0.1:3000/api that yields 127.0.0.1, i.e. an A record
+  //      pointing at loopback and an ACME challenge that retries forever. Require the public
+  //      IP explicitly and reject anything non-public.
+  const HOSTINGER_NS = /(^|\.)dns-parking\.com\.?$/i;
+
+  function assertPublicIpv4(ip, source) {
+    const o = String(ip).split('.').map(Number);
+    const bad = o.length !== 4 || o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+      || o[0] === 0 || o[0] === 127 || o[0] === 10
+      || (o[0] === 172 && o[1] >= 16 && o[1] <= 31)
+      || (o[0] === 192 && o[1] === 168)
+      || (o[0] === 169 && o[1] === 254)
+      || (o[0] === 100 && o[1] >= 64 && o[1] <= 127); // CGNAT / tailnet
+    if (bad) throw new Error(`refusing to publish A record -> ${ip} (from ${source}): not a public IPv4`);
+    return ip;
+  }
+
+  async function resolveServerIp() {
+    if (process.env.DOKPLOY_PUBLIC_IP) {
+      return assertPublicIpv4(process.env.DOKPLOY_PUBLIC_IP, 'DOKPLOY_PUBLIC_IP');
+    }
+    const apiHost = new URL(apiUrl).hostname;
+    const { address } = await lookup(apiHost);
+    return assertPublicIpv4(address, `dns.lookup(${apiHost})`);
+  }
+
+  async function assertHostingerDelegation(fullDomain) {
+    const parts = String(fullDomain).split('.');
+    const rootDomain = parts.slice(-2).join('.');
+    const ns = await dns.promises.resolveNs(rootDomain);
+    if (!ns.some((n) => HOSTINGER_NS.test(n))) {
+      throw new Error(
+        `${rootDomain} is not delegated to Hostinger (NS: ${ns.join(', ')}). `
+        + 'Writing to the Hostinger zone would succeed but resolve nothing. Use /sc-cf for Cloudflare-delegated domains.',
+      );
+    }
+  }
+
   async function configureHostingerDNS(fullDomain) {
     if (!hostingerToken || !fullDomain) return;
-    try {
-      const apiHost = new URL(apiUrl).hostname;
-      const { address: serverIp } = await lookup(apiHost);
-      await configureDnsRecord({ fullDomain, type: 'A', target: serverIp, hostingerToken });
-    } catch (e) {
-      console.warn(`⚠️ Hostinger DNS configuration skipped due to error: ${e.message}`);
-    }
+    // Fail closed. A silently skipped DNS write used to surface much later as an ACME retry loop.
+    await assertHostingerDelegation(fullDomain);
+    const serverIp = await resolveServerIp();
+    await configureDnsRecord({ fullDomain, type: 'A', target: serverIp, hostingerToken });
   }
 
   // Fire-and-forget compose env mutation: merges `updates` into the stored compose env

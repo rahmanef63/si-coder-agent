@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// bin/onboard.js — One-shot CLI wizard for users who don't go through an AI.
-// Reads steps/<domain>.md for context, prompts via readline, appends to ~/.bashrc.
+// bin/onboard.js — Interactive CLI wizard for users who don't go through an AI.
+// For each missing var it prints WHERE to get the value (the dashboard URL or a
+// local command), then reads it — secrets are read WITHOUT echoing to the terminal,
+// and no value is ever passed via argv (so nothing leaks to ps / shell history).
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
 const { appendExportToShellRc, scanProcessEnv } = require(path.resolve(__dirname, '../lib/env'));
-const { DOMAIN_VARS, VALIDATORS, readShellRcEnv } = require(path.resolve(__dirname, '../skills/sc-onboarding/lib/onboarding-domains'));
+const {
+  DOMAIN_VARS, VALIDATORS, isSecret, sourceLine, readShellRcEnv,
+} = require(path.resolve(__dirname, '../skills/sc-onboarding/lib/onboarding-domains'));
 
 function parseArgs(argv) {
   const o = {};
@@ -21,12 +25,6 @@ function parseArgs(argv) {
   return o;
 }
 
-function readStepDoc(domain) {
-  const p = path.resolve(__dirname, '../skills/sc-onboarding/steps', `${domain}.md`);
-  if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
-  return null;
-}
-
 // One-line blurb per domain; falls back to the required/optional summary so a
 // newly-registered DOMAIN_VARS entry always shows up in the menu (no drift).
 const DOMAIN_BLURBS = {
@@ -34,7 +32,7 @@ const DOMAIN_BLURBS = {
   dokploy: 'Dokploy CRUD + deploy',
   convex: 'Convex self-hosted',
   hostinger: 'DNS automation, optional',
-  cf: 'Cloudflare, future',
+  cf: 'Cloudflare DNS',
   stripe: 'Stripe payments (stub)',
   resend: 'Resend email (stub)',
   clerk: 'Clerk auth (stub)',
@@ -51,48 +49,90 @@ const VERIFY_HINTS = {
   convex: '/sc-convex                                                # deploy a self-hosted Convex backend',
   'convex-cloud': 'node skills/sc-convex-cloud/scripts/check-cloud.js  # verify Convex Cloud deploy key',
   vercel: '/sc-vercel                                                # deploy the online frontend',
+  cf: 'node skills/sc-cf/scripts/dns.js zones                    # verify Cloudflare token',
   hostinger: '# Hostinger token ready — used automatically for DNS records',
   sync: 'node skills/sc-sync/scripts/sync.js <vps-local|local-vps>  # dry-run first',
 };
 
-function askDomainsInteractive(rl) {
+// Control-character codes, named — the raw-mode reader compares char codes so the
+// source stays free of literal control bytes (which mangle on save/patch).
+const CR = 13, LF = 10, EOT = 4, ETX = 3, BS = 8, DEL = 127, SPACE = 32;
+
+// A plain, single-shot line read (visible echo). One interface per call so it can
+// coexist with the raw-mode hidden reader below without them fighting over stdin.
+function askVisible(promptText) {
   return new Promise(resolve => {
-    console.log('\nWhich domains to set up? (comma-separated)\n');
-    const names = Object.keys(DOMAIN_VARS);
-    names.forEach((name, i) => {
-      const blurb = DOMAIN_BLURBS[name]
-        || `required: ${DOMAIN_VARS[name].required.join(', ') || '—'}`;
-      console.log(`  [${i + 1}] ${name.padEnd(13)} (${blurb})`);
-    });
-    console.log('');
-    rl.question('Pick (e.g. "github,dokploy,convex"): ', (ans) => {
-      const picked = ans.split(',').map(s => s.trim()).filter(Boolean);
-      resolve(picked.length === 0 ? ['github', 'dokploy'] : picked);
-    });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(promptText, ans => { rl.close(); resolve(ans.trim()); });
   });
 }
 
-function promptValue(rl, key) {
+// A hidden line read: the prompt shows, keystrokes do not. Used for every secret
+// so a shoulder-surfer or a scrollback log never captures the token. Falls back to
+// a visible read when stdin is not a TTY (piped input can't enter raw mode) — the
+// value still never touches argv, which is the leak that actually matters.
+function askHidden(promptText) {
+  const input = process.stdin;
+  const output = process.stdout;
+  if (!input.isTTY) return askVisible(promptText);
   return new Promise(resolve => {
-    rl.question(`  ${key} = `, val => resolve(val.trim()));
+    output.write(promptText);
+    const wasRaw = input.isRaw;
+    input.setRawMode(true);
+    input.resume();
+    let buf = '';
+    const onData = (d) => {
+      for (const ch of d.toString('utf8')) {
+        const code = ch.charCodeAt(0);
+        if (code === CR || code === LF || code === EOT) {   // Enter / Ctrl-D
+          input.removeListener('data', onData);
+          input.setRawMode(wasRaw || false);
+          input.pause();
+          output.write('\n');
+          return resolve(buf.trim());
+        }
+        if (code === ETX) { output.write('\n'); process.exit(130); } // Ctrl-C
+        else if (code === BS || code === DEL) buf = buf.slice(0, -1); // Backspace
+        else if (code >= SPACE) buf += ch;                            // ignore other control chars
+      }
+    };
+    input.on('data', onData);
   });
+}
+
+function readStepDoc(domain) {
+  const p = path.resolve(__dirname, '../skills/sc-onboarding/steps', `${domain}.md`);
+  if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+  return null;
+}
+
+async function askDomainsInteractive() {
+  console.log('\nWhich domains to set up? (comma-separated)\n');
+  const names = Object.keys(DOMAIN_VARS);
+  names.forEach((name, i) => {
+    const blurb = DOMAIN_BLURBS[name] || `required: ${DOMAIN_VARS[name].required.join(', ') || '—'}`;
+    console.log(`  [${i + 1}] ${name.padEnd(13)} (${blurb})`);
+  });
+  console.log('');
+  const ans = await askVisible('Pick (e.g. "github,dokploy,convex"): ');
+  const picked = ans.split(',').map(s => s.trim()).filter(Boolean);
+  return picked.length === 0 ? ['github', 'dokploy'] : picked;
 }
 
 // Reveal at most ~25% of a value (cap 4 chars) so short secrets aren't echoed whole.
 function redactValue(val) {
   if (!val) return '';
   const n = Math.min(4, Math.floor(val.length / 4));
-  return `${val.slice(0, n)}…`;
+  return `${val.slice(0, n)}…[len=${val.length}]`;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   console.log('\n🚀 si-coder onboarding wizard\n');
   const domains = typeof args.domains === 'string'
     ? args.domains.split(',').map(s => s.trim())
-    : await askDomainsInteractive(rl);
+    : await askDomainsInteractive();
 
   const allKeys = [];
   for (const d of domains) {
@@ -101,7 +141,7 @@ async function main() {
     for (const k of DOMAIN_VARS[d].optional) allKeys.push({ key: k, required: false, domain: d });
   }
 
-  // What is already present?
+  // What is already present? (process.env wins over ~/.bashrc)
   const fromProc = scanProcessEnv(allKeys.map(x => x.key)).present;
   const rcEnv = readShellRcEnv();
 
@@ -115,21 +155,29 @@ async function main() {
     if (domain !== lastDomain) {
       const doc = readStepDoc(domain);
       console.log(`\n── ${domain.toUpperCase()} ──`);
-      if (doc) console.log(doc.split('\n').slice(0, 8).join('\n') + '\n  …(see steps/' + domain + '.md for full doc)\n');
+      if (doc) console.log(doc.split('\n').slice(0, 6).join('\n') + `\n  …(full doc: steps/${domain}.md)`);
       lastDomain = domain;
     }
+    // The whole point of the wizard: tell the user WHERE to get this value.
+    const src = sourceLine(key);
+    console.log('');
+    console.log(`  ${key}${required ? '' : '  (optional — press Enter to skip)'}`);
+    if (src) console.log(`    ↳ ${src}`);
+    if (isSecret(key)) console.log('    ↳ input is hidden (not echoed)');
+
     while (true) {
-      const value = await promptValue(rl, `${key}${required ? '' : ' (optional, leave blank to skip)'}`);
+      const value = isSecret(key)
+        ? await askHidden('    value: ')
+        : await askVisible('    value: ');
       if (!value && !required) break;
-      if (!value && required) { console.log(`  ❌ ${key} is required`); continue; }
+      if (!value && required) { console.log(`    ❌ ${key} is required`); continue; }
       const validator = VALIDATORS[key];
-      if (validator && !validator(value)) { console.log(`  ❌ ${key} failed validation, try again`); continue; }
+      if (validator && !validator(value)) { console.log(`    ❌ ${key} failed validation, try again`); continue; }
       updates[key] = value;
+      console.log(`    ✅ got ${key} (${redactValue(value)})`);
       break;
     }
   }
-
-  rl.close();
 
   if (Object.keys(updates).length === 0) {
     console.log('\n✅ Nothing to write — all required vars already set.');

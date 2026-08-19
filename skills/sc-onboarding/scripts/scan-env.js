@@ -4,7 +4,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { scanProcessEnv, appendExportToShellRc } = require(path.resolve(__dirname, '../../../lib/env'));
-const { DOMAIN_VARS, VALIDATORS, readShellRcEnv } = require(path.resolve(__dirname, '../lib/onboarding-domains'));
+const { DOMAIN_VARS, VALIDATORS, sourceLine, readShellRcEnv } = require(path.resolve(__dirname, '../lib/onboarding-domains'));
 
 // Read the keys currently present inside the managed si-coder block of ~/.bashrc.
 // Used to report the ACTUAL number of exports written, since appendExportToShellRc
@@ -193,13 +193,19 @@ async function main() {
   console.log(`\n🔎 Scan for domains: ${domains.join(', ')}\n`);
   console.table(report.rows);
 
+  // Print each missing var WITH where to get it, so the user never has to go
+  // hunting for the right dashboard — the same source-of-truth the wizard uses.
+  const withSource = (k) => {
+    const src = sourceLine(k);
+    return src ? `  • ${k}\n      ↳ ${src}` : `  • ${k}`;
+  };
   if (report.missingRequired.length > 0) {
     console.log('\n❌ Missing REQUIRED:');
-    for (const k of report.missingRequired) console.log(`  • ${k}`);
+    for (const k of report.missingRequired) console.log(withSource(k));
   }
   if (report.missingOptional.length > 0) {
     console.log('\n⚠️ Missing OPTIONAL:');
-    for (const k of report.missingOptional) console.log(`  • ${k}`);
+    for (const k of report.missingOptional) console.log(withSource(k));
   }
   if (report.missingRequired.length === 0 && report.missingOptional.length === 0) {
     console.log('\n✅ all required + optional vars present');

@@ -10,10 +10,12 @@
   "author": "Rahman EF",
   "type": "commonjs",
   "engines": { "node": ">=18" },
-  "bin": { "si-coder-onboard": "bin/onboard.js" },
+  "bin": { "si-coder-onboard": "bin/onboard.js", "sc": "bin/sc.js" },
   "files": ["lib/","scripts/","skills/","bin/","SKILL.md",".env.example","install.sh","README.md","LICENSE"],
   "scripts": {
     "onboard": "node bin/onboard.js",
+    "sc": "node bin/sc.js",
+    "doctor": "node bin/sc.js doctor",
     "deploy": "node scripts/deploy.js",
     "test": "node --test \"test/**/*.test.js\""
   }
