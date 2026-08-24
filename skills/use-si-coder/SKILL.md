@@ -139,3 +139,13 @@ convex/
 ├── http.ts          # httpRouter + auth.addHttpRoutes(http)
 └── schema.ts        # defineSchema({ ...authTables, ...featureTables })
 ```
+
+## Existing domain vs public-IP fallback
+
+For a port-exposed managed service or webapp that can run without DNS, domain configuration is an enhancement, not an install dependency:
+
+1. If the deployment/app already has a canonical domain and its DNS/TLS route is configured, **preserve and prefer that domain for browser/UI access**. Never replace a working existing domain with a newly invented subdomain.
+2. If no domain is configured, do not block a healthy install solely for DNS. Keep the declared public port reachable on the server public IP when the app's security model allows it, and report `http://<public-ip>:<port>` as the fallback.
+3. When both exist, the domain is the primary UI/embedded origin; public IP is fallback/diagnostic only.
+4. Domain provider automation runs only for an explicit desired domain or an existing project domain that needs repair. Missing Hostinger/Cloudflare credentials must not cause an unrelated port-based runtime install to fail.
+5. Existing-domain creation errors are idempotent no-ops. Do not delete or recreate a working route merely to make the automation own it.
