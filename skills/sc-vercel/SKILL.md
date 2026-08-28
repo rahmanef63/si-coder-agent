@@ -33,7 +33,7 @@ flowchart TD
 2. Resolve the GitHub repo: `--git-owner/--git-repo`, else read `origin` from the local git remote.
 3. `findOrCreateProject({ name, gitRepo, framework:'nextjs' })` — bind the repo on create.
 4. Set env vars: `CONVEX_DEPLOY_KEY` (`type:'encrypted'`, **Production only** — it's a prod key). Do **not** set `NEXT_PUBLIC_CONVEX_URL` (injected by the build).
-5. Set the coupled build command (below) so Convex Cloud deploys first and injects the URL.
+5. Resolve the build command without overriding the repo: explicit `--build-command` → repo `vercel.json` → Bun/npm-aware Convex fallback. This lets repos such as Baton keep their own gated `bun run build:auto` contract.
 6. Add the custom domain/subdomain (tolerate 409 already-assigned).
 7. Read the exact required DNS from Vercel's domain config.
 8. Configure Hostinger DNS (TXT ownership challenge first if unverified, then the A/CNAME pointing record), or print the records to add manually if no `HOSTINGER_API_TOKEN`.
@@ -53,13 +53,15 @@ flowchart TD
 
 ## Build command
 
-Set verbatim on the project so the Convex Cloud deploy runs **before** the Next.js build and injects the URL:
+Resolution order is authoritative and package-manager-aware:
 
-```
-npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
-```
+1. `--build-command <cmd>` when an operator explicitly supplies one.
+2. `vercel.json` → `buildCommand` for the normal coupled path. A repository that already owns its gate/deploy orchestration must not be replaced by a generic npm command.
+3. Generated fallback: Bun repos use `bunx convex deploy --cmd 'bun run build'`; npm repos use `npx convex deploy --cmd 'npm run build'`. Both include `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`.
 
-**Mandate:** do **NOT** also hand-set `NEXT_PUBLIC_CONVEX_URL` in Vercel for the same env — the `--cmd` injection is the single source of truth. The `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` override is required because Next.js only exposes `NEXT_PUBLIC_`-prefixed vars to the browser (the default injected `CONVEX_URL` never reaches the client).
+`--decoupled` deliberately bypasses a potentially coupled `vercel.json` command and runs only the package-manager-native frontend build.
+
+**Mandate:** do **NOT** also hand-set `NEXT_PUBLIC_CONVEX_URL` in Vercel for the same coupled env — the repository command or `--cmd` injection is the single source of truth. The `NEXT_PUBLIC_` prefix is required because Next.js does not expose the default `CONVEX_URL` to the browser.
 
 ## DNS logic
 
@@ -87,8 +89,9 @@ node skills/sc-vercel/scripts/deploy.js \
 | `--git-owner <o>` / `--git-repo <r>` | GitHub `owner/name`; if absent, read from `git remote get-url origin` |
 | `--ref <branch>` / `--branch <branch>` | Git ref/branch to deploy; if absent, derived from `git rev-parse --abbrev-ref HEAD`, else `main` (use this for `master`-default repos) |
 | `--prod` | Deploy the production target / alias |
-| `--decoupled` | Opt-out of coupled build: set `NEXT_PUBLIC_CONVEX_URL` from env instead of `--cmd` injection |
-| `--cwd <path>` | Working dir for git-remote resolution (default: process cwd) |
+| `--decoupled` | Opt-out of coupled build: set `NEXT_PUBLIC_CONVEX_URL` from env and run only the frontend build |
+| `--build-command <cmd>` | Explicit project build command; otherwise repo `vercel.json` then Bun/npm fallback wins |
+| `--cwd <path>` | Working dir for git-remote and build-contract resolution (default: process cwd) |
 
 ## File layout
 

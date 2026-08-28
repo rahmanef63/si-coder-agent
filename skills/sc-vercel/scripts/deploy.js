@@ -11,6 +11,7 @@
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { getClient, parseArgs } = require('./_shared');
+const { resolveBuildCommand } = require('./build-command');
 const { configureDnsRecord } = require(path.resolve(__dirname, '../../../lib/hostinger'));
 
 // Read owner/name from the local `origin` git remote in `cwd`.
@@ -47,7 +48,7 @@ async function main() {
   if (decoupled && !process.env.NEXT_PUBLIC_CONVEX_URL) { console.error('--decoupled requires NEXT_PUBLIC_CONVEX_URL in env'); process.exit(1); }
 
   if (!project || !domain) {
-    console.error('Usage: deploy.js --project <name> --app <name> --domain <host> [--git-owner <o> --git-repo <r>] [--ref <branch>] [--prod] [--decoupled] [--cwd <path>]');
+    console.error('Usage: deploy.js --project <name> --app <name> --domain <host> [--git-owner <o> --git-repo <r>] [--ref <branch>] [--prod] [--decoupled] [--build-command <cmd>] [--cwd <path>]');
     process.exit(1);
   }
 
@@ -92,14 +93,17 @@ async function main() {
   }
   console.log('🔐 env vars set (CONVEX_DEPLOY_KEY -> production, encrypted)');
 
-  // 5. Build command. Default (coupled): Convex Cloud deploys first and injects
-  // NEXT_PUBLIC_CONVEX_URL into the Next.js build. Decoupled: plain build — the
-  // URL comes from the env var set above, NOT from --cmd injection (no double-set).
-  const buildCommand = decoupled
-    ? 'npm run build'
-    : "npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL";
-  await vercel.setBuildCommand(proj.id, buildCommand);
-  console.log(`🛠️  build command set: ${buildCommand}`);
+  // 5. Build command. Respect the repository's vercel.json contract first
+  // (Baton uses `bun run build:auto`, which gates tests, provisions Auth, deploys
+  // Convex, and builds Next). Only synthesize a package-manager-aware command
+  // when the repo has no buildCommand. --decoupled always remains frontend-only.
+  const buildPlan = resolveBuildCommand({
+    cwd,
+    decoupled,
+    explicit: args['build-command'],
+  });
+  await vercel.setBuildCommand(proj.id, buildPlan.command);
+  console.log(`🛠️  build command set (${buildPlan.source}): ${buildPlan.command}`);
 
   // 6. Add the custom domain (tolerate 409 already-assigned to THIS project, but
   //    surface a 409 where the domain is owned by another project/team — SCV-3).
