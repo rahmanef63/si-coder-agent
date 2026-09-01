@@ -20,8 +20,12 @@ const { isSecret, sourceLine, readShellRcEnv } =
 const { appendExportToShellRc, removeExportsFromShellRc } =
   require(path.resolve(__dirname, '../lib/env'));
 const { spawnSync } = require('child_process');
-const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany, selectLayer } =
+const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany } =
   require(path.resolve(__dirname, '../lib/prompt'));
+const {
+  enterAlternateScreen, leaveAlternateScreen, clearAlternateScreen, hideCursor, showCursor,
+  selectFinderFrame, waitForEnter, stripAnsi,
+} = require(path.resolve(__dirname, '../lib/finder-tui'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
@@ -995,9 +999,9 @@ function cmdDeploy(sub, args) {
   die(`unknown: deploy ${sub}`);
 }
 
-// Bare `sc` on a terminal opens a persistent layered console. The layer stack is owned by
-// this session, not by individual commands, so finishing an action always returns to the
-// current menu instead of terminating `sc`.
+// Bare `sc` on a terminal opens a Finder-style alternate-screen console. Navigation
+// repaints one stable frame instead of appending prompts to scrollback. The full stack is
+// rendered as Finder-like columns and the breadcrumb is always visible as a tab/path bar.
 function menuLayer(stack) {
   const ids = stack.map(x => x.id);
   const here = ids.join('/');
@@ -1075,6 +1079,27 @@ function menuContext(stack) {
   };
 }
 
+function menuColumns(stack) {
+  const columns = [];
+  for (let depth = 0; depth <= stack.length; depth++) {
+    const prefix = stack.slice(0, depth);
+    const items = menuLayer(prefix);
+    columns.push({
+      title: depth === 0 ? 'SI-Coder' : stack[depth - 1].label,
+      items,
+      selectedId: depth < stack.length ? stack[depth].id : null,
+    });
+  }
+  return columns;
+}
+
+const MENU_SECTIONS = [
+  { id: 'build', label: 'Build' },
+  { id: 'accounts', label: 'Accounts' },
+  { id: 'users', label: 'Users' },
+  { id: 'system', label: 'System' },
+];
+
 async function runMenuAction(stack, item) {
   const ids = stack.map(x => x.id);
   const here = ids.join('/');
@@ -1131,16 +1156,80 @@ async function runMenuAction(stack, item) {
   }
 }
 
+function menuActionNeedsTerminal(stack, item) {
+  const here = stack.map(x => x.id).join('/');
+  if (here === 'accounts' && item.id === 'connect') return true;
+  if (here.startsWith('accounts/providers/provider:') && item.id === 'set') return true;
+  if (here === 'users' && item.id === 'add') return true;
+  if (here === 'users/profiles' && item.id === 'add') return true;
+  if (here.startsWith('users/profiles/profile:') && ['owner', 'remove'].includes(item.id)) return true;
+  if (here === 'system/readiness') return true; // preflight may offer interactive credential setup
+  return false;
+}
+
+async function captureConsole(fn) {
+  const lines = [];
+  const methods = ['log', 'error', 'warn', 'info'];
+  const original = Object.fromEntries(methods.map(k => [k, console[k]]));
+  const capture = (...args) => {
+    const text = args.map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(' ');
+    for (const line of text.split(/\r?\n/)) if (line.trim()) lines.push(stripAnsi(line));
+  };
+  methods.forEach(k => { console[k] = capture; });
+  try {
+    return { value: await fn(), lines };
+  } finally {
+    methods.forEach(k => { console[k] = original[k]; });
+  }
+}
+
+async function runTerminalMenuAction(stack, item) {
+  clearAlternateScreen(process.stdout, { cursor: true });
+  console.log(`SI-Coder › ${[...stack.map(x => x.label), stripAnsi(item.label)].join(' › ')}\n`);
+  const value = await runMenuAction(stack, item);
+  if (value !== 'quit') await waitForEnter('Press Enter to return to SI-Coder ');
+  hideCursor();
+  return value;
+}
+
 async function cmdMenu() {
   if (!isInteractive()) die('sc menu needs a TTY');
   MENU_MODE = true;
   const stack = [];
+  const selectedByLayer = new Map();
+  const queryByLayer = new Map();
+  let activity = [];
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    leaveAlternateScreen();
+  };
+  process.once('exit', cleanup);
+  enterAlternateScreen();
+
   try {
     while (true) {
+      const here = stack.map(x => x.id).join('/');
       const items = menuLayer(stack);
       const breadcrumb = ['SI-Coder', ...stack.map(x => x.label)];
-      const result = await selectLayer('SI-Coder — build and publish a web app', breadcrumb, items, { canBack: stack.length > 0 });
+      const columns = menuColumns(stack);
+      const result = await selectFinderFrame({
+        title: 'SI-Coder — build and publish a web app',
+        breadcrumb,
+        stack,
+        columns,
+        sections: MENU_SECTIONS,
+        initialId: selectedByLayer.get(here) || null,
+        initialQuery: queryByLayer.get(here) || '',
+        activity,
+        canBack: stack.length > 0,
+      });
+      if (result.selectedId) selectedByLayer.set(here, result.selectedId);
+      queryByLayer.set(here, result.query || '');
+
       if (!result || result.type === 'quit') break;
+      if (result.type === 'noop') continue;
       if (result.type === 'back') {
         if (stack.length) stack.pop();
         continue; // Esc/Left at Home intentionally does not close the CLI.
@@ -1148,17 +1237,28 @@ async function cmdMenu() {
       const item = items.find(x => x.id === result.id);
       if (!item) continue;
       if (result.type === 'open' && item.kind === 'branch') {
-        stack.push({ id: item.id, label: String(item.label).replace(/\x1b\[[0-9;]*m/g, '').trim() });
+        stack.push({ id: item.id, label: stripAnsi(item.label).trim() });
         continue;
       }
-      const actionResult = await runMenuAction(stack, item);
+
+      let actionResult;
+      if (menuActionNeedsTerminal(stack, item)) {
+        actionResult = await runTerminalMenuAction(stack, item);
+        activity = [`${stripAnsi(item.label)} completed`];
+      } else {
+        const captured = await captureConsole(() => runMenuAction(stack, item));
+        actionResult = captured.value;
+        activity = captured.lines.length ? captured.lines : [`${stripAnsi(item.label)} completed`];
+      }
       if (actionResult === 'quit') break;
       if (actionResult === 'back' && stack.length) stack.pop();
-      // Stay on the current breadcrumb layer after every action unless the action removed that layer.
+      // The Finder frame is repainted in-place after every action; sc remains open.
     }
   } finally {
     MENU_MODE = false;
     invalidateEnvCache();
+    process.removeListener('exit', cleanup);
+    cleanup();
   }
 }
 
@@ -1167,10 +1267,11 @@ function usage() {
   console.log(`
 sc — SI-Coder interactive console + secret control plane
 
-  bare \`sc\` on a TTY opens a persistent layered menu:
-      ↑/↓ move · Tab deeper · →/Enter open/run · ←/Esc back · Ctrl-D quit
-      breadcrumb example: SI-Coder › Users › Profiles › rahmanef
-      actions return to the current menu layer instead of closing the CLI
+  bare \`sc\` on a TTY opens a Finder-style alternate-screen TUI:
+      one stable frame · visible SECTIONS tabs + PATH breadcrumb · Finder columns
+      ↑/↓ move · Tab/→ deeper · Enter open/run · ←/Esc back · Ctrl-D quit
+      navigation does not append lines to terminal scrollback
+      actions return to the same TUI frame instead of closing the CLI
 
   sc update [--check] [--json]        safe self-update: fetch + fast-forward only
   sc version [--json]                 version, source checkout and git state

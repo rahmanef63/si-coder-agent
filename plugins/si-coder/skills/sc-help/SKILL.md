@@ -73,7 +73,7 @@ Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel
 
 ## Local CLI navigation
 
-On a TTY, bare `sc` is a persistent layered menu. Use `Tab` to enter a deeper layer, `→`/`Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the current breadcrumb layer. `Esc` at Home does not quit; choose Quit or press Ctrl-D.
+On a TTY, bare `sc` is a Finder-style alternate-screen TUI: navigation redraws one frame instead of appending terminal lines, visible `SECTIONS` tabs and a `PATH` breadcrumb stay at the top, and parent/current layers appear as columns. Use `Tab`/`→` to enter a deeper branch, `Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the same TUI frame. `Esc` at Home does not quit; choose Quit or press Ctrl-D.
 
 Credential profiles have explicit user/account ownership:
 

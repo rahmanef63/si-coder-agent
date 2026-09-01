@@ -236,19 +236,53 @@ test('SCC-6: the pickers are exported and take the documented shape', () => {
     'setup must re-prompt malformed values instead of treating their mere presence as complete');
 });
 
-test('SCC-7: layered menu exposes the breadcrumb navigation contract and stays persistent', () => {
-  const { selectLayer } = require(path.join(ROOT, 'lib/prompt'));
-  assert.strictEqual(typeof selectLayer, 'function');
-  const prompt = fs.readFileSync(path.join(ROOT, 'lib/prompt.js'), 'utf8');
-  assert.match(prompt, /Tab deeper/);
-  assert.match(prompt, /→\/Enter open\/run/);
-  assert.match(prompt, /←\/Esc back/);
-  assert.match(prompt, /breadcrumb\.join\('  ›  '\)/);
+test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appending prompt loop', () => {
+  const tui = require(path.join(ROOT, 'lib/finder-tui'));
+  assert.strictEqual(typeof tui.selectFinderFrame, 'function');
+  assert.strictEqual(typeof tui.enterAlternateScreen, 'function');
+  assert.strictEqual(typeof tui.leaveAlternateScreen, 'function');
+  const source = fs.readFileSync(path.join(ROOT, 'lib/finder-tui.js'), 'utf8');
+  assert.match(source, /\?1049h/, 'must use the terminal alternate screen');
+  assert.match(source, /SECTIONS/, 'top section tabs must be visible');
+  assert.match(source, /PATH/, 'breadcrumb tab/path bar must be visible');
+  assert.match(source, /Tab\/→ deeper/);
+  assert.doesNotMatch(source, /\$\{ESC\}\[\$\{printed\}A/, 'Finder renderer must not walk upward through scrollback');
   const sc = fs.readFileSync(path.join(ROOT, 'bin/sc.js'), 'utf8');
-  assert.match(sc, /while \(true\)/, 'bare sc must keep a session loop');
-  assert.match(sc, /Stay on the current breadcrumb layer after every action/);
+  assert.match(sc, /enterAlternateScreen\(\)/, 'bare sc must enter one stable TUI frame');
+  assert.match(sc, /menuColumns\(stack\)/, 'full breadcrumb stack must become Finder columns');
   assert.match(sc, /Esc\/Left at Home intentionally does not close the CLI/);
   assert.match(sc, /users\/profiles\/profile:/, 'profile details must be a real nested layer');
+});
+
+test('SCC-7b: Finder renderer paints tabs, path, columns and last action into one cleared frame', () => {
+  const { renderFinderFrame } = require(path.join(ROOT, 'lib/finder-tui'));
+  let out = '';
+  const output = { isTTY: true, columns: 100, rows: 28, write(chunk) { out += String(chunk); } };
+  const root = [
+    { id: 'accounts', kind: 'branch', label: 'Accounts', hint: 'providers' },
+    { id: 'users', kind: 'branch', label: 'Users', hint: 'profiles' },
+  ];
+  const users = [{ id: 'profiles', kind: 'branch', label: 'Profiles', hint: 'credential owners' }];
+  renderFinderFrame({
+    title: 'SI-Coder',
+    breadcrumb: ['SI-Coder', 'Users'],
+    stack: [{ id: 'users', label: 'Users' }],
+    columns: [
+      { title: 'SI-Coder', items: root, selectedId: 'users' },
+      { title: 'Users', items: users, selectedId: null },
+    ],
+    activeItems: users, cursor: 0, query: '',
+    sections: [{ id: 'accounts', label: 'Accounts' }, { id: 'users', label: 'Users' }],
+    activity: ['owner : rahmanef'],
+    output,
+  });
+  assert.ok(out.startsWith('\x1b[H\x1b[2J'), 'each render must home+clear the same frame');
+  assert.match(out, /SECTIONS/);
+  assert.match(out, /PATH/);
+  assert.match(out, /│/, 'Finder columns must have visible separators');
+  assert.match(out, /LAST ACTION/);
+  assert.match(out, /owner : rahmanef/);
+  assert.doesNotMatch(out, /\x1b\[\d+A/, 'render must never cursor-walk into previous lines');
 });
 
 test('SCC-8: profile ownership is configurable from the CLI without exposing credentials', () => {

@@ -37,7 +37,7 @@ The installer can accept GitHub repo paths and install them into the Codex skill
 
 Anthropic currently documents **ZIP upload** for custom Skills. Use:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.5/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.6/sc.zip`
 
 Do not default to the `.skill` filename on Claude Web; the official web instructions say to upload a ZIP containing the skill folder.
 
@@ -47,7 +47,7 @@ Do not default to the `.skill` filename on Claude Web; the official web instruct
 
 **Personal Skill:** OpenAI defines the skill around `SKILL.md` and documents **Upload from your computer**, but does not currently require a `.skill` extension. Use the complete ZIP package:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.5/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.6/sc.zip`
 
 The optional `.skill` archive is only for clients that explicitly accept that extension.
 

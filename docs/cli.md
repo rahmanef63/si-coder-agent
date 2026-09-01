@@ -1,6 +1,6 @@
 # SI-Coder CLI
 
-Run `sc` in a terminal to open the persistent interactive console. The CLI is layered rather than single-shot: opening a submenu changes the breadcrumb, and completing an action returns to the current layer instead of closing SI-Coder.
+Run `sc` in a terminal to open the Finder-style interactive console. It owns one alternate-screen frame: moving, filtering, and changing layers repaint that same frame instead of appending lines to terminal scrollback. A visible `SECTIONS` tab bar and `PATH` breadcrumb stay at the top while parent/current layers are shown side by side as columns.
 
 ## Navigation
 
@@ -14,16 +14,19 @@ Ctrl-D      quit the interactive console
 
 At the Home layer, `Esc` does not close the CLI. Use **Quit** or `Ctrl-D` to leave.
 
-Example:
+Example layout:
 
 ```text
-SI-Coder
-  › Users
-    › Profiles
-      › rahmanef
+SECTIONS   Build   Accounts  [ Users ]  System
+PATH      [ SI-Coder ] › [ Users ] › [ Profiles ] › [ rahmanef ]
+───────────────────────────────────────────────────────────────
+Users                 │ Profiles              │ rahmanef
+❯ › Profiles          │ ❯ › rahmanef          │ ❯ · Details
+  · Current folder    │   › rahmanfakh        │   · Set owner
+  · Add profile       │   › rahmnf            │   · Use as default
 ```
 
-This lets a user inspect a profile, change its owner, map the current folder, and return to the profile list without restarting `sc`.
+On narrower terminals SI-Coder keeps the newest columns and collapses older parents behind `… /`. This lets a user inspect a profile, change its owner, map the current folder, and return to the profile list without restarting `sc`.
 
 ## Users, profiles, and credential ownership
 
