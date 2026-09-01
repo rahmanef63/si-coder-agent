@@ -57,15 +57,16 @@ test('DIST-4: OpenAI UI metadata exists for main skills and uses current explici
   assert.match(install, /ChatGPT Web/);
   assert.match(install, /@sc/);
   assert.match(install, /@SI-Coder/);
-  assert.match(install, /dist\/sc\.skill/);
+  assert.match(install, /releases\/download\/v0\.8\.3\/sc\.zip/);
+  assert.match(install, /optional `\.skill` archive/i);
   assert.match(install, /Do not promise `\/sc` on ChatGPT Web/);
 });
 
 test('DIST-5: version and package file list include distributable skill artifacts', () => {
   const pkg = readJson('package.json');
   const plugin = readJson('.claude-plugin/plugin.json');
-  assert.strictEqual(pkg.version, '0.8.2');
-  assert.strictEqual(plugin.version, '0.8.2');
+  assert.strictEqual(pkg.version, '0.8.3');
+  assert.strictEqual(plugin.version, '0.8.3');
   assert.ok(pkg.files.includes('dist/'));
   assert.ok(pkg.files.includes('AI_INSTALL.md'));
   assert.ok(pkg.files.includes('.agents/'));
@@ -81,7 +82,7 @@ test('DIST-6: OpenAI repository marketplace exposes a web-compatible skill-only 
   assert.deepStrictEqual(row.source, { source: 'local', path: './plugins/si-coder' });
   const plugin = readJson('plugins/si-coder/.codex-plugin/plugin.json');
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.8.2');
+  assert.strictEqual(plugin.version, '0.8.3');
   assert.strictEqual(plugin.skills, './skills/');
   assert.ok(!('mcpServers' in plugin), 'web plugin must not declare MCP and become Desktop-only');
   assert.ok(!fs.existsSync(path.join(ROOT, 'plugins/si-coder/.mcp.json')));
@@ -135,7 +136,7 @@ test('DIST-9: ChatGPT personal skill identity is sc and .skill never promises sl
   assert.doesNotMatch(meta, /default_prompt:[^\n]*\$sc/);
   assert.doesNotMatch(skill, /default slash command/i);
   assert.match(chatgpt, /@sc/);
-  assert.match(chatgpt, /does \*\*not\*\* register `sc` in ChatGPT's `\/` command palette/);
+  assert.match(chatgpt, /Packaging does not register a custom ChatGPT `\/` command/);
 });
 
 test('DIST-8: packaged .skill artifacts are reproducible for unchanged source', () => {
@@ -149,4 +150,29 @@ test('DIST-8: packaged .skill artifacts are reproducible for unchanged source', 
   // The first comparison may differ once when migrating from an older non-deterministic archive.
   assert.match(after, /^[0-9a-f]{64}$/);
   assert.match(before, /^[0-9a-f]{64}$/);
+});
+
+
+test('DIST-10: install links match each surface transport contract', () => {
+  const claudeWeb = fs.readFileSync(path.join(ROOT, 'docs/install/claude-web.md'), 'utf8');
+  assert.match(claudeWeb, /releases\/download\/v0\.8\.3\/sc\.zip/);
+  assert.match(claudeWeb, /documents custom-skill upload as a \*\*ZIP/i);
+  assert.doesNotMatch(claudeWeb, /Download[^\n]*sc\.skill/i);
+
+  const codex = fs.readFileSync(path.join(ROOT, 'docs/install/codex.md'), 'utf8');
+  assert.match(codex, /tree\/v0\.8\.3\/skills\/sc/);
+  assert.match(codex, /directories containing `SKILL\.md`/);
+  assert.doesNotMatch(codex, /releases\/download\/v0\.8\.3\/sc\.(zip|skill)/);
+
+  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-personal-skills.md'), 'utf8');
+  assert.match(chatgpt, /releases\/download\/v0\.8\.3\/sc\.zip/);
+  assert.match(chatgpt, /does \*\*not\*\* specify that a `\.skill` filename is required/i);
+  assert.match(chatgpt, /optional.*sc\.skill/i);
+
+  const workspace = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-workspace-marketplace.md'), 'utf8');
+  assert.match(workspace, /does \*\*not\*\* use `sc\.zip`, `sc\.skill`, or a raw `SKILL\.md` download/);
+
+  const matrix = fs.readFileSync(path.join(ROOT, 'docs/install/README.md'), 'utf8');
+  assert.match(matrix, /Canonical format:/);
+  assert.match(matrix, /None of the Claude\/OpenAI surfaces verified for this release requires the `\.skill` extension itself/);
 });

@@ -26,22 +26,22 @@ A `.skill` file is the install/import package. It does **not** reserve a custom 
 
 ## Source format vs install package
 
-SI-Coder now ships **both layers** of the Agent Skills ecosystem:
+SI-Coder separates the canonical Agent Skills directory format from client-specific archive transports:
 
-- `skills/*/SKILL.md` is the canonical editable source.
-- `dist/sc.skill` is the one-file distributable package for web/import surfaces. It is a ZIP-format skill package.
-- `dist/sc.zip` is byte-identical to `sc.skill` for upload UIs that explicitly filter for `.zip`.
+- `skills/<name>/SKILL.md` is the required entry point inside each canonical skill directory.
+- `dist/sc.zip` is the upload-ready ZIP for web surfaces that accept/require a ZIP; Claude Web explicitly documents this format.
+- `dist/sc.skill` is an optional ZIP-format distribution artifact for clients that explicitly support the `.skill` extension.
 
-This matches Anthropic's current skill-creator packaging model: a `.skill` file is a distributable ZIP containing the skill directory, whose required entry point is still `SKILL.md`. OpenAI Skills also use the Agent Skills `SKILL.md` standard.
+The Agent Skills specification defines the skill as a directory containing `SKILL.md`. Archive extensions are transport choices made by individual clients, not the canonical source format.
 
 ```text
 skills/sc/SKILL.md       # source of truth
         ↓ package:skills
-dist/sc.skill             # install/import artifact
-dist/sc.zip               # ZIP-extension compatibility copy
+dist/sc.zip               # upload-ready ZIP transport
+dist/sc.skill             # optional .skill-aware client transport
 ```
 
-The standalone `sc.skill` bundle also includes the core build, deploy, provider, install, and help workflows as generated references so a web user only needs to upload **one file**.
+The standalone packaged bundle (`sc.zip` and byte-identical `sc.skill`) includes the core build, deploy, provider, install, and help workflows as generated references so a web user only needs to upload **one file**.
 
 ## Non-technical product interview
 
@@ -226,12 +226,11 @@ The core paths are `skills/sc`, `skills/sc-build`, `skills/sc-all`, `skills/sc-p
 
 ### Claude.ai / Claude Web — one-file upload
 
-Use `dist/sc.skill`. It is the distributable `.skill` package. If the upload picker explicitly requests ZIP, use the byte-identical `dist/sc.zip`.
+Use the release `sc.zip`. Anthropic currently documents Claude Web custom-skill upload as a ZIP containing the skill folder.
 
 Direct downloads from `main`:
 
-- `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
-- `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip`
 
 Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
 
@@ -239,9 +238,9 @@ Current Claude web flow is **Customize → Skills → + → Create skill → Upl
 
 For a managed workspace, the closest match to “install this GitHub repo” is now native: a workspace admin can go to **Workspace settings → Plugins → Add → Import marketplace**, enter `https://github.com/rahmanef63/si-coder-agent`, and leave Path empty. OpenAI supports `.agents/plugins/marketplace.json` and automatically syncs imported GitHub marketplaces daily. SI-Coder ships a separate **skill-only** OpenAI plugin under `plugins/si-coder/` so the web plugin does not inherit the repository's local MCP server and become Desktop-only.
 
-For personal Skills, OpenAI currently documents ChatGPT Skills for eligible workspaces and allows uploaded skills that follow the Agent Skills standard. Upload `dist/sc.skill` (or `dist/sc.zip` if the picker requires ZIP).
+For personal Skills, OpenAI documents a `SKILL.md`-based skill and an Upload from your computer flow, but does not currently require the `.skill` extension. SI-Coder recommends the complete `sc.zip` package.
 
-Direct download: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
+Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip`
 
 After installation, ChatGPT can use the skill automatically. OpenAI documents explicit Skill selection by **@ mention**; SI-Coder registers the OpenAI display name `sc`, so use `@sc`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 

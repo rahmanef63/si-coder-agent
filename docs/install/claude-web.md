@@ -2,27 +2,23 @@
 
 Claude Web does not need a local SI-Coder CLI, a VPS, or a local credential vault for the default hosted workflow.
 
-## Prerequisite
+## Correct package format
 
-Claude Skills require code execution/file creation to be enabled for the account or organization. On managed plans, an organization owner may need to enable Skills.
+Anthropic currently documents custom-skill upload as a **ZIP file containing the skill folder**. Use `sc.zip` here, not the `.skill` filename.
 
-## Recommended install
+[Download SI-Coder for Claude Web v0.8.3 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip)
 
-1. Download the release artifact `sc.zip` from the GitHub release.
+The ZIP contains the canonical `sc/SKILL.md` entry point plus its bundled resources.
+
+## Install
+
+1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip).
 2. In Claude, open **Customize → Skills**.
 3. Select **+ → Create skill → Upload a skill**.
 4. Upload `sc.zip`.
-5. Ensure SI-Coder is enabled.
+5. Ensure the skill is enabled.
 
-Anthropic's current help documentation explicitly describes custom-skill upload as a ZIP containing the skill folder. SI-Coder also ships `sc.skill`, the same packaged Agent Skill artifact, for clients that accept the `.skill` extension directly.
-
-Release:
-
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
-
-Direct package fallback:
-
-`https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.zip`
+Do not use the raw `SKILL.md` as the upload when the packaged skill includes supporting files. Claude's documented web flow expects the complete skill folder inside a ZIP.
 
 ## Use it
 
@@ -32,7 +28,7 @@ Claude automatically activates relevant installed skills. A simple request is en
 Build a booking app for my salon and publish it.
 ```
 
-Do not require `/sc` in Claude Web. Slash exposure is surface-dependent; `/sc` is the guaranteed direct invocation contract for Claude Code.
+Do not require `/sc` in Claude Web. Slash exposure is surface-dependent; `/sc` is the Claude Code invocation for this skill.
 
 ## Hosted account onboarding
 
@@ -42,7 +38,6 @@ The hosted route should request secure account connections only when needed. It 
 
 Organization owners can provision skills more broadly when their plan and organization settings allow it. Individual uploads are otherwise private to the user's account.
 
-## Official references
+## Official reference
 
-- `https://support.claude.com/en/articles/12512180-use-skills-in-claude`
-- `https://support.claude.com/en/articles/12512198-how-to-create-custom-skills`
+- https://support.claude.com/en/articles/12512180-use-skills-in-claude

@@ -1,15 +1,32 @@
 # SI-Coder installation and onboarding
 
-Choose the guide that matches the surface where SI-Coder will run. Do not make a non-technical user choose infrastructure before installation.
+Choose the guide that matches the surface where SI-Coder will run. The Agent Skills standard defines a **skill directory containing `SKILL.md`**. Archive extensions such as `.zip` or `.skill` are transport/package formats used by particular clients; they are not the canonical skill source. See the [Agent Skills specification](https://agentskills.io/specification).
 
-| Surface | Recommended install | Explicit invocation | Local machine required? |
+## Format matrix
+
+| Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | GitHub marketplace/plugin | `/sc` | Yes |
-| Claude Web / claude.ai | Upload `sc.zip` / packaged skill | Automatic when relevant | No |
-| Codex CLI / app | GitHub skill installer or `install.sh` | `$sc` when supported | Usually yes |
-| ChatGPT personal Skills | Upload packaged skill | Automatic when relevant | No |
-| ChatGPT managed workspace | Import GitHub plugin marketplace | `@SI-Coder` / `+ → More` or automatic selection | No |
-| Hermes / OpenClaw / generic Agent Skills | `install.sh` or skill directory | Runtime-specific | Yes |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip) | Automatic or `@sc` |
+| ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.skill) | Client-specific |
+
+### Important distinction
+
+- **Canonical format:** `skills/sc/SKILL.md` plus optional sibling `scripts/`, `references/`, `assets/`, and `agents/` files.
+- **ZIP upload:** use `sc.zip` where the product asks for a ZIP. Anthropic explicitly documents ZIP upload for Claude Web.
+- **`.skill` archive:** SI-Coder still publishes `sc.skill` as a ZIP-format distribution artifact for clients that explicitly accept that extension. None of the Claude/OpenAI surfaces verified for this release requires the `.skill` extension itself.
+- **Do not install only the raw `SKILL.md`** when the skill needs bundled resources. The directory is the unit of installation. The raw file link is primarily for inspection.
+
+## Direct source links
+
+- [Canonical `sc` skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc)
+- [View raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.3/skills/sc/SKILL.md)
+- [Download upload-ready `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip)
+- [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.skill)
 
 ## Guides
 
@@ -24,22 +41,3 @@ Choose the guide that matches the surface where SI-Coder will run. Do not make a
 ## One instruction for an AI agent
 
 If a user only gives the repository URL and says “install this,” read the root [`AI_INSTALL.md`](../../AI_INSTALL.md), detect the current surface, and follow the matching guide. Do not ask the user which installation system they are using when the current runtime can determine it itself.
-
-## Stable artifacts
-
-GitHub repository:
-
-`https://github.com/rahmanef63/si-coder-agent`
-
-Release page:
-
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
-
-The release contains:
-
-- `sc.skill` — packaged Agent Skill artifact.
-- `sc.zip` — byte-identical ZIP-extension copy for uploaders that require `.zip`.
-- `sc-build.skill` — focused build-flow package.
-- `manifest.json` — artifact fingerprints.
-
-`skills/*/SKILL.md` remains the editable source of truth. Generated `.skill` packages are release/install artifacts.

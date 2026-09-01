@@ -1,6 +1,6 @@
 # Install SI-Coder in Codex
 
-SI-Coder follows the Agent Skills layout used by Codex. The most portable GitHub-first route is to let Codex's skill installer install the core skill directories from this repository.
+Codex installs Agent Skills as **directories containing `SKILL.md`**. Its official skill installer accepts GitHub repository paths and verifies that the selected directory contains `SKILL.md`. Do not install the `.skill` release archive into Codex as the default path.
 
 ## Ask Codex to install it
 
@@ -9,15 +9,15 @@ Install SI-Coder from https://github.com/rahmanef63/si-coder-agent
 Read AI_INSTALL.md and use the built-in skill installer for the core SI-Coder skills.
 ```
 
-Core paths:
+Core GitHub directories:
 
-```text
-skills/sc
-skills/sc-build
-skills/sc-all
-skills/sc-provider
-skills/sc-install
-```
+- [skills/sc](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc)
+- [skills/sc-build](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc-build)
+- [skills/sc-all](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc-all)
+- [skills/sc-provider](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc-provider)
+- [skills/sc-install](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc-install)
+
+The main raw entry point is [skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.3/skills/sc/SKILL.md), but install the directory rather than copying only that file because SI-Coder can use bundled metadata/resources.
 
 ## Local script fallback
 
@@ -35,25 +35,10 @@ bash install.sh --agent codex --with-mcp
 
 ## Use it
 
-Codex skill selection is not Claude slash syntax. When the current Codex client exposes explicit skill selection, use its skill syntax, for example:
+Use the current Codex skill-selection/invocation UX. Natural-language requests may activate `sc`; do not assume Claude's `/sc` syntax.
 
-```text
-$sc Build a booking app for my salon.
-```
+## Official references
 
-Natural-language invocation may also activate a relevant skill depending on the client.
-
-## First run
-
-Local Codex follows the local runtime policy: inspect the project and existing configuration first, then use an existing server if appropriate or choose the easiest managed route. The user should not have to choose a framework, database, hosting vendor, or DNS record type.
-
-## Account onboarding
-
-Use local secure credential handoffs only when necessary:
-
-```bash
-sc setup
-sc doctor
-```
-
-Never put raw provider secrets into the prompt or a tool JSON payload.
+- https://github.com/openai/skills
+- https://github.com/openai/skills/blob/main/skills/.system/skill-installer/SKILL.md
+- https://agentskills.io/specification

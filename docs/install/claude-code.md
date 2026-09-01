@@ -17,6 +17,15 @@ Then start with:
 /sc Build a booking app for my salon.
 ```
 
+## Skill-only source format
+
+Claude Code skills use a directory containing `SKILL.md`. The full plugin marketplace route above is preferred for SI-Coder, but the canonical main skill source is:
+
+- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc)
+- [raw skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.3/skills/sc/SKILL.md)
+
+Do not use `sc.zip` or `sc.skill` for the normal Claude Code plugin installation. Those are archive artifacts for upload/package workflows.
+
 ## If an AI agent is doing the install
 
 Give it this instruction:

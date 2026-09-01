@@ -35,26 +35,27 @@ The installer can accept GitHub repo paths and install them into the Codex skill
 
 ### Claude.ai / Claude Web
 
-Do not clone the repository into the web sandbox. Use the prebuilt web package:
+Anthropic currently documents **ZIP upload** for custom Skills. Use:
 
-- `dist/sc.skill` — distributable `.skill` ZIP package
-- `dist/sc.zip` — byte-identical ZIP fallback for upload UIs that explicitly request ZIP
-- direct `.skill`: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
-- direct ZIP: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip`
 
-Upload the package through Claude's Skills UI. The package is self-contained and bundles the core SI-Coder workflows as references. Claude may activate it automatically; direct slash availability on claude.ai depends on the current surface/UI and is not assumed by this installer contract.
+Do not default to the `.skill` filename on Claude Web; the official web instructions say to upload a ZIP containing the skill folder.
 
 ### ChatGPT Web
 
 **Workspace admin / team install from the repository URL:** import this repository as a plugin marketplace. In ChatGPT: Workspace settings → Plugins → Add → Import marketplace. Set Source to `https://github.com/rahmanef63/si-coder-agent` and leave Path empty. OpenAI will use `.agents/plugins/marketplace.json` and keep it synced from GitHub.
 
-**Personal skill fallback:** if ChatGPT Skills are available for the account/workspace, upload `dist/sc.skill`; if the uploader requires a conventional archive extension, use `dist/sc.zip`.
+**Personal Skill:** OpenAI defines the skill around `SKILL.md` and documents **Upload from your computer**, but does not currently require a `.skill` extension. Use the complete ZIP package:
+
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip`
+
+The optional `.skill` archive is only for clients that explicitly accept that extension.
 
 OpenAI Skills follow the Agent Skills standard. ChatGPT can automatically use an installed relevant skill; OpenAI Academy also documents explicit skill selection by **@-mention**. Do not promise `/sc` on ChatGPT Web unless that surface explicitly adds slash invocation. For a personal Skill upload, prefer `@sc`; for the workspace plugin, use `@SI-Coder` / the plugin picker when explicit invocation is needed.
 
 ### Other Agent Skills clients
 
-Use the canonical source in `skills/sc/SKILL.md` or the `.skill` package if the client supports packaged Agent Skills.
+Prefer the canonical `skills/sc/` directory containing `SKILL.md`. Use an archive only when the client explicitly asks for a packaged skill; use `.skill` only when that client explicitly supports the extension.
 
 ## Security
 

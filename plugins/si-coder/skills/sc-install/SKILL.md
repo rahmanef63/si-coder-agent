@@ -1,6 +1,6 @@
 ---
 name: sc-install
-description: "Install or share SI-Coder across Claude Code, Claude.ai, ChatGPT, Codex, Hermes, OpenClaw, or another Agent Skills-compatible runtime. Use the canonical SKILL.md source for local/repository installs and the generated .skill ZIP package for web/import surfaces. Choose the install path by surface and never promise an invocation syntax the product does not support."
+description: "Install or share SI-Coder across Claude Code, Claude.ai, ChatGPT, Codex, Hermes, OpenClaw, or another Agent Skills-compatible runtime. Use the canonical skill directory containing SKILL.md for local/repository installs. Use ZIP for web upload surfaces that document ZIP. Treat .skill as optional only when the target client explicitly supports that extension. Choose the install path by surface and never promise an invocation syntax the product does not support."
 ---
 
 # sc-install — install SI-Coder on the current AI surface
@@ -30,8 +30,8 @@ If the user wants only one skill, Claude's skill installer can install a GitHub 
 
 Use the generated package:
 
-- `dist/sc.skill` — distributable `.skill` ZIP package
-- `dist/sc.zip` — identical ZIP-extension fallback
+- `dist/sc.zip` — recommended Claude Web upload package (Anthropic documents ZIP upload)
+- `dist/sc.skill` — optional ZIP-format archive only for clients that explicitly accept the `.skill` extension
 
 Claude's web Skills UI accepts uploaded custom skills. The current documented flow is Customize → Skills → + → Create skill → Upload a skill. The package is self-contained and bundles the core SI-Coder workflows.
 
@@ -59,7 +59,7 @@ Use `--with-mcp` when the user also wants the local SI-Coder MCP server.
 
 ## ChatGPT Web
 
-If ChatGPT Skills are available for the user's account/workspace, upload `dist/sc.skill`; use `dist/sc.zip` if the upload picker requires a conventional ZIP extension. OpenAI Skills follow the Agent Skills standard.
+If ChatGPT Skills are available for the user's account/workspace, use the complete `dist/sc.zip` package by default. OpenAI documents skill upload and the `SKILL.md` standard but does not currently require the `.skill` extension. Use `dist/sc.skill` only if that ChatGPT surface explicitly accepts or requests it.
 
 ChatGPT currently documents two invocation modes:
 
@@ -80,7 +80,7 @@ bash install.sh --skills-dir /path/to/skills
 
 ## Package contract
 
-The editable source remains `skills/*/SKILL.md`. `.skill` is a generated install artifact, not a second source of truth. Rebuild it with:
+The editable source remains each `skills/<name>/` directory with its required `SKILL.md`. `.zip` and `.skill` are generated transport artifacts, not a second source of truth. Rebuild it with:
 
 ```bash
 npm run package:skills

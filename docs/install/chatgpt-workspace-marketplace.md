@@ -8,6 +8,10 @@ This is the closest supported path to “install this repository” for a manage
 - Workspace admin access for the import.
 - A GitHub account that can read the marketplace repository. SI-Coder's repository is public.
 
+## Package format
+
+This route does **not** use `sc.zip`, `sc.skill`, or a raw `SKILL.md` download. ChatGPT imports the GitHub marketplace manifest and the plugin's skill directories from the repository.
+
 ## Import the marketplace
 
 1. Open **Workspace settings → Plugins**.

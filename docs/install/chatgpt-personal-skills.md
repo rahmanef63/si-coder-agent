@@ -1,29 +1,34 @@
 # Install SI-Coder as a ChatGPT personal Skill
 
-Use this path when the account exposes **Plugins → Skills** and skill uploading. OpenAI currently documents Skills for eligible ChatGPT Business, Enterprise, Healthcare, and Edu users, subject to workspace settings and rollout.
+Use this path when the account exposes **Plugins → Skills → Create → Upload from your computer**.
 
-## Direct download
+## Correct package format
 
-[Download SI-Coder Skill v0.8.2 (.zip)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.2/sc.zip)
+OpenAI defines the skill itself around a **`SKILL.md` file inside a skill directory** and documents uploading a skill from your computer, but the current Help Center does **not** specify that a `.skill` filename is required. SI-Coder therefore recommends the ordinary ZIP package because it preserves the complete `sc/` directory and its resources in one upload.
 
-This link downloads the stable release ZIP directly. You do not need to open the GitHub Release page first.
+[Download SI-Coder Skill v0.8.3 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip)
+
+For inspection, the canonical source is:
+
+- [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc)
+- [raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.3/skills/sc/SKILL.md)
+
+Do not upload only the raw Markdown file when supporting files are needed; upload the complete packaged skill.
 
 ## Install
 
-1. Download `sc.skill` or `sc.zip` from the SI-Coder GitHub release.
+1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip).
 2. In ChatGPT, open **Plugins** in the sidebar.
 3. Open the **Skills** tab.
 4. Select **Create → Upload from your computer**.
-5. Upload the SI-Coder package and complete ChatGPT's scan/review flow.
+5. Upload `sc.zip` and complete ChatGPT's scan/review flow.
 6. Ensure the skill is installed/enabled.
 
-Release:
-
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
+SI-Coder also publishes an optional [`sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.skill) archive for clients that explicitly accept `.skill`; OpenAI's current ChatGPT Help Center does not require that extension, so it is not the default ChatGPT link.
 
 ## Use it
 
-Installed Skills can be activated automatically when relevant. SI-Coder registers the ChatGPT display name `sc`, so explicit selection is `@sc`.
+Installed Skills can be activated automatically when relevant. SI-Coder registers the ChatGPT display name `sc`, so explicit selection is:
 
 ```text
 @sc Build a booking app for my salon and publish it.
@@ -31,16 +36,13 @@ Installed Skills can be activated automatically when relevant. SI-Coder register
 
 Or simply ask naturally and let ChatGPT select the skill automatically.
 
-The `.skill`/ZIP file is the install package only. It does **not** register `sc` in ChatGPT's `/` command palette. Do not rely on `/sc` in ChatGPT Web; `/sc` is the Claude Code invocation for the same canonical `sc` skill.
+Packaging does not register a custom ChatGPT `/` command. Do not rely on `/sc` in ChatGPT Web.
 
 ## Personal Skill vs plugin marketplace
 
 Use a personal Skill when one person wants SI-Coder quickly. Use the [workspace marketplace guide](chatgpt-workspace-marketplace.md) when an admin wants to install and sync SI-Coder from GitHub for a managed workspace.
 
-## Security
+## Official references
 
-ChatGPT scans uploaded skills before they become available. Review external skills before installing them. SI-Coder itself does not require raw provider secrets in chat; service authorization is handled separately and securely.
-
-## Official reference
-
-`https://help.openai.com/en/articles/20001066`
+- https://help.openai.com/en/articles/20001066-skills-in-chatgpt
+- https://openai.com/academy/skills/
