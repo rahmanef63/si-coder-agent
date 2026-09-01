@@ -168,3 +168,22 @@ test('SCCP-8: CLI help exposes update/provider/secret control-plane commands', (
   assert.match(out, /plaintext read is disabled/);
   assert.match(out, /sc env\s+disabled/);
 });
+
+
+test('SCCP-9: secret request promotes a simple userAction before technical credential details', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  const r = spawnSync(process.execPath, [AGENT, 'secret.request'], {
+    cwd: ROOT, env, input: JSON.stringify({ provider: 'resend', key: 'RESEND_API_KEY' }), encoding: 'utf8',
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.presentation.defaultField, 'userAction');
+  assert.match(out.userAction.title, /akses|email/i);
+  assert.ok(out.userAction.primaryAction.url.startsWith('https://'));
+  assert.strictEqual(out.recommendation.label, '[rekomendasi]');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

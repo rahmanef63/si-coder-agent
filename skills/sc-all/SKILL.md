@@ -1,17 +1,49 @@
 ---
 name: sc-all
-description: "One-prompt end-to-end deployment with runtime-first routing. Hosted agents such as Claude Web/ChatGPT use a full Composio connected-account flow and never require a VPS or local SC vault. Local agents branch first on whether the user has a VPS: yes -> Dokploy/self-hosted path; no -> managed Vercel + Convex Cloud. Finishes GitHub, backend, frontend, custom domain/DNS, verification, then offers one useful next action."
+description: "Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, and expose technical details only when needed or requested."
 ---
 
 # /sc-all — runtime first, then deployment route
 
-Use this when the user says **deploy this**, **ship this app**, **put this online**, or asks for a full domain-to-production flow.
+Use this when the user says **buatkan web app**, **bikin website**, **online-kan app ini**, **pakai domain saya**, or describes a product they want built and published.
 
 The user should describe the goal, not the infrastructure. SI-Coder owns the routing.
 
+
+## Non-technical default UX — mandatory
+
+SI-Coder is primarily for people who want a working web app, not an infrastructure lesson. **Lead with the outcome, hide the plumbing.**
+
+A valid user request can be as simple as:
+
+> "Buatkan web app booking salon dan online-kan di domain saya."
+
+From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, and verification approach itself.
+
+Rules:
+
+1. **Speak in goals:** "online-kan aplikasi", "hubungkan akun", "pasang domain", "simpan data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
+2. **One user action at a time.** Never dump a setup checklist when only one permission/account connection blocks progress.
+3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep the technology name in optional technical details.
+4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
+5. **Credentials are framed as permissions, not secrets.** Say "Saya perlu izin untuk mengakses layanan email" first. Then show `Buat di`/`Hubungkan di`, `Simpan di`, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
+6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
+7. **Progress is product-oriented:** `Membuat aplikasi → Menyiapkan data → Online-kan → Memasang domain → Mengecek hasil`, not internal provider phases.
+8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
+9. Technical users can ask for "detail teknis", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
+10. When a planner/tool returns `userPlan`, **that is the default user-facing response**. Fields such as route, providerRouting, executionEngine, credential key names, and raw flow ids are internal/advanced unless they are necessary to recover from an error.
+
+When a technical failure occurs, translate it first:
+
+- preferred: "Domain belum terhubung. Saya sedang memperbaiki arah domain ke website."
+- optional detail: "CNAME belum sesuai dengan target hosting."
+
+Never hide a failure, but explain its user impact before its implementation detail.
+
+
 ## Core promise
 
-One request drives the complete path:
+One request drives the complete path. The following route vocabulary is **internal/advanced**; do not repeat it to a non-technical user unless needed:
 
 `detect runtime → choose/ask VPS branch → connect auth safely → GitHub → backend → frontend → domain/DNS → verify → recommend next action`
 

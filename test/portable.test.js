@@ -88,7 +88,7 @@ test('SCPORT-8: Claude plugin manifest and MCP config stay portable', () => {
   const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
   const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'));
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.5.2');
+  assert.strictEqual(plugin.version, '0.6.0');
   const cfg = mcp.mcpServers['si-coder'];
   assert.ok(cfg.args.join(' ').includes('${CLAUDE_PLUGIN_ROOT}/scripts/sc-mcp.js'));
   assert.doesNotMatch(JSON.stringify(mcp), /(TOKEN|API_KEY|SECRET|PASSWORD)/i);
@@ -142,4 +142,20 @@ test('SCPORT-11: MSO deploy-plan schema exposes runtime but no secret-value fiel
   assert.deepStrictEqual(fn.inputSchema.properties.runtime.enum, ['auto', 'hosted', 'local']);
   const keys = JSON.stringify(m.functions.map(x => x.inputSchema));
   assert.doesNotMatch(keys, /"(value|secretValue|tokenValue|apiKeyValue|password)"\s*:/i);
+});
+
+
+test('SCPORT-12: userPlan is outcome-oriented and hides infrastructure jargon by default', () => {
+  const hosted = planDeploy({ runtime: 'hosted', composioAvailable: true });
+  const text = JSON.stringify(hosted.userPlan);
+  assert.match(text, /web app|aplikasi|website/i);
+  assert.doesNotMatch(text, /dokploy|convex|dns record|environment variable|deploy key|providerRouting|executionEngine/i);
+  assert.strictEqual(hosted.userPlan.technicalDetailsOptional, true);
+});
+
+test('SCPORT-13: ambiguous local route asks a plain-language server choice', () => {
+  const p = planDeploy({ runtime: 'local', env: {} });
+  assert.strictEqual(p.userPlan.status, 'needs-answer');
+  assert.match(p.userPlan.question, /server|hosting/i);
+  assert.ok(p.userPlan.choices.some(x => /paling mudah/i.test(x.label)));
 });

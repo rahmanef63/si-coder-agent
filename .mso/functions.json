@@ -3,7 +3,7 @@
   "functions": [
     {
       "name": "sc.deploy.plan",
-      "description": "Branch first by agent runtime and VPS ownership, then plan hosted full-Composio, local managed/Vercel, or VPS/Dokploy deployment without returning secret values.",
+      "description": "Turn a plain-language web-app goal into a simple user plan while internally choosing hosted, managed, or own-server execution. Includes optional technical diagnostics and never returns secret values.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -265,7 +265,7 @@
     },
     {
       "name": "sc.secret.request",
-      "description": "Request a safe credential handoff including where to create the key, where/how SC stores it, the verification command, and [rekomendasi]. Never accepts a secret value in tool input.",
+      "description": "Return one simple user action for safely connecting a needed service, including the official link, where access is stored, what happens next, optional technical details, and [rekomendasi]. Never accepts a secret value.",
       "inputSchema": {
         "type": "object",
         "properties": {

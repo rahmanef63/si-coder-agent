@@ -7,6 +7,37 @@ description: "SI-Coder provider + secret control plane for humans and agents. CR
 
 Use this whenever an agent needs to discover, configure, rotate, remove, or consume API/provider credentials.
 
+
+## Non-technical default UX — mandatory
+
+SI-Coder is primarily for people who want a working web app, not an infrastructure lesson. **Lead with the outcome, hide the plumbing.**
+
+A valid user request can be as simple as:
+
+> "Buatkan web app booking salon dan online-kan di domain saya."
+
+From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, and verification approach itself.
+
+Rules:
+
+1. **Speak in goals:** "online-kan aplikasi", "hubungkan akun", "pasang domain", "simpan data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
+2. **One user action at a time.** Never dump a setup checklist when only one permission/account connection blocks progress.
+3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep the technology name in optional technical details.
+4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
+5. **Credentials are framed as permissions, not secrets.** Say "Saya perlu izin untuk mengakses layanan email" first. Then show `Buat di`/`Hubungkan di`, `Simpan di`, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
+6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
+7. **Progress is product-oriented:** `Membuat aplikasi → Menyiapkan data → Online-kan → Memasang domain → Mengecek hasil`, not internal provider phases.
+8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
+9. Technical users can ask for "detail teknis", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
+
+When a technical failure occurs, translate it first:
+
+- preferred: "Domain belum terhubung. Saya sedang memperbaiki arah domain ke website."
+- optional detail: "CNAME belum sesuai dengan target hosting."
+
+Never hide a failure, but explain its user impact before its implementation detail.
+
+
 ## Non-negotiable secret boundary
 
 **Never ask the user to paste an API key/token/password into chat or tool JSON. Never put a secret value in argv.**

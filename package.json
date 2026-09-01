@@ -1,7 +1,7 @@
 {
   "name": "si-coder-agent",
-  "version": "0.5.2",
-  "description": "Portable agent deployment control plane: one-prompt VPS-or-managed routing, secret-safe SC profiles, Composio-aware provider orchestration, Agent Skills and MCP plugin support.",
+  "version": "0.6.0",
+  "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",
     "claude-skills",

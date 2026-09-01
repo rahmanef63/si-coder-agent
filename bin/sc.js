@@ -106,15 +106,35 @@ function storeLabel() {
 }
 
 function printCredentialGuide(key, indent = '      ') {
-  for (const line of humanGuideLines(key, { store: storeLabel() })) console.log(`${indent}${line}`);
+  const g = credentialGuide(key, { store: storeLabel() });
+  const c = g.userCard;
+  if (!c) {
+    for (const line of humanGuideLines(key, { store: storeLabel() })) console.log(`${indent}${line}`);
+    return;
+  }
+  console.log(`${indent}${c.title}`);
+  console.log(`${indent}${c.message}`);
+  if (c.primaryAction?.url) console.log(`${indent}Buka di      : ${c.primaryAction.url}`);
+  if (c.instructions) console.log(`${indent}Pilih        : ${c.instructions}`);
+  if (c.saveAction) console.log(`${indent}Simpan lewat : ${c.saveAction}`);
+  console.log(`${indent}Simpan di    : penyimpanan aman SI-Coder di perangkat ini`);
+  if (c.after) console.log(`${indent}Setelah itu  : ${c.after}`);
 }
 
 function printRecommendation(rec) {
+  const c = rec.userCard;
   console.log(`\n${rec.label}`);
+  if (c) {
+    console.log(`Berikutnya   : ${c.title}`);
+    console.log(`Kenapa       : ${c.reason}`);
+    if (c.beforeWeStart?.length) console.log(`Yang dibutuhkan: ${c.beforeWeStart.join(', ')}`);
+    console.log(`Kalau setuju : ${c.offer}`);
+    return;
+  }
   console.log(`Berikutnya   : ${rec.next}`);
   console.log(`Kenapa       : ${rec.why}`);
-  if (rec.prerequisites?.length) console.log(`Butuh        : ${rec.prerequisites.join(', ')}`);
-  if (rec.action) console.log(`Jalankan     : ${rec.action}`);
+  if (rec.prerequisites?.length) console.log(`Yang dibutuhkan: ${rec.prerequisites.join(', ')}`);
+  if (rec.action) console.log(`Kalau setuju : ${rec.action}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -866,6 +886,30 @@ async function cmdPreflight(args) {
 }
 
 
+
+function renderUserPlan(plan) {
+  const u = plan.userPlan || {};
+  console.log(`\n✨ ${u.title || 'Siap melanjutkan'}`);
+  if (u.outcome) console.log(`   ${u.outcome}`);
+  if (u.connectionMessage) console.log(`\n   ${u.connectionMessage}`);
+  if (u.question) {
+    console.log(`\n   ${u.question}`);
+    for (const c of u.choices || []) console.log(`   • ${c.label}`);
+    return;
+  }
+  if (Array.isArray(u.steps) && u.steps.length) {
+    console.log('\n   Yang akan saya urus:');
+    u.steps.forEach((step, i) => console.log(`   ${i + 1}. ${step}`));
+  }
+  if (u.action) {
+    console.log(`\n   Yang kamu perlu lakukan sekarang:`);
+    console.log(`   ${u.action.title}`);
+    console.log(`   ${u.action.message}`);
+    if (u.action.buttonLabel) console.log(`   → ${u.action.buttonLabel}`);
+  }
+  console.log('\n   Detail teknis saya urus di belakang layar.');
+}
+
 function cmdDeploy(sub, args) {
   if (!sub || sub === 'plan') {
     const plan = planDeploy({
@@ -877,13 +921,14 @@ function cmdDeploy(sub, args) {
     });
     if (args.json || !process.stdout.isTTY) console.log(JSON.stringify(plan, null, 2));
     else {
-      console.log(`\n🚀 deploy route: ${plan.route}${plan.target ? ` → ${plan.target}` : ''}`);
-      console.log(`   ${plan.reason}`);
-      console.log(`   ${plan.flow.join(' → ')}`);
-      if (plan.decisionRequired) console.log(`\n   decision: ${plan.decisionRequired.prompt}`);
-      if (plan.blockedBy?.length) console.log(`\n   blocked: ${plan.blockedBy.map(x => x.capability).join(', ')}`);
-      console.log('\n   provider routing:');
-      for (const p of plan.providerRouting) console.log(`     ${p.provider.padEnd(10)} ${p.backend}`);
+      renderUserPlan(plan);
+      if (args.technical || args.advanced) {
+        console.log(`\n🔧 Detail teknis`);
+        console.log(`   route: ${plan.route}${plan.target ? ` → ${plan.target}` : ''}`);
+        console.log(`   reason: ${plan.reason}`);
+        console.log(`   flow: ${plan.flow.join(' → ')}`);
+        for (const p of plan.providerRouting) console.log(`   ${p.provider.padEnd(10)} ${p.backend}`);
+      }
       console.log('');
     }
     return;
@@ -894,15 +939,15 @@ function cmdDeploy(sub, args) {
 // Bare `sc` on a terminal opens the console rather than printing a wall of usage. On a pipe
 // it still prints usage, so `sc | head` and scripts behave the way anyone would expect.
 async function cmdMenu() {
-  const action = await selectOne('sc — provider + secret control plane', [
-    { id: 'deploy',    label: 'deploy   ', hint: 'auto-route VPS or managed deployment' },
-    { id: 'providers', label: 'providers', hint: 'registry + safe credential status' },
-    { id: 'secrets',   label: 'secrets  ', hint: 'credential status; values never printed' },
-    { id: 'setup',     label: 'setup    ', hint: 'hidden credential entry' },
-    { id: 'doctor',    label: 'doctor   ', hint: 'live check against each real API' },
-    { id: 'update',    label: 'update   ', hint: 'safe git fast-forward self-update' },
-    { id: 'audit',     label: 'audit    ', hint: 'metadata-only lifecycle log' },
-    { id: 'preflight', label: 'preflight', hint: 'check a /sc-all deploy target' },
+  const action = await selectOne('SI-Coder — buat dan online-kan web app', [
+    { id: 'deploy',    label: 'Online-kan app', hint: 'saya pilih cara hosting yang paling cocok' },
+    { id: 'providers', label: 'Akun terhubung', hint: 'lihat layanan yang sudah siap dipakai' },
+    { id: 'secrets',   label: 'Akses aman', hint: 'cek akses tanpa menampilkan rahasia' },
+    { id: 'setup',     label: 'Hubungkan akun', hint: 'siapkan akses yang masih dibutuhkan' },
+    { id: 'doctor',    label: 'Cek koneksi', hint: 'pastikan semua layanan bisa dipakai' },
+    { id: 'update',    label: 'Update SI-Coder', hint: 'pakai versi terbaru dengan aman' },
+    { id: 'audit',     label: 'Riwayat', hint: 'lihat aktivitas pengaturan tanpa rahasia' },
+    { id: 'preflight', label: 'Cek kesiapan', hint: 'lihat apa yang masih perlu disiapkan' },
     { id: 'users',     label: 'users    ', hint: 'profiles, and which folder uses which' },
     { id: 'which',     label: 'which    ', hint: 'why this directory resolves to that profile' },
     { id: 'quit',      label: 'quit     ', hint: '' },

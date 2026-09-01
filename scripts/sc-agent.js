@@ -118,11 +118,25 @@ async function main() {
       const setup = key ? status.credentials?.[0]?.setup : null;
       process.stdout.write(`${JSON.stringify({
         ...status,
-        ...(setup ? { createAt: setup.createAt, saveWith: setup.saveWith, saveDestination: setup.saveDestination, continueWith: setup.continueWith } : {}),
+        ...(setup ? {
+          userAction: setup.userCard,
+          createAt: setup.createAt,
+          saveWith: setup.saveWith,
+          saveDestination: setup.saveDestination,
+          continueWith: setup.continueWith,
+        } : {}),
+        presentation: { defaultField: 'userAction', technicalDetails: 'opt-in' },
         requiresUserTerminal: true,
         command: `sc secret set ${provider}${key ? ` ${key}` : ''}`,
-        policy: 'Create the key only at the provider endpoint shown above, then paste it only into the hidden terminal prompt; never send it in chat or tool JSON.',
-        recommendation: { label: '[rekomendasi]', next: setup?.continueWith || `sc doctor --providers ${provider}`, prerequisites: ['credential stored successfully'] },
+        policy: 'Create the access only at the official page shown above, then paste it only into the hidden terminal prompt; never send it in chat or tool JSON.',
+        recommendation: {
+          label: '[rekomendasi]',
+          title: 'Cek akses lalu lanjutkan',
+          reason: 'Supaya SI-Coder tahu koneksi sudah siap sebelum melanjutkan web app.',
+          beforeWeStart: ['akses sudah disimpan'],
+          offer: 'Saya akan mengecek koneksi dan melanjutkan langkah sebelumnya.',
+          technicalCommand: setup?.continueWith || `sc doctor --providers ${provider}`,
+        },
       }, null, 2)}\n`);
       return;
     }

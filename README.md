@@ -1,6 +1,6 @@
 # SI-Coder
 
-> Portable Agent Skills + MCP deployment control plane: one prompt from repository to a verified production domain, with **runtime-first routing** and a secret boundary designed for AI agents.
+> **Tell SI-Coder what web app you want. It handles the path to a working live website.** Technical infrastructure is chosen and managed behind the scenes.
 
 SI-Coder has three cooperating layers:
 
@@ -10,7 +10,32 @@ SI-Coder has three cooperating layers:
 
 A provider credential should never need to be pasted into chat.
 
-## One prompt, runtime first
+## For non-technical users
+
+You do **not** need to know what Vercel, Dokploy, Convex, DNS, environment variables, or deployment pipelines are.
+
+Start with the result you want:
+
+```text
+Buatkan web app booking untuk salon saya.
+Ada login pelanggan dan admin, jadwal booking, lalu online-kan di booking.domainku.com.
+```
+
+SI-Coder should then:
+
+1. understand the product you want,
+2. choose sensible technical defaults,
+3. build or update the app,
+4. ask you to connect an account only when permission is actually needed,
+5. publish it,
+6. connect your domain,
+7. verify the website works,
+8. recommend one useful next improvement.
+
+If you want implementation details, ask **"tampilkan detail teknis"**. They are intentionally secondary.
+
+
+## How SI-Coder works behind the scenes (optional)
 
 The normal entry point is `/sc-all`. The first branch is **where the agent is running**, before provider credentials.
 

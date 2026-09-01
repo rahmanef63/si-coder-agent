@@ -87,3 +87,13 @@ test('SRC-10: full credential guide says where to create, store, and continue', 
   assert.match(text, /Simpan di/);
   assert.match(text, /Lanjut/);
 });
+
+
+test('SRC-11: credential guide includes a non-technical user card', () => {
+  const { credentialGuide } = require('../lib/credential-guidance');
+  const g = credentialGuide('RESEND_API_KEY');
+  assert.ok(g.userCard);
+  assert.match(g.userCard.title, /akses|email/i);
+  assert.strictEqual(g.userCard.technicalDetailsOptional, true);
+  assert.ok(g.userCard.primaryAction.url.startsWith('https://'));
+});
