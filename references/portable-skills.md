@@ -29,9 +29,11 @@ Codex follows Agent Skills and includes a `$skill-installer` that can install Gi
 
 ## ChatGPT Web
 
-OpenAI Skills follow the Agent Skills open standard and can be uploaded when Skills are available for the account/workspace. Install `dist/sc.skill` (or `dist/sc.zip`). ChatGPT currently documents automatic activation and explicit @-mention/skill selection, for example `@SI-Coder`.
+For managed workspaces, OpenAI supports importing a plugin marketplace directly from a GitHub repository. SI-Coder provides `.agents/plugins/marketplace.json` pointing to a skill-only `plugins/si-coder/` package. An admin can import `https://github.com/rahmanef63/si-coder-agent` from Workspace settings → Plugins → Add → Import marketplace; daily sync keeps it current.
 
-OpenAI's Plugin Directory is now the primary workflow directory and plugins can bundle skills plus connected apps. A public SI-Coder plugin would require the OpenAI plugin publishing/review flow; a repository URL alone is not documented as a direct ChatGPT Web plugin-install mechanism.
+For personal Skills, OpenAI Skills follow the Agent Skills open standard and can be uploaded when Skills are available for the account/workspace. Install `dist/sc.skill` (or `dist/sc.zip`). ChatGPT can activate a relevant skill automatically; OpenAI Academy documents explicit @-mention selection, for example `@SI-Coder`.
+
+The skill-only OpenAI plugin intentionally omits `.mcp.json`; OpenAI notes that imported plugins declaring MCP servers can be labeled Desktop-only and therefore cannot run in ChatGPT Web.
 
 ## Local fallback installer
 

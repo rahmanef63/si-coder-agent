@@ -63,9 +63,30 @@ test('DIST-4: OpenAI UI metadata exists for main skills and uses current explici
 test('DIST-5: version and package file list include distributable skill artifacts', () => {
   const pkg = readJson('package.json');
   const plugin = readJson('.claude-plugin/plugin.json');
-  assert.strictEqual(pkg.version, '0.8.0');
-  assert.strictEqual(plugin.version, '0.8.0');
+  assert.strictEqual(pkg.version, '0.8.1');
+  assert.strictEqual(plugin.version, '0.8.1');
   assert.ok(pkg.files.includes('dist/'));
   assert.ok(pkg.files.includes('AI_INSTALL.md'));
+  assert.ok(pkg.files.includes('.agents/'));
+  assert.ok(pkg.files.includes('plugins/'));
   assert.strictEqual(pkg.scripts['package:skills'], 'python3 scripts/package-web-skill.py');
+});
+
+
+test('DIST-6: OpenAI repository marketplace exposes a web-compatible skill-only plugin', () => {
+  const market = readJson('.agents/plugins/marketplace.json');
+  const row = market.plugins.find(x => x.name === 'si-coder');
+  assert.ok(row);
+  assert.deepStrictEqual(row.source, { source: 'local', path: './plugins/si-coder' });
+  const plugin = readJson('plugins/si-coder/.codex-plugin/plugin.json');
+  assert.strictEqual(plugin.name, 'si-coder');
+  assert.strictEqual(plugin.version, '0.8.1');
+  assert.strictEqual(plugin.skills, './skills/');
+  assert.ok(!('mcpServers' in plugin), 'web plugin must not declare MCP and become Desktop-only');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'plugins/si-coder/.mcp.json')));
+  for (const name of ['sc', 'sc-build', 'sc-all', 'sc-provider', 'sc-install', 'sc-help']) {
+    const generated = fs.readFileSync(path.join(ROOT, `plugins/si-coder/skills/${name}/SKILL.md`));
+    const source = fs.readFileSync(path.join(ROOT, `skills/${name}/SKILL.md`));
+    assert.deepStrictEqual(generated, source, `${name} OpenAI plugin copy drifted from source`);
+  }
 });

@@ -232,15 +232,15 @@ Direct downloads from `main`:
 
 Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
 
-### ChatGPT Web — Skills / Plugins
+### ChatGPT Web — repository marketplace or personal Skill
 
-OpenAI currently documents ChatGPT Skills for eligible workspaces and allows uploaded skills that follow the Agent Skills standard. Upload `dist/sc.skill` (or `dist/sc.zip` if the picker requires ZIP).
+For a managed workspace, the closest match to “install this GitHub repo” is now native: a workspace admin can go to **Workspace settings → Plugins → Add → Import marketplace**, enter `https://github.com/rahmanef63/si-coder-agent`, and leave Path empty. OpenAI supports `.agents/plugins/marketplace.json` and automatically syncs imported GitHub marketplaces daily. SI-Coder ships a separate **skill-only** OpenAI plugin under `plugins/si-coder/` so the web plugin does not inherit the repository's local MCP server and become Desktop-only.
+
+For personal Skills, OpenAI currently documents ChatGPT Skills for eligible workspaces and allows uploaded skills that follow the Agent Skills standard. Upload `dist/sc.skill` (or `dist/sc.zip` if the picker requires ZIP).
 
 Direct download: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
 
-After installation, ChatGPT can use the skill automatically. The documented explicit invocation is an **@ mention / skill picker**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
-
-OpenAI also now uses Plugins as the main workflow directory. A plugin may bundle skills and connected apps. SI-Coder's repository is prepared around the same `SKILL.md` source and OpenAI `agents/openai.yaml` UI metadata; publishing to the ChatGPT Plugin Directory is a separate distribution/review step from installing a personal uploaded skill.
+After installation, ChatGPT can use the skill automatically. OpenAI Academy documents explicit skill selection by **@ mention**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 
 ### Other local Agent Skills runtimes
 

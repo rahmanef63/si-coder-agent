@@ -88,7 +88,7 @@ test('SCPORT-8: Claude plugin manifest and MCP config stay portable', () => {
   const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
   const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'));
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.8.0');
+  assert.strictEqual(plugin.version, '0.8.1');
   const cfg = mcp.mcpServers['si-coder'];
   assert.ok(cfg.args.join(' ').includes('${CLAUDE_PLUGIN_ROOT}/scripts/sc-mcp.js'));
   assert.doesNotMatch(JSON.stringify(mcp), /(TOKEN|API_KEY|SECRET|PASSWORD)/i);

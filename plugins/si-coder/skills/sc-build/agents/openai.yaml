@@ -1,0 +1,6 @@
+interface:
+  display_name: "SI-Coder Build"
+  short_description: "Turn a rough app idea into a working first version"
+  default_prompt: "Use $sc-build to turn this product idea into a first working version with at most three business questions."
+policy:
+  allow_implicit_invocation: true

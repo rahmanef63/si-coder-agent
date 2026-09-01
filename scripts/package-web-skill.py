@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 CORE_REFS = ["sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
+OPENAI_PLUGIN_SKILLS = ["sc", "sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
 REPO_REFS = ["provider-routing.md", "portable-skills.md", "output-styles.md"]
 
 
@@ -74,8 +75,53 @@ def build_web_sc(stage_root: Path) -> Path:
     return dst
 
 
+def build_openai_plugin() -> None:
+    """Generate the skill-only OpenAI plugin from canonical skill sources."""
+    version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+    plugin = ROOT / "plugins" / "si-coder"
+    skills_dst = plugin / "skills"
+    if skills_dst.exists():
+        shutil.rmtree(skills_dst)
+    skills_dst.mkdir(parents=True, exist_ok=True)
+    for name in OPENAI_PLUGIN_SKILLS:
+        shutil.copytree(ROOT / "skills" / name, skills_dst / name)
+    manifest_dir = plugin / ".codex-plugin"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "name": "si-coder",
+        "version": version,
+        "description": "Build and publish web apps from plain-language goals with a non-technical workflow.",
+        "author": {"name": "Rahman EF", "url": "https://github.com/rahmanef63"},
+        "homepage": "https://github.com/rahmanef63/si-coder-agent",
+        "repository": "https://github.com/rahmanef63/si-coder-agent",
+        "license": "MIT",
+        "keywords": ["web-apps", "agent-skills", "deployment", "no-code", "workflow"],
+        "skills": "./skills/",
+        "interface": {
+            "displayName": "SI-Coder",
+            "shortDescription": "Build and publish web apps from plain language",
+            "longDescription": "SI-Coder turns a non-technical product idea into a working web app, chooses sensible technical defaults, and guides secure publishing and account connections.",
+            "developerName": "Rahman EF",
+            "category": "Developer Tools",
+            "defaultPrompt": [
+                "Build a web app from my idea.",
+                "Publish this app and connect my domain.",
+                "Help me improve this web app."
+            ]
+        }
+    }
+    (manifest_dir / "plugin.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (plugin / "GENERATED.md").write_text(
+        "# Generated OpenAI plugin\n\n"
+        "Do not edit the copied skills here. Canonical sources live under `/skills`. "
+        "Regenerate with `npm run package:skills`.\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     DIST.mkdir(exist_ok=True)
+    build_openai_plugin()
     for old in [DIST / "sc.skill", DIST / "sc.zip", DIST / "sc-build.skill"]:
         if old.exists():
             old.unlink()

@@ -44,9 +44,11 @@ Upload the package through Claude's Skills UI. The package is self-contained and
 
 ### ChatGPT Web
 
-Use ChatGPT Skills if the account/workspace exposes them. Upload `dist/sc.skill`; if the uploader requires a conventional archive extension, use `dist/sc.zip`.
+**Workspace admin / team install from the repository URL:** import this repository as a plugin marketplace. In ChatGPT: Workspace settings → Plugins → Add → Import marketplace. Set Source to `https://github.com/rahmanef63/si-coder-agent` and leave Path empty. OpenAI will use `.agents/plugins/marketplace.json` and keep it synced from GitHub.
 
-OpenAI Skills follow the Agent Skills standard. ChatGPT currently documents automatic skill use and explicit **@-mention** selection. Do not promise `/sc` on ChatGPT Web unless that surface explicitly exposes slash invocation. Prefer `@SI-Coder` / the installed skill picker when explicit invocation is needed.
+**Personal skill fallback:** if ChatGPT Skills are available for the account/workspace, upload `dist/sc.skill`; if the uploader requires a conventional archive extension, use `dist/sc.zip`.
+
+OpenAI Skills follow the Agent Skills standard. ChatGPT can automatically use an installed relevant skill; OpenAI Academy also documents explicit skill selection by **@-mention**. Do not promise `/sc` on ChatGPT Web unless that surface explicitly adds slash invocation. Prefer `@SI-Coder` / the installed skill picker when explicit invocation is needed.
 
 ### Other Agent Skills clients
 

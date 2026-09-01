@@ -1,0 +1,32 @@
+{
+  "name": "si-coder",
+  "version": "0.8.1",
+  "description": "Build and publish web apps from plain-language goals with a non-technical workflow.",
+  "author": {
+    "name": "Rahman EF",
+    "url": "https://github.com/rahmanef63"
+  },
+  "homepage": "https://github.com/rahmanef63/si-coder-agent",
+  "repository": "https://github.com/rahmanef63/si-coder-agent",
+  "license": "MIT",
+  "keywords": [
+    "web-apps",
+    "agent-skills",
+    "deployment",
+    "no-code",
+    "workflow"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SI-Coder",
+    "shortDescription": "Build and publish web apps from plain language",
+    "longDescription": "SI-Coder turns a non-technical product idea into a working web app, chooses sensible technical defaults, and guides secure publishing and account connections.",
+    "developerName": "Rahman EF",
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Build a web app from my idea.",
+      "Publish this app and connect my domain.",
+      "Help me improve this web app."
+    ]
+  }
+}
