@@ -834,6 +834,7 @@ async function cmdPreflight(args) {
 function cmdDeploy(sub, args) {
   if (!sub || sub === 'plan') {
     const plan = planDeploy({
+      runtime: args.runtime || (args.hosted ? 'hosted' : args.local ? 'local' : process.env.SC_RUNTIME || 'auto'),
       requestedTarget: args.target || 'auto',
       env: currentEnv(),
       composioAvailable: args.composio === true ? true : args['no-composio'] === true ? false : process.env.SC_COMPOSIO_AVAILABLE,
@@ -841,9 +842,11 @@ function cmdDeploy(sub, args) {
     });
     if (args.json || !process.stdout.isTTY) console.log(JSON.stringify(plan, null, 2));
     else {
-      console.log(`\n🚀 deploy route: ${plan.route} → ${plan.target}`);
+      console.log(`\n🚀 deploy route: ${plan.route}${plan.target ? ` → ${plan.target}` : ''}`);
       console.log(`   ${plan.reason}`);
       console.log(`   ${plan.flow.join(' → ')}`);
+      if (plan.decisionRequired) console.log(`\n   decision: ${plan.decisionRequired.prompt}`);
+      if (plan.blockedBy?.length) console.log(`\n   blocked: ${plan.blockedBy.map(x => x.capability).join(', ')}`);
       console.log('\n   provider routing:');
       for (const p of plan.providerRouting) console.log(`     ${p.provider.padEnd(10)} ${p.backend}`);
       console.log('');
@@ -896,8 +899,9 @@ sc — si-coder provider console + secret control plane
 
   sc update [--check] [--json]        safe self-update: fetch + fast-forward only
   sc version [--json]                 version, source checkout and git state
-  sc deploy plan [--target auto|vps|managed|dokploy|hybrid|vercel] [--composio] [--json]
-                                      route planner; auto prefers VPS when Dokploy is ready
+  sc deploy plan [--runtime auto|hosted|local] [--target auto|vps|managed|dokploy|hybrid|vercel]
+                 [--vps|--no-vps] [--composio|--no-composio] [--json]
+                                      branch runtime first; hosted = full Composio, local asks/detects VPS first
 
   sc providers [--json]               list built-in + custom providers; never secret values
   sc providers show <id>              provider detail (secret values redacted)

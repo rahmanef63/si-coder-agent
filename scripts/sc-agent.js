@@ -133,6 +133,7 @@ async function main() {
     }
     case 'deploy.plan': {
       const argv = ['deploy', 'plan', '--json'];
+      if (input.runtime) argv.push('--runtime', assertString(input.runtime, 'runtime'));
       if (input.target) argv.push('--target', assertString(input.target, 'target'));
       if (input.composioAvailable === true) argv.push('--composio');
       if (input.composioAvailable === false) argv.push('--no-composio');

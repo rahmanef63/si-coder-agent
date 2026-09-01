@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Portable agent deployment control plane: one-prompt VPS-or-managed routing, secret-safe SC profiles, Composio-aware provider orchestration, Agent Skills and MCP plugin support.",
   "keywords": [
     "claude-code",

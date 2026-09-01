@@ -17,15 +17,19 @@ description: "Quick reference for SI-Coder route selection, secret-safe provider
 ## Deploy routing
 
 ```bash
-sc deploy plan --target auto
+# Hosted Claude Web / ChatGPT-style runtime
+sc deploy plan --runtime hosted --composio
+
+# Local runtime: VPS is the first branch
+sc deploy plan --runtime local
 ```
 
-- usable VPS/Dokploy → VPS route.
-- no usable VPS → managed Vercel + Convex Cloud.
-- GitHub → SC on both paths.
-- managed Vercel/Convex/Hostinger → Composio preferred when a connected toolkit exists; SC fallback.
+- **hosted web/chat** → full Composio for GitHub + Convex Cloud + Vercel + Hostinger; no VPS required.
+- **local, VPS unknown** → ask once whether the user has a VPS instead of guessing.
+- **local + VPS** → SC GitHub/Dokploy/self-hosted Convex.
+- **local + no VPS** → SC GitHub; Vercel/Convex/Hostinger prefer Composio, SC fallback.
 
-Advanced overrides: `--target dokploy|hybrid|vercel|vps|managed`.
+Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel|vps|managed`.
 
 ## Secret-safe commands
 

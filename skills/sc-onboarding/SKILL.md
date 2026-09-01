@@ -214,4 +214,4 @@ Stub domains pre-register vars so `/sc-onboarding` can collect them; their `/sc-
 
 ## Relationship to Composio
 
-This skill configures the **local SC store**. On the managed/no-VPS `/sc-all` route, Vercel/Convex/Hostinger should prefer an already available Composio connected account rather than duplicating raw provider keys in SC. GitHub deployment identity remains SC-direct. Use `/sc-provider` for the canonical routing policy.
+This skill configures the **local SC store only**. It is not required for hosted Claude Web/ChatGPT-style deployments, which use full Composio connected accounts including GitHub. On a **local no-VPS** `/sc-all` route, GitHub stays SC-direct while Vercel/Convex/Hostinger prefer Composio when connected. Use `/sc-provider` for the canonical runtime/provider routing policy.

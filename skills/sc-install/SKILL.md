@@ -7,6 +7,15 @@ description: "Install or share SI-Coder across Claude Code, Codex/ChatGPT local 
 
 SI-Coder uses one `skills/` tree as the source of truth. Do not fork/copy skill content per agent unless the runtime cannot follow symlinks.
 
+
+## Hosted Claude Web / ChatGPT chat
+
+Hosted execution does not require a VPS or local SC vault. When the skill is loaded into a hosted chat surface, `/sc-all` uses the orchestration policy directly and executes through Composio connected accounts:
+
+`GitHub → Convex Cloud → Vercel → Hostinger DNS → verify`
+
+If Composio is not enabled/connected, guide the user through the secure connector setup. Do not ask for raw API keys. A local installation is only required if the user explicitly wants local/VPS execution.
+
 ## Claude Code
 
 Preferred shared/plugin mode:

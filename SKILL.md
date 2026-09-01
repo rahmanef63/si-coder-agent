@@ -1,6 +1,6 @@
 ---
 name: si-coder
-description: "Portable SI-Coder umbrella for deployment and provider operations. Prefer /sc-all for one-prompt deploys, /sc-provider for secret-safe provider lifecycle, and /sc-install for installing the same Agent Skills/plugin across Claude Code, Codex, Hermes, OpenClaw, or compatible runtimes. Auto-route deploys to VPS/Dokploy when usable, otherwise managed Vercel + Convex Cloud. GitHub deployment identity stays in SC; Vercel/Convex/Hostinger prefer connected Composio tools on the managed route."
+description: "Portable SI-Coder umbrella for deployment and provider operations. Runtime-first: hosted Claude Web/ChatGPT-style agents use full Composio for GitHub + Convex + Vercel + Hostinger without a VPS/local SC vault; local agents branch first on VPS ownership, then choose Dokploy/self-hosted or managed Vercel. Prefer /sc-all for one-prompt deploys, /sc-provider for secret-safe provider lifecycle, and /sc-install for portable installation."
 ---
 
 # SI-Coder umbrella
@@ -23,13 +23,12 @@ Use the narrowest SI-Coder skill that satisfies the task:
 
 Do not require the user to choose infrastructure terminology first.
 
-1. Inspect the repo and current provider capability.
-2. Run/derive `sc deploy plan --target auto`.
-3. If a usable VPS/Dokploy control plane exists → VPS route.
-4. Otherwise → managed Vercel + Convex Cloud route.
-5. GitHub repo creation/push uses **SC** on both routes.
-6. On the managed route, use connected **Composio Vercel/Convex/Hostinger** tools when available; otherwise fall back to SC-managed provider credentials/sub-skills.
-7. Configure the requested custom domain and verify production end-to-end.
+1. Detect runtime **before** credentials.
+2. Hosted web/chat runtime → full Composio: GitHub → Convex Cloud → Vercel → Hostinger; no VPS question and no local SC requirement.
+3. Local runtime → determine whether the user has a VPS. If unknown and not inferable, ask exactly once.
+4. Local + VPS → SC GitHub/Dokploy/self-hosted Convex route.
+5. Local + no VPS → SC GitHub + managed Convex/Vercel/Hostinger, preferring Composio when connected.
+6. Configure the requested canonical domain and verify production end-to-end.
 
 Read `skills/sc-all/SKILL.md` for the full orchestration contract.
 
@@ -42,7 +41,7 @@ Never ask the user to paste a secret into chat or MCP JSON.
 - Connected provider → initiate the provider's secure connection/auth flow.
 - Consumer command → `sc run -- <command>`.
 - `sc env` is intentionally disabled.
-- GitHub deployment identity remains SC-direct; never silently change it to a different connected GitHub account.
+- Hosted runtime: GitHub is a Composio connected account. Local runtime: GitHub remains SC-direct by default. Never mix these policies across runtimes.
 
 Read `skills/sc-provider/SKILL.md` and `references/provider-routing.md`.
 

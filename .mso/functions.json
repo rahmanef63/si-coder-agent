@@ -3,10 +3,18 @@
   "functions": [
     {
       "name": "sc.deploy.plan",
-      "description": "Plan the automatic deployment route (VPS/Dokploy or managed/Vercel) and provider credential backends without returning secret values.",
+      "description": "Branch first by agent runtime and VPS ownership, then plan hosted full-Composio, local managed/Vercel, or VPS/Dokploy deployment without returning secret values.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "runtime": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "hosted",
+              "local"
+            ]
+          },
           "target": {
             "type": "string",
             "enum": [

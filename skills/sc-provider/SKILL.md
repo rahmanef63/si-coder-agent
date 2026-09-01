@@ -31,14 +31,14 @@ This injects the profile environment into the child without printing secret valu
 
 SC is the local secret/control-plane boundary. Composio is a connected-account boundary for providers that benefit from managed tool execution. Read `../../references/provider-routing.md` before choosing a backend.
 
-Default policy:
+Runtime policy:
 
-- GitHub deployment identity → **SC only by default**.
-- Dokploy/VPS credentials → **SC**.
-- Vercel, Convex Cloud, Hostinger on a no-VPS route → **Composio preferred**, SC fallback.
-- Composio project key itself → SC only when a local SC runtime is needed; if the host already provides a native Composio connector, use that connection instead of duplicating the key.
+- **Hosted Claude Web/ChatGPT-style agent** → full Composio for GitHub, Convex Cloud, Vercel, and Hostinger. No local SC vault is required.
+- **Local + no VPS** → GitHub in SC; Vercel/Convex/Hostinger prefer Composio and may fall back to SC.
+- **Local + VPS** → GitHub/Dokploy/self-hosted Convex in SC; Hostinger may use Composio or SC.
+- Composio project key itself belongs in SC only when a local runtime needs API-key access. A hosted native connector should use its own connection flow.
 
-When using Composio, the agent may ask the connector for a secure connection link. It must not ask the user for the underlying Vercel/Convex/Hostinger secret in chat.
+When using Composio, ask for a secure connection link, never the underlying provider secret. Hosted mode must not fall back to asking for a raw key in chat.
 
 ## Provider CRUD
 

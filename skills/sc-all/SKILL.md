@@ -1,211 +1,239 @@
 ---
 name: sc-all
-description: "One-prompt end-to-end deployment. Automatically chooses the VPS/Dokploy route when a usable VPS is available, otherwise the managed Vercel + Convex Cloud route. GitHub identity stays in SC; Vercel/Convex/Hostinger prefer Composio connected accounts on the managed route and fall back to SC credentials. Handles repo push, backend, frontend, custom domain DNS, verification, then proactively offers one useful next step such as transactional email setup."
+description: "One-prompt end-to-end deployment with runtime-first routing. Hosted agents such as Claude Web/ChatGPT use a full Composio connected-account flow and never require a VPS or local SC vault. Local agents branch first on whether the user has a VPS: yes -> Dokploy/self-hosted path; no -> managed Vercel + Convex Cloud. Finishes GitHub, backend, frontend, custom domain/DNS, verification, then offers one useful next action."
 ---
 
-# /sc-all — one prompt, two deployment routes
+# /sc-all — runtime first, then deployment route
 
-Use this when the user says things like **deploy this**, **ship this app**, **put this online**, or asks for a full domain-to-production flow.
+Use this when the user says **deploy this**, **ship this app**, **put this online**, or asks for a full domain-to-production flow.
 
-The user should not need to know `dokploy`, `hybrid`, or `vercel` up front. Default to **auto routing**.
+The user should describe the goal, not the infrastructure. SI-Coder owns the routing.
 
 ## Core promise
 
-One user request should drive the whole sequence:
+One request drives the complete path:
 
-`inspect → choose route → satisfy auth safely → GitHub → backend → frontend → domain/DNS → verify → recommend next action`
+`detect runtime → choose/ask VPS branch → connect auth safely → GitHub → backend → frontend → domain/DNS → verify → recommend next action`
 
-Do not stop after creating a project, adding a domain, or triggering a build. Finish the production path and verify it.
+Do not stop at repo creation, project creation, DNS write, or build trigger. Complete and verify the production path.
 
-## Route selection
+# 0. FIRST BRANCH — where is the agent running?
 
-Start with:
+This decision happens **before credential routing**.
 
-```bash
-sc deploy plan --target auto --json
-```
+## A. Hosted agent — Claude Web, ChatGPT chat, other server-side chat hosts
 
-If the host agent knows a Composio connector is available, use `--composio`. The pure route planner never reads or returns secret values.
+Treat the runtime as `hosted` when the agent has no normal local shell/filesystem/SC vault and is operating through hosted connectors/plugins.
 
-### Route A — user has a usable VPS
+**Do not ask whether the user owns a VPS. Do not require a VPS. Do not ask for local `sc secret set`.**
 
-Choose this when Dokploy/VPS capability is configured or the user explicitly asks for VPS/self-hosted.
+The default path is full Composio:
 
 ```text
-GitHub (SC) → Convex self-hosted → Dokploy → Hostinger DNS → verify
+Composio connect
+  → GitHub
+  → Convex Cloud
+  → Vercel
+  → Hostinger DNS
+  → verify
+```
+
+Every deployment provider, including GitHub, is a Composio connected account in this mode because there is no local SC/Git identity to preserve.
+
+Planning equivalent:
+
+```bash
+sc deploy plan --runtime hosted --target auto --composio --json
+```
+
+The script is a portable policy reference; a hosted chat does **not** need the local `sc` executable to execute the flow. The host agent should run the equivalent connector calls directly.
+
+### Hosted Composio execution contract
+
+1. Discover the required toolkit/actions for **GitHub, Convex, Vercel, Hostinger**.
+2. Check connection state for each toolkit.
+3. For disconnected toolkits, create the secure Composio auth connection and show the auth link.
+4. Continue only after the needed connection is active.
+5. Run the provider operations through Composio; never retrieve/decrypt credentials just to pass them between providers.
+6. Reuse identifiers returned by earlier steps (repo, project, deployment, domain) rather than searching ambiguously again.
+7. Verify the public result.
+
+If Composio itself is unavailable, the hosted route is **blocked**. Offer to connect/enable Composio; do not fall back to asking the user to paste provider API keys into chat.
+
+If a hosted user explicitly asks to deploy to their VPS/Dokploy, explain that this requires a connected VPS runner/MCP or a local SI-Coder runtime. Never silently replace an explicit VPS request with Vercel.
+
+## B. Local agent — Claude Code, Codex CLI, Hermes/OpenClaw on a machine
+
+The first infrastructure branch is:
+
+> **Do you have a VPS you want SI-Coder to deploy to?**
+
+Do not ask this if existing configuration already answers it (for example valid Dokploy configuration), or if the user already said yes/no. Otherwise ask this **once, before provider credential setup**.
+
+Planner:
+
+```bash
+sc deploy plan --runtime local --target auto --json
+```
+
+When ambiguous it returns `route: decision-required` + the VPS question instead of guessing.
+
+### B1. Local + VPS
+
+```text
+GitHub (SC)
+  → Convex self-hosted
+  → Dokploy
+  → Hostinger DNS
+  → verify
 ```
 
 Default target: `dokploy`.
 
-If the user explicitly wants the frontend on the VPS but a managed database, use `hybrid`:
+Optional `hybrid` when the user wants VPS frontend + managed Convex:
 
 ```text
 GitHub (SC) → Convex Cloud → Dokploy → Hostinger DNS → verify
 ```
 
-### Route B — user has no usable VPS
-
-Automatically choose managed hosting:
+### B2. Local + no VPS
 
 ```text
-GitHub (SC) → Convex Cloud → Vercel → Hostinger DNS → verify
+GitHub (SC)
+  → Convex Cloud
+  → Vercel
+  → Hostinger DNS
+  → verify
 ```
 
-Do not ask "Do you have a VPS?" if the environment already answers it. Ask only when detection is genuinely ambiguous.
+On a local runtime, GitHub stays in SC by default so repository identity remains deterministic. Vercel/Convex/Hostinger prefer Composio when connected and fall back to SC credentials when necessary.
 
-## Secret/provider routing
+# Provider routing matrix
 
-Read `../../references/provider-routing.md` when provider auth is involved.
+| Provider | Hosted web/chat | Local, no VPS | Local + VPS |
+|---|---|---|---|
+| GitHub | **Composio** | **SC** | **SC** |
+| Convex | **Composio / Cloud** | Composio preferred, SC fallback | **SC/self-hosted** (`hybrid`: managed) |
+| Vercel | **Composio** | Composio preferred, SC fallback | optional |
+| Hostinger | **Composio** | Composio preferred, SC fallback | Composio or SC |
+| Dokploy | n/a | n/a | **SC** |
 
-Canonical policy:
+Read `../../references/provider-routing.md` before auth work.
 
-| Provider | VPS route | Managed/no-VPS route |
-|---|---|---|
-| GitHub | **SC** | **SC** |
-| Dokploy | **SC** | n/a |
-| Convex | SC/self-hosted | **Composio preferred**, SC fallback |
-| Vercel | optional | **Composio preferred**, SC fallback |
-| Hostinger | Composio or SC | **Composio preferred**, SC fallback |
+# One-prompt orchestration
 
-### GitHub is intentionally special
+## Phase 1 — inspect, do not interrogate
 
-Keep repo creation/push identity in SC. Do not silently switch deployment source identity to a Composio GitHub account. Composio GitHub can still be used later for optional PR/issues/releases.
+Infer whenever possible:
 
-If `GITHUB_TOKEN` is missing, request the local hidden handoff:
-
-```bash
-sc secret set github GITHUB_TOKEN
-```
-
-Never ask the user to paste the token into chat.
-
-### Composio path
-
-When Composio tools/connectors are available:
-
-1. Search the connector/tool catalog for the exact Vercel, Convex, or Hostinger action.
-2. Check the toolkit connection.
-3. If disconnected, initiate the provider's secure connection flow and show the returned auth link.
-4. Continue only after the connection is active.
-5. Execute provider operations through the connector so raw provider credentials never enter chat.
-
-Do **not** fetch/decrypt provider credentials merely to move them between services.
-
-If Composio is unavailable, use the existing SC credential profile + `sc-vercel`, `sc-convex-cloud`, and Hostinger libraries.
-
-## One-prompt orchestration
-
-### Phase 0 — inspect, do not interrogate
-
-Infer from the repository whenever possible:
-
-- project/app name from package/repo/directory,
-- GitHub remote/owner,
-- framework and build command,
+- project/app name,
+- GitHub repository/branch,
+- framework/build command,
 - whether `convex/` exists,
-- existing production domain,
-- existing Vercel/Dokploy project state.
+- canonical domain,
+- existing Vercel/Dokploy/Convex state.
 
-Ask only for information that cannot be safely inferred, such as the desired domain when several valid domains exist.
+Only ask for a fact that cannot be safely inferred. On local runtime, VPS ownership is the first such branch when unknown.
 
-### Phase 1 — GitHub
+## Phase 2 — repository
 
-GitHub is shared by both routes.
+### Hosted
+Use the connected Composio GitHub account. Confirm the selected account if multiple connections exist. Create/reuse the repository and publish the intended source through the available GitHub connector actions.
 
-- Verify SC GitHub status.
-- Create the repository if missing.
-- Protect `.env*`, keys, certificates, and other secret files before `git add`.
-- Commit/push with the intended account.
-- Prefer SSH or the existing secure repository binding; never embed a PAT in a Git URL.
+### Local
+Use SC/direct GitHub identity. Protect `.env*`, keys, certificates and other secret files before staging. Never embed a PAT in a Git URL.
 
-### Phase 2A — VPS route
+# Phase 3 — backend/frontend
 
-For `dokploy`:
+## Hosted or local/no-VPS managed route
 
-- ensure/create Dokploy project,
-- provision self-hosted Convex when the project requires it,
-- ensure/create Dokploy application,
-- inject required public build values,
-- attach the desired domain,
-- deploy and poll until success/error,
-- configure Hostinger DNS,
-- verify backend + frontend + TLS.
+1. **Convex Cloud** — reuse/create production project/deployment through Composio when available.
+2. **Vercel** — reuse/create project, bind repository, apply config safely, deploy production.
+3. Keep credentials inside their connected-account/secret boundary; do not surface raw deploy keys to chat merely to copy them elsewhere.
 
-For `hybrid`, replace self-hosted Convex with Convex Cloud but keep the frontend on Dokploy.
+## VPS route
 
-### Phase 2B — managed/no-VPS route
+1. Ensure/reuse Dokploy project.
+2. Provision/reuse self-hosted Convex unless `hybrid` was explicitly selected.
+3. Ensure/reuse Dokploy application.
+4. Inject only required public/build values.
+5. Deploy and poll to success/failure.
 
-1. **Convex Cloud**
-   - reuse an existing project/deployment when appropriate,
-   - otherwise create/prepare the production deployment,
-   - keep deployment credentials out of model-visible output.
+# Phase 4 — domain is first-class
 
-2. **Vercel**
-   - create/reuse the project,
-   - bind it to the GitHub repository,
-   - apply environment configuration without exposing secret values,
-   - create the production deployment and poll to `READY` or terminal failure.
+For a Hostinger domain/subdomain:
 
-3. **Domain first-class flow**
-   - use the user's chosen Hostinger domain/subdomain,
-   - add that exact domain to the Vercel project,
-   - read Vercel's required DNS configuration,
-   - write/validate the corresponding Hostinger record,
-   - re-check Vercel domain verification and HTTPS.
+1. use the user's intended canonical domain,
+2. attach that exact domain to Vercel or Dokploy,
+3. retrieve the destination's required DNS configuration,
+4. validate/write Hostinger DNS,
+5. re-check domain verification, DNS and HTTPS.
 
-Never invent a replacement subdomain when a working canonical domain already exists.
+Do not invent a replacement subdomain when a canonical domain already exists.
 
-## Completion gate
+# Completion gate
 
-A deployment is not complete until all applicable checks pass:
+A deployment is complete only when applicable checks pass:
 
-- repository remote/branch is correct,
+- source/repository is correct,
 - backend is reachable,
-- frontend deployment is successful,
+- frontend deployment succeeded,
 - custom domain is attached,
-- DNS resolves to the intended target,
+- DNS points to the intended destination,
 - HTTPS works,
 - public app responds,
-- no secret was printed to chat/log output.
+- no plaintext secret was emitted.
 
-Report the final canonical URL and the route used (`vps/dokploy`, `vps/hybrid`, or `managed/vercel`).
+Report both runtime and route, for example:
 
-## Proactive next-step behavior
+- `hosted/composio/vercel`
+- `local/managed/vercel`
+- `local/vps/dokploy`
+- `local/vps/hybrid`
 
-After a successful milestone, **offer exactly one high-value next action**. Do not dump a generic checklist.
+# Proactive next-step behavior
 
-Good pattern:
+After a successful milestone, offer **exactly one** high-value next action.
 
-> Deployment is live. The highest-value next step is transactional email so password reset/invites can work. I can configure Resend next; it needs a Resend account/API key and a verified sender domain. If you want, I’ll give you the secure setup link/terminal handoff and continue from there.
+Pattern:
+
+> Deployment is live. The next useful step is transactional email so password reset/invites work. I can configure Resend next. It needs a Resend account plus a verified sender domain. Want me to set that up?
 
 Rules:
 
-1. Explain the benefit in one sentence.
-2. Name the prerequisites before asking for approval.
+1. Explain the benefit.
+2. State prerequisites before asking.
 3. Ask a simple opt-in question.
-4. If the user agrees, give the secure auth link or `sc secret set ...` handoff; never request the raw key in chat.
-5. After completing that action, recommend the next most relevant one.
+4. Hosted runtime: use a secure connector/auth link when available; never ask for a raw key in chat.
+5. Local runtime: use connector auth or `sc secret set ...` hidden-terminal handoff.
+6. After completion, suggest only the next most relevant action.
+7. Never recommend something already healthy.
 
-Typical progression, only when relevant:
+Typical progression when relevant:
 
-`deploy → transactional email → auth/account flows → observability/alerts → backups/recovery → CI/release hardening`
+`deploy → transactional email → auth/account flows → observability → backups/recovery → CI/release hardening`
 
-Do not recommend a service already configured and healthy.
-
-## Explicit target compatibility
-
-Advanced users may still force:
+# Explicit routing
 
 ```bash
-sc deploy plan --target dokploy
-sc deploy plan --target hybrid
-sc deploy plan --target vercel
+# Hosted chat/web: full Composio, no VPS branch
+sc deploy plan --runtime hosted --composio
+
+# Local: ask/detect VPS first
+sc deploy plan --runtime local
+sc deploy plan --runtime local --vps
+sc deploy plan --runtime local --no-vps --composio
+
+# Advanced explicit targets
+sc deploy plan --runtime local --target dokploy
+sc deploy plan --runtime local --target hybrid
+sc deploy plan --runtime local --target vercel
 ```
 
-Legacy low-level commands remain available through `sc-dokploy`, `sc-convex`, `sc-convex-cloud`, and `sc-vercel`. `/sc-all` owns the routing and orchestration; sub-skills own provider-specific mechanics.
+Low-level skills remain available through `sc-dokploy`, `sc-convex`, `sc-convex-cloud`, and `sc-vercel`. `/sc-all` owns runtime/route orchestration; sub-skills own provider mechanics.
 
 ## Related references
 
-- Provider/secret routing: `../../references/provider-routing.md`
-- Portable skills/plugins: `../../references/portable-skills.md`
-- Secret CRUD and MCP boundary: `../sc-provider/SKILL.md`
+- Provider routing: `../../references/provider-routing.md`
+- Portable hosted/local behavior: `../../references/portable-skills.md`
+- Secret/MCP boundary: `../sc-provider/SKILL.md`

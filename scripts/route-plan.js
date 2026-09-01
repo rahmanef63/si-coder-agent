@@ -6,6 +6,9 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--target') out.target = argv[++i];
+    else if (a === '--runtime') out.runtime = argv[++i];
+    else if (a === '--hosted') out.runtime = 'hosted';
+    else if (a === '--local') out.runtime = 'local';
     else if (a === '--composio') out.composio = true;
     else if (a === '--no-composio') out.composio = false;
     else if (a === '--vps') out.vps = true;
@@ -19,6 +22,7 @@ function parse(argv) {
 try {
   const a = parse(process.argv.slice(2));
   const plan = planDeploy({
+    runtime: a.runtime || process.env.SC_RUNTIME || 'auto',
     requestedTarget: a.target || 'auto',
     env: process.env,
     composioAvailable: a.composio === undefined ? process.env.SC_COMPOSIO_AVAILABLE : a.composio,
