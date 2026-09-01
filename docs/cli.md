@@ -1,76 +1,144 @@
 # SI-Coder CLI
 
-Run `sc` in a terminal to open the Finder-style interactive console. It owns one alternate-screen frame: moving, filtering, and changing layers repaint that same frame instead of appending lines to terminal scrollback. A visible `SECTIONS` tab bar and `PATH` breadcrumb stay at the top while parent/current layers are shown side by side as columns.
+Run `sc` in a terminal to open the Finder-style interactive console. It owns one alternate-screen frame: moving, filtering, and changing layers repaint that same frame instead of appending lines to terminal scrollback.
+
+The identity model is **user-first**. A user owns an isolated credential store, and every provider/credential is managed underneath that user.
 
 ## Navigation
 
 ```text
 ↑ / ↓       move selection
-Tab         enter the selected deeper layer
-→ / Enter   open a layer or run/submit an action
-← / Esc     go back one breadcrumb layer
+Tab / →     enter the selected deeper layer
+Enter       open a layer or run/submit an action
+← / Esc     go back one layer
 Ctrl-D      quit the interactive console
 ```
 
-At the Home layer, `Esc` does not close the CLI. Use **Quit** or `Ctrl-D` to leave.
+At Home, `Esc` does not close SI-Coder. Use **Quit** or `Ctrl-D`.
 
-Example layout:
-
-```text
-SECTIONS   Build   Accounts  [ Users ]  System
-PATH      [ SI-Coder ] › [ Users ] › [ Profiles ] › [ rahmanef ]
-───────────────────────────────────────────────────────────────
-Users                 │ Profiles              │ rahmanef
-❯ › Profiles          │ ❯ › rahmanef          │ ❯ · Details
-  · Current folder    │   › rahmanfakh        │   · Set owner
-  · Add profile       │   › rahmnf            │   · Use as default
-```
-
-On narrower terminals SI-Coder keeps the newest columns and collapses older parents behind `… /`. This lets a user inspect a profile, change its owner, map the current folder, and return to the profile list without restarting `sc`.
-
-## Users, profiles, and credential ownership
-
-A **profile** is the isolated credential store used by SI-Coder. A profile has an explicit **owner**, which is the human/account identity whose credentials belong in that profile.
+## Finder hierarchy
 
 ```text
-~/.config/si-coder/profiles/<profile>.env   # credentials, mode 0600
-~/.config/si-coder/profile-meta.json        # profile → owner metadata, mode 0600
-~/.config/si-coder/sc.md                    # folder → profile rules + active fallback
+SECTIONS   [ Users ]   Build   Providers   System
+PATH       SI-Coder › Users › rahmanfakh › Providers › GitHub › Credentials › GITHUB_TOKEN
+
+Users                 │ rahmanfakh             │ Providers               │ GitHub
+❯ › rahmanef          │ ❯ › Providers          │ ❯ › github              │ ❯ › Credentials
+  › rahmanfakh        │   · Credential overview│   › hostinger           │   · Provider details
+  › rahmnf            │   · Set as default     │   › dokploy             │   · Verify as this user
+  · Add user          │   · Duplicate user     │   › vercel              │   · Set / rotate provider
 ```
 
-`profile-meta.json` contains metadata only. It never duplicates credential values.
+Credentials are intentionally **not** edited from a global Accounts screen. Select a user first so the owner is always visible in `PATH`.
 
-Existing profiles are backward-compatible: when no owner metadata exists yet, the owner defaults to the profile name until explicitly changed.
+## User model
 
-Useful commands:
+Internally, the existing profile files remain the credential-store implementation for backward compatibility, but the product/UI concept is a **user**:
+
+```text
+~/.config/si-coder/profiles/<user>.env   # that user's credentials, mode 0600
+~/.config/si-coder/profile-meta.json     # non-secret user metadata, mode 0600
+~/.config/si-coder/sc.md                 # default user + folder → user rules
+```
+
+When a user governs the current directory, registry credential keys not owned by that user are stripped from the child environment. This prevents a stale GitHub/Hostinger/Dokploy token from another user leaking into a deployment.
+
+## Duplicate and rename users
+
+Duplicate all credentials into a new independent user:
 
 ```bash
-sc user
-sc user show rahmanef
-sc user owner rahmanef "Rahman personal"
-sc user add client-a --owner "Client A"
-sc user use rahmanef
-sc user map ~/projects/personal rahmanef
+sc user duplicate rahmanef rahmanfakh
+```
+
+If the destination already exists but is completely empty, opt in explicitly:
+
+```bash
+sc user duplicate rahmanef rahmanfakh --replace-empty
+```
+
+After duplication, rotating a credential in `rahmanfakh` does **not** modify `rahmanef`.
+
+Rename a user:
+
+```bash
+sc user rename rahmanfakh rahmanfakhr
+```
+
+Rename migrates the default-user reference and folder mappings automatically. It refuses to overwrite an existing destination user.
+
+## Import legacy credentials
+
+Older SI-Coder installations may still have credentials in the shell rather than inside a user store. Import only recognized provider credentials with:
+
+```bash
+sc user import rahmanef --yes
+```
+
+Import is non-destructive by default: existing credentials already stored in the user win. Use `--overwrite` only when intentionally replacing them.
+
+## Credential CRUD per user
+
+Read/list status; values are never printed:
+
+```bash
+sc user credentials rahmanfakh
+sc user credentials rahmanfakh github
+sc user credential-status rahmanfakh github GITHUB_TOKEN
+```
+
+Create or update one credential:
+
+```bash
+sc user credential-set rahmanfakh github GITHUB_TOKEN
+```
+
+On a TTY the input is hidden. Scripted use must use a safe input source such as stdin/env/file; never put a secret in argv.
+
+Delete one credential:
+
+```bash
+sc user credential-rm rahmanfakh github GITHUB_TOKEN --yes
+```
+
+The Finder path for the same operation is:
+
+```text
+Users
+→ rahmanfakh
+→ Providers
+→ GitHub
+→ Credentials
+→ GITHUB_TOKEN
+→ Status / Set or Rotate / Remove
+```
+
+## Default user and folder mappings
+
+Set the fallback/default user:
+
+```bash
+sc user use rahmanfakh
+```
+
+An explicit folder mapping overrides the default user. To switch the current folder tree too:
+
+```bash
+sc user map . rahmanfakh
+```
+
+Inspect the effective identity and why it was selected:
+
+```bash
 sc user which
 ```
 
-Folder rules use longest-path matching. When a profile governs the current directory, only credential keys stored in that profile are allowed through; credential keys inherited from another shell/profile are removed from the child environment.
-
 ## Secret safety
 
-The interactive UI may show profile names, owner labels, credential key names, state, and source. It must never print credential values.
+The UI may show user names, provider names, credential key names, state, and source. It must never print credential values.
 
-Use:
-
-```bash
-sc secret set <provider> <KEY>
-sc secret list
-sc doctor
-sc run -- <command>
-```
-
-`sc run` injects the resolved profile into the child process without exporting plaintext credentials back into the parent terminal.
+Use `sc run -- <command>` to inject the resolved user's credentials into a child process without exporting plaintext back into the parent terminal.
 
 ## Non-interactive behavior
 
-The layered menu is only used when stdin and stdout are both a TTY. Piped/scripted `sc` calls remain command-oriented and do not open an interactive menu.
+The Finder TUI is only used when stdin and stdout are both a TTY. Piped/scripted `sc` calls remain command-oriented and do not open the interactive console.

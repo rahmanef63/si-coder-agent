@@ -141,3 +141,46 @@ test('PRF-12: deleting a profile removes its ownership metadata too', () => {
   P.deleteProfile('delete-me');
   assert.strictEqual(P.readProfileMeta().profiles['delete-me'], undefined);
 });
+
+test('PRF-13: duplicateProfile creates an independent credential store and can fill an existing empty user only explicitly', () => {
+  P.writeProfile('dup-source', { GITHUB_TOKEN: 'gh-source', HOSTINGER_API_TOKEN: 'host-source' });
+  P.setProfileOwner('dup-source', 'dup-source');
+  P.writeProfile('dup-target', {});
+  assert.throws(() => P.duplicateProfile('dup-source', 'dup-target'), /replaceEmpty/);
+  const copied = P.duplicateProfile('dup-source', 'dup-target', { owner: 'dup-target', replaceEmpty: true });
+  assert.deepStrictEqual(copied.keys.sort(), ['GITHUB_TOKEN', 'HOSTINGER_API_TOKEN']);
+  assert.strictEqual(P.profileOwner('dup-target'), 'dup-target');
+  P.writeProfile('dup-target', { GITHUB_TOKEN: 'gh-target' });
+  assert.strictEqual(P.readProfile('dup-source').GITHUB_TOKEN, 'gh-source', 'rotating target must not change source');
+  assert.strictEqual(P.readProfile('dup-target').GITHUB_TOKEN, 'gh-target');
+});
+
+test('PRF-14: renameProfile migrates default and folder mappings without changing credential values', () => {
+  P.writeProfile('rename-old', { GITHUB_TOKEN: 'keep-me' });
+  P.setProfileOwner('rename-old', 'rename-old');
+  P.writeScMd({ active: 'rename-old', mappings: [
+    { path: '/srv/rename', resolved: '/srv/rename', profile: 'rename-old' },
+  ] });
+  P.renameProfile('rename-old', 'rename-new');
+  assert.strictEqual(P.profileExists('rename-old'), false);
+  assert.strictEqual(P.readProfile('rename-new').GITHUB_TOKEN, 'keep-me');
+  assert.strictEqual(P.profileOwner('rename-new'), 'rename-new');
+  const state = P.parseScMd();
+  assert.strictEqual(state.active, 'rename-new');
+  assert.strictEqual(state.mappings[0].profile, 'rename-new');
+});
+
+test('PRF-15: importProfileFromEnv imports only registry credentials and does not overwrite by default', () => {
+  P.writeProfile('import-user', { GITHUB_TOKEN: 'existing' });
+  const first = P.importProfileFromEnv('import-user', {
+    GITHUB_TOKEN: 'shell-github',
+    HOSTINGER_API_TOKEN: 'shell-hostinger',
+    NOT_A_PROVIDER_SECRET: 'ignore-me',
+  });
+  assert.deepStrictEqual(first.keys, ['HOSTINGER_API_TOKEN']);
+  assert.strictEqual(P.readProfile('import-user').GITHUB_TOKEN, 'existing');
+  assert.strictEqual(P.readProfile('import-user').HOSTINGER_API_TOKEN, 'shell-hostinger');
+  assert.strictEqual(P.readProfile('import-user').NOT_A_PROVIDER_SECRET, undefined);
+  P.importProfileFromEnv('import-user', { GITHUB_TOKEN: 'replacement' }, { overwrite: true });
+  assert.strictEqual(P.readProfile('import-user').GITHUB_TOKEN, 'replacement');
+});

@@ -75,17 +75,21 @@ Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel
 
 On a TTY, bare `sc` is a Finder-style alternate-screen TUI: navigation redraws one frame instead of appending terminal lines, visible `SECTIONS` tabs and a `PATH` breadcrumb stay at the top, and parent/current layers appear as columns. Use `Tab`/`→` to enter a deeper branch, `Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the same TUI frame. `Esc` at Home does not quit; choose Quit or press Ctrl-D.
 
-Credential profiles have explicit user/account ownership:
+Credential management is user-first. Always select a user before a provider/credential:
 
 ```bash
 sc user
-sc user show <profile>
-sc user owner <profile> <owner>
-sc user map <folder> <profile>
+sc user show <user>
+sc user duplicate <source> <target>
+sc user credentials <user> [provider]
+sc user credential-set <user> <provider> [KEY]
+sc user credential-rm <user> <provider> [KEY] --yes
+sc user use <user>
+sc user map <folder> <user>
 sc user which
 ```
 
-Owner metadata is separate from credential values. Never infer that credentials from one profile may be reused by another owner.
+Finder hierarchy: `Users → <user> → Providers → <provider> → Credentials → <KEY>`. Duplicate creates an independent credential store, so rotating one user's GitHub token never changes another user's credentials. Never expose plaintext credential values.
 
 ## Secret-safe commands
 

@@ -50,7 +50,7 @@ SI-Coder resolves local credentials in this order:
 2. Current process environment.
 3. Managed local shell block when no profile owns the key.
 
-Profiles are preferred because they isolate credentials between projects/users. Each profile also has an explicit owner label in `~/.config/si-coder/profile-meta.json`; this metadata contains no secret values. Existing profiles without metadata resolve their owner to the profile name until changed with `sc user owner <profile> <owner>` or from the interactive `Users → Profiles → <profile> → Set owner` layer.
+Local credential stores are user-scoped. The interactive hierarchy is `Users → <user> → Providers → <provider> → Credentials`, so credential ownership is always explicit before create/update/delete operations. Existing profile files remain the backward-compatible storage format, while `profile-meta.json` contains non-secret metadata only. Use `sc user import <user>` to migrate legacy shell credentials, and `sc user duplicate <source> <target>` when a second user should start with the same provider credentials but rotate only selected keys.
 
 For the full terminal navigation model, see [`../cli.md`](../cli.md).
 

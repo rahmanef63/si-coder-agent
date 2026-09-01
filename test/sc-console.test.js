@@ -251,7 +251,9 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(sc, /enterAlternateScreen\(\)/, 'bare sc must enter one stable TUI frame');
   assert.match(sc, /menuColumns\(stack\)/, 'full breadcrumb stack must become Finder columns');
   assert.match(sc, /Esc\/Left at Home intentionally does not close the CLI/);
-  assert.match(sc, /users\/profiles\/profile:/, 'profile details must be a real nested layer');
+  assert.match(sc, /users\/user:/, 'user must be the first identity layer');
+  assert.match(sc, /providers\/provider:/, 'providers must live under a selected user');
+  assert.match(sc, /credentials\/credential:/, 'individual credentials must live under a user/provider path');
 });
 
 test('SCC-7b: Finder renderer paints tabs, path, columns and last action into one cleared frame', () => {
@@ -259,10 +261,10 @@ test('SCC-7b: Finder renderer paints tabs, path, columns and last action into on
   let out = '';
   const output = { isTTY: true, columns: 100, rows: 28, write(chunk) { out += String(chunk); } };
   const root = [
-    { id: 'accounts', kind: 'branch', label: 'Accounts', hint: 'providers' },
-    { id: 'users', kind: 'branch', label: 'Users', hint: 'profiles' },
+    { id: 'users', kind: 'branch', label: 'Users', hint: 'identities' },
+    { id: 'catalog', kind: 'branch', label: 'Provider catalog', hint: 'definitions' },
   ];
-  const users = [{ id: 'profiles', kind: 'branch', label: 'Profiles', hint: 'credential owners' }];
+  const users = [{ id: 'user:rahmanef', kind: 'branch', label: 'rahmanef', hint: '4 credentials · default' }];
   renderFinderFrame({
     title: 'SI-Coder',
     breadcrumb: ['SI-Coder', 'Users'],
@@ -272,7 +274,7 @@ test('SCC-7b: Finder renderer paints tabs, path, columns and last action into on
       { title: 'Users', items: users, selectedId: null },
     ],
     activeItems: users, cursor: 0, query: '',
-    sections: [{ id: 'accounts', label: 'Accounts' }, { id: 'users', label: 'Users' }],
+    sections: [{ id: 'users', label: 'Users' }, { id: 'catalog', label: 'Providers' }],
     activity: ['owner : rahmanef'],
     output,
   });
@@ -292,11 +294,42 @@ test('SCC-8: profile ownership is configurable from the CLI without exposing cre
     { encoding: 'utf8', env, timeout: 20000 });
   const shown = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user', 'show', 'alpha'],
     { encoding: 'utf8', env, timeout: 20000 });
-  assert.match(shown, /owner\s+: Rahman personal/);
+  assert.match(shown, /display owner:\s+Rahman personal/);
   assert.match(shown, /values hidden/);
   const listed = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user'],
     { encoding: 'utf8', env, timeout: 20000 });
-  assert.match(listed, /owner: Rahman personal/);
+  assert.match(listed, /alpha\s+0 credential\(s\)/);
   assert.match(listed, /ownership\s+:/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCC-9: user duplicate + user-scoped credential CRUD never exposes plaintext', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-user-crud-'));
+  const env = { ...process.env, SC_CONFIG_DIR: dir };
+  const cli = path.join(ROOT, 'bin/sc.js');
+  execFileSync(process.execPath, [cli, 'user', 'add', 'source'], { encoding: 'utf8', env, timeout: 20000 });
+  const token = 'ghp_' + 'a'.repeat(40);
+  const setOut = execFileSync(process.execPath, [cli, 'user', 'credential-set', 'source', 'github', 'GITHUB_TOKEN', '--stdin'],
+    { input: token + '\n', encoding: 'utf8', env, timeout: 20000 });
+  assert.doesNotMatch(setOut, new RegExp(token));
+  execFileSync(process.execPath, [cli, 'user', 'add', 'target'], { encoding: 'utf8', env, timeout: 20000 });
+  const dup = execFileSync(process.execPath, [cli, 'user', 'duplicate', 'source', 'target', '--replace-empty'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(dup, /duplicated user "source" → "target"/);
+  assert.doesNotMatch(dup, new RegExp(token));
+  const status = execFileSync(process.execPath, [cli, 'user', 'credentials', 'target', 'github'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(status, /GITHUB_TOKEN/);
+  assert.match(status, /owner target/);
+  assert.doesNotMatch(status, new RegExp(token));
+  execFileSync(process.execPath, [cli, 'user', 'credential-rm', 'target', 'github', 'GITHUB_TOKEN', '--yes'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  const after = execFileSync(process.execPath, [cli, 'user', 'credentials', 'target', 'github'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(after, /GITHUB_TOKEN.*missing/);
+  const guide = execFileSync(process.execPath, [cli, 'user', 'credential-status', 'target', 'github', 'GITHUB_TOKEN'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(guide, /sc user credential-set target github GITHUB_TOKEN/, 'user-scoped guidance must never fall back to the current-folder credential store');
+  assert.doesNotMatch(guide, new RegExp(token));
   fs.rmSync(dir, { recursive: true, force: true });
 });
