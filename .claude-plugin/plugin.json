@@ -1,6 +1,6 @@
 {
   "name": "si-coder",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Portable deployment and provider control plane: auto-routes VPS or managed deployments, keeps secrets out of chat, and coordinates SC with Composio-backed Vercel/Convex/Hostinger tools.",
   "author": {
     "name": "Rahman EF"

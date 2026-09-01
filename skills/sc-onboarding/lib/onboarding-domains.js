@@ -12,6 +12,7 @@ const { readShellRc, parseEnvString } = require(path.resolve(__dirname, '../../.
 const {
   DOMAIN_VARS, VALIDATORS, SECRET_SOURCES, DOMAIN_BLURBS, PROVIDERS, TARGET_PROVIDERS,
 } = require(path.resolve(__dirname, '../../../lib/providers'));
+const { credentialGuide, humanGuideLines } = require(path.resolve(__dirname, '../../../lib/credential-guidance'));
 
 // Default to SECRET when a var is not registered: a brand-new credential added to the registry
 // but somehow missing a source entry is hidden rather than accidentally echoed.
@@ -43,5 +44,5 @@ function readShellRcEnv() {
 
 module.exports = {
   DOMAIN_VARS, VALIDATORS, SECRET_SOURCES, DOMAIN_BLURBS, PROVIDERS, TARGET_PROVIDERS,
-  isSecret, sourceLine, readShellRcEnv,
+  isSecret, sourceLine, credentialGuide, humanGuideLines, readShellRcEnv,
 };

@@ -115,11 +115,14 @@ async function main() {
       const r = captureSc(['secret', 'get', provider, ...(key ? [key] : []), '--json']);
       if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
       const status = JSON.parse(r.stdout);
+      const setup = key ? status.credentials?.[0]?.setup : null;
       process.stdout.write(`${JSON.stringify({
         ...status,
+        ...(setup ? { createAt: setup.createAt, saveWith: setup.saveWith, saveDestination: setup.saveDestination, continueWith: setup.continueWith } : {}),
         requiresUserTerminal: true,
         command: `sc secret set ${provider}${key ? ` ${key}` : ''}`,
-        policy: 'Paste the secret only into the hidden terminal prompt; never send it in chat or tool JSON.',
+        policy: 'Create the key only at the provider endpoint shown above, then paste it only into the hidden terminal prompt; never send it in chat or tool JSON.',
+        recommendation: { label: '[rekomendasi]', next: setup?.continueWith || `sc doctor --providers ${provider}`, prerequisites: ['credential stored successfully'] },
       }, null, 2)}\n`);
       return;
     }

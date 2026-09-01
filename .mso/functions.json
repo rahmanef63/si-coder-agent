@@ -265,7 +265,7 @@
     },
     {
       "name": "sc.secret.request",
-      "description": "Request a safe user-terminal handoff command for creating/rotating a secret. This never accepts a secret in tool input.",
+      "description": "Request a safe credential handoff including where to create the key, where/how SC stores it, the verification command, and [rekomendasi]. Never accepts a secret value in tool input.",
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -27,6 +27,7 @@ const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
 const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
 const { planDeploy } = require(path.resolve(__dirname, '../lib/deploy-route'));
+const { credentialGuide, humanGuideLines, looksLikeExternalCredential, recommendation } = require(path.resolve(__dirname, '../lib/credential-guidance'));
 const PKG = require(path.resolve(__dirname, '../package.json'));
 
 const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
@@ -97,6 +98,25 @@ function resolveIds(args) {
 
 function die(msg, code = 1) { console.error(`❌ ${msg}`); process.exit(code); }
 
+function storeLabel() {
+  const t = writeTarget();
+  if (t.kind === 'profile') return `SC profile "${t.name}" (${P.profilePath(t.name)}, mode 0600)`;
+  if (t.kind === 'profile-unset') return 'an SC profile mapped/selected for this directory (run `sc user which`, then `sc user use <name>` or `sc user map . <name>`)';
+  return 'managed ~/.bashrc block (0600-compatible local shell store; profiles are preferred)';
+}
+
+function printCredentialGuide(key, indent = '      ') {
+  for (const line of humanGuideLines(key, { store: storeLabel() })) console.log(`${indent}${line}`);
+}
+
+function printRecommendation(rec) {
+  console.log(`\n${rec.label}`);
+  console.log(`Berikutnya   : ${rec.next}`);
+  console.log(`Kenapa       : ${rec.why}`);
+  if (rec.prerequisites?.length) console.log(`Butuh        : ${rec.prerequisites.join(', ')}`);
+  if (rec.action) console.log(`Jalankan     : ${rec.action}`);
+}
+
 // ---------------------------------------------------------------------------
 // providers — what is configured
 // ---------------------------------------------------------------------------
@@ -122,6 +142,7 @@ function safeProviderRow(p, env) {
       source: sourceOf(v.key),
       url: v.url || undefined,
       note: v.note || undefined,
+      setup: credentialGuide(v.key, { store: storeLabel() }),
     })),
   };
 }
@@ -165,8 +186,11 @@ async function cmdProvidersShow(id) {
     const icon = { set: '✅', MISSING: '❌', INVALID: '❗', unset: '⚪' }[st];
     console.log(`  ${icon} ${v.key}${v.required ? ' (required)' : ''}`);
     if (env[v.key]) console.log(`       value : ${isSecret(v.key) ? `[hidden len=${String(env[v.key]).length}]` : env[v.key]}   [from ${sourceOf(v.key)}]`);
-    const src = sourceLine(v.key);
-    if (src) console.log(`       ↳ ${src}`);
+    if (st !== 'set') printCredentialGuide(v.key, '       ');
+    else {
+      const src = sourceLine(v.key);
+      if (src) console.log(`       ↳ ${src}`);
+    }
   }
   console.log('');
 }
@@ -217,10 +241,9 @@ async function pickProvider(title) {
 // setup / set — collect values
 // ---------------------------------------------------------------------------
 async function promptForVar(v, { force = false } = {}) {
-  const src = sourceLine(v.key);
   console.log('');
   console.log(`  ${v.key}${v.required ? '' : '  (optional — press Enter to skip)'}`);
-  if (src) console.log(`    ↳ ${src}`);
+  printCredentialGuide(v.key, '    ');
   if (isSecret(v.key)) console.log('    ↳ input is hidden (not echoed)');
   while (true) {
     const value = isSecret(v.key) ? await askHidden('    value: ') : await askVisible('    value: ');
@@ -298,7 +321,7 @@ async function cmdSetup(args) {
   const updates = await collect(ids, { force: Boolean(args.force) });
   if (Object.keys(updates).length === 0) { console.log('\n✅ Nothing to write — everything asked for is already set.'); return; }
   persist(updates);
-  console.log('  Then: sc doctor');
+  printRecommendation(recommendation({ next: 'verifikasi provider yang baru diset', why: 'format key saja tidak membuktikan key masih valid', action: 'sc doctor' }));
 }
 
 async function cmdProvidersSet(id) {
@@ -370,6 +393,7 @@ function purgeKeysEverywhere(keys) {
 function cmdProviderCreate(id, args) {
   if (!id) die('usage: sc providers create <id> --key ENV_KEY [--title ...] [--blurb ...]');
   if (!args.key || typeof args.key !== 'string') die('sc providers create requires --key ENV_KEY');
+  if (!args.public && looksLikeExternalCredential(args.key) && typeof args.url !== 'string') die(`custom credential ${args.key} requires --url https://... so agents can always show where to create it`);
   const p = CP.createProvider({
     id,
     title: typeof args.title === 'string' ? args.title : id,
@@ -409,6 +433,7 @@ async function cmdProviderDelete(id, args) {
 function cmdProviderKeyAdd(id, key, args) {
   assertCustom(id);
   if (!key) die('usage: sc providers key-add <id> <ENV_KEY> [--required] [--public]');
+  if (!args.public && looksLikeExternalCredential(key) && typeof args.url !== 'string') die(`custom credential ${key} requires --url https://... so agents can always show where to create it`);
   const v = CP.addProviderVar(id, customVarFromArgs(key, args), CUSTOM_OPTIONS);
   audit('provider.key-add', { provider: id, keyName: v.key });
   console.log(`✅ added ${v.key} to custom provider ${id}`);
@@ -439,6 +464,7 @@ function secretRows(providerId) {
       required: Boolean(v.required),
       state: varState(v, env),
       source: sourceOf(v.key),
+      setup: credentialGuide(v.key, { store: storeLabel() }),
     })),
   }));
 }
@@ -467,9 +493,13 @@ function cmdSecretShow(providerId, key, args) {
     state: varState(v, env),
     source: sourceOf(v.key),
     readable: false,
+    setup: credentialGuide(v.key, { store: storeLabel() }),
   }));
   if (args.json) return console.log(JSON.stringify({ credentials: out }, null, 2));
-  for (const row of out) console.log(`${row.provider}.${row.key}: ${row.state} from ${row.source} (plaintext read disabled)`);
+  for (const row of out) {
+    console.log(`${row.provider}.${row.key}: ${row.state} from ${row.source} (plaintext read disabled)`);
+    if (row.state !== 'set') printCredentialGuide(row.key, '  ');
+  }
 }
 
 function readAllStdin() {
@@ -525,6 +555,7 @@ async function cmdSecretSet(providerId, key, args) {
   const target = persist({ [key]: value });
   audit('credential.set', { provider: providerId, keyName: key, inputSource: source, store: target.kind, profile: target.name || undefined });
   console.log(`✅ stored ${providerId}.${key}; value not displayed`);
+  printRecommendation(recommendation({ next: `verifikasi ${providerId}`, why: 'memastikan credential valid dan milik account yang benar sebelum dipakai', needs: ['credential sudah tersimpan'], action: `sc doctor --providers ${providerId}` }));
 }
 
 async function cmdSecretRm(providerId, key, args) {
@@ -807,7 +838,11 @@ async function cmdPreflight(args) {
   }
 
   console.log(`\n⚠️ --target ${target} needs ${missing.length} credential(s) that are not set:\n`);
-  for (const m of missing) console.log(`   • ${m.key}   (${m.id})`);
+  for (const m of missing) {
+    console.log(`   • ${m.key}   (${m.id})`);
+    printCredentialGuide(m.key, '     ');
+  }
+  printRecommendation(recommendation({ next: 'set credential yang masih missing lalu ulangi preflight', why: 'deploy tidak boleh mulai dengan credential yang belum tersedia', needs: missing.map(m => m.key), action: `sc setup --target ${target}` }));
 
   // Auto-launch ONLY on a real terminal. Prompting on a closed or piped stdin does not ask a
   // question, it hangs the job — so CI gets the exact command instead and exits non-zero.
@@ -905,7 +940,7 @@ sc — si-coder provider console + secret control plane
 
   sc providers [--json]               list built-in + custom providers; never secret values
   sc providers show <id>              provider detail (secret values redacted)
-  sc providers create <id> --key KEY [--title ...] [--blurb ...]
+  sc providers create <id> --key KEY --url https://... [--title ...] [--blurb ...]
                                       create a custom provider definition (metadata only)
   sc providers update <id> [--title ...] [--blurb ...]
   sc providers key-add <id> <KEY> [--required] [--public] [--prefix P] [--min-length N]

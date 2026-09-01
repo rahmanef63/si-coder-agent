@@ -55,7 +55,7 @@ test('SCCP-3: secret set via stdin stores in 0600 profile while stdout/json/audi
   const config = path.join(dir, 'config');
   fs.mkdirSync(home, { recursive: true });
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
-  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--prefix', 'demo_', '--min-length', '10'], { env });
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys', '--prefix', 'demo_', '--min-length', '10'], { env });
   run(['user', 'add', 'agent'], { env });
   const secret = 'demo_private_credential_12345';
   const setOut = run(['secret', 'set', 'demo', 'DEMO_API_KEY', '--stdin'], { env, input: secret });
@@ -88,7 +88,7 @@ test('SCCP-4: sc run injects a stored secret into child env without sc printing 
   const config = path.join(dir, 'config');
   fs.mkdirSync(home, { recursive: true });
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
-  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--prefix', 'demo_'], { env });
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys', '--prefix', 'demo_'], { env });
   run(['user', 'add', 'agent'], { env });
   run(['secret', 'set', 'demo', 'DEMO_API_KEY', '--stdin'], { env, input: 'demo_for_child' });
   const out = run(['run', '--', process.execPath, '-e', 'process.stdout.write(process.env.DEMO_API_KEY ? "present" : "missing")'], { env });
@@ -112,13 +112,16 @@ test('SCCP-5: MSO agent adapter has no plaintext secret input and returns only s
   const config = path.join(dir, 'config');
   fs.mkdirSync(home, { recursive: true });
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
-  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY'], { env });
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys'], { env });
   const r = spawnSync(process.execPath, [AGENT, 'secret.request'], {
     cwd: ROOT, env, input: JSON.stringify({ provider: 'demo', key: 'DEMO_API_KEY' }), encoding: 'utf8',
   });
   assert.strictEqual(r.status, 0, r.stderr);
   assert.match(r.stdout, /requiresUserTerminal/);
   assert.match(r.stdout, /sc secret set demo DEMO_API_KEY/);
+  assert.match(r.stdout, /https:\/\/example\.com\/api-keys/);
+  assert.match(r.stdout, /saveDestination/);
+  assert.match(r.stdout, /\[rekomendasi\]/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

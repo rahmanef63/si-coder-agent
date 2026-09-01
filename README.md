@@ -41,6 +41,20 @@ flowchart TD
 
 Hosted surfaces do **not** ask whether the user owns a VPS. Local runtimes ask once only when VPS ownership cannot already be inferred.
 
+
+## Credential handoff contract
+
+Whenever SI-Coder says a key is missing, it must show the full handoff, not just `MISSING`:
+
+```text
+Buat di      : https://provider.example/.../api-keys
+Simpan via   : sc secret set <provider> <KEY>
+Simpan di    : active SC profile (0600)
+Lanjut       : sc doctor --providers <provider>
+```
+
+Hosted ChatGPT/Claude Web replaces the local store with the secure Composio connection URL/account. After each completed milestone SI-Coder emits exactly one `[rekomendasi]` block containing the next action, why it matters, prerequisites, and the opt-in continuation.
+
 ## Secret model
 
 `sc` is a control plane, not a secret-printing CLI.

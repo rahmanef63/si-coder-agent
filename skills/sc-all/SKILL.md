@@ -237,3 +237,33 @@ Low-level skills remain available through `sc-dokploy`, `sc-convex`, `sc-convex-
 - Provider routing: `../../references/provider-routing.md`
 - Portable hosted/local behavior: `../../references/portable-skills.md`
 - Secret/MCP boundary: `../sc-provider/SKILL.md`
+
+## Mandatory credential + next-step response contract
+
+Whenever a credential/API key is missing, **never output only the variable name**. Always make the handoff explicit:
+
+```text
+Buat di      : <authoritative provider URL / secure connector auth link>
+Petunjuk     : <minimum scope / exact menu when useful>
+Simpan via   : <sc secret set provider KEY, or provider connector>
+Simpan di    : <SC profile 0600, or Composio connected account>
+Lanjut       : <verification/resume action>
+```
+
+Rules:
+- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
+- Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
+- If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
+- Never put the credential value in chat, argv, logs, recommendations, or tool JSON.
+
+After every meaningful completed milestone, emit exactly one next-step block:
+
+```text
+[rekomendasi]
+Berikutnya   : <one highest-value next step>
+Kenapa       : <one sentence>
+Butuh        : <prerequisites, or "tidak ada">
+Kalau setuju : <what SI-Coder will do next / secure auth handoff>
+```
+
+Do not dump multiple recommendations. Do not recommend something already configured and healthy.

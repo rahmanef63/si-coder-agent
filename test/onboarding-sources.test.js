@@ -63,3 +63,27 @@ test('SRC-8: token-shaped credentials are hidden', () => {
     assert.strictEqual(isSecret(k), true, `${k} must be hidden`);
   }
 });
+
+
+test('SRC-9: externally-created API/token credentials always declare a creation endpoint', () => {
+  const external = allVars.filter(k => /(?:API_KEY|API_TOKEN|ACCESS_TOKEN|DEPLOY_KEY|SECRET_KEY|TOKEN)$/.test(k));
+  const generatedLocally = new Set(['CONVEX_ADMIN_KEY', 'SC_GIT_WEBHOOK_SECRET']);
+  for (const k of external) {
+    if (generatedLocally.has(k)) continue;
+    assert.ok(SECRET_SOURCES[k]?.url || SECRET_SOURCES[k]?.cmd, `${k} needs an explicit creation endpoint/command`);
+  }
+});
+
+test('SRC-10: full credential guide says where to create, store, and continue', () => {
+  const { credentialGuide, humanGuideLines } = require('../lib/credential-guidance');
+  const g = credentialGuide('VERCEL_TOKEN');
+  assert.match(g.createAt, /^https:\/\//);
+  assert.strictEqual(g.saveWith, 'sc secret set vercel VERCEL_TOKEN');
+  assert.match(g.saveDestination, /SC profile/);
+  assert.strictEqual(g.continueWith, 'sc doctor --providers vercel');
+  const text = humanGuideLines('VERCEL_TOKEN').join('\n');
+  assert.match(text, /Buat di/);
+  assert.match(text, /Simpan via/);
+  assert.match(text, /Simpan di/);
+  assert.match(text, /Lanjut/);
+});
