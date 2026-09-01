@@ -127,9 +127,11 @@ also *names* what it reached (which GitHub login, which Cloudflare zones, which 
 which is how you catch a credential pointed at the wrong account.
 
 The registry lives in `lib/providers.js`. Each var declares its own
-required/secret/source/validator inline, and `DOMAIN_VARS` / `VALIDATORS` / `SECRET_SOURCES`
-are derived from it — adding a provider means adding one object, and the three legacy maps
-cannot drift from it again.
+required/secret/source/validator **plus credential source guidance** (`url`/`cmd`, `navigation[]`,
+and `note`) inline. `DOMAIN_VARS` / `VALIDATORS` / `SECRET_SOURCES` are derived from it.
+`lib/credential-guidance.js` is the renderer used by the Finder TUI, CLI onboarding, and agent
+tool handoffs. `steps/<domain>.md` may add longer human context, but must not become a second
+source of truth for where/how to obtain a credential.
 
 ## Two modes
 
@@ -151,7 +153,7 @@ The AI MUST:
    - `[ ] resend` (credential storage + live doctor) · `composio` (project API key + live doctor)
    - `[ ] cf` (Cloudflare) · `stripe` · `clerk` · `supabase` (remaining stub skills where noted)
 2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
-3. **For each missing var, prompt the user via `AskUserQuestion`** with the per-var description from `steps/<domain>.md`. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
+3. **For each missing var, use the shared credential guidance** from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus the click-by-click `navigation[]` path. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
 4. **Write only the new values** to `~/.bashrc` by piping the pairs via **stdin** so the raw secret never lands in argv (`ps aux` / `/proc/<pid>/cmdline` / shell history):
 
    ```bash

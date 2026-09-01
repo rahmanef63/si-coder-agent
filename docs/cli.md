@@ -124,6 +124,24 @@ Users
 → Status / Set or Rotate / Remove
 ```
 
+
+## Where to get each credential
+
+Before SI-Coder opens hidden input, the selected credential shows the same source guidance in the Finder footer:
+
+```text
+INFO     Set credential — hidden input stored only under rahmanfakhr
+PREVIEW
+user rahmanfakhr › github › GITHUB_TOKEN
+state: missing · plaintext read disabled
+open: https://github.com/settings/tokens/new
+click: Open the token page → Set a note/name → Choose expiration → Enable repo scope → Generate token → Copy it now
+```
+
+Pressing **Enter** repeats the reference URL and navigation path before the hidden `value:` prompt. Credentials generated locally use `get with:` instead of a URL; generated-at-deploy values explain that they should normally be left blank.
+
+The source metadata is defined once in `lib/providers.js` (`url`/`cmd`, `navigation[]`, `note`) and rendered by `lib/credential-guidance.js`. Tool-calling returns the same fields as `referenceUrl`, `createCommand`, `navigation`, and `navigationText`.
+
 ## Delete a user safely
 
 Interactive deletion requires typing the exact user name, not only pressing `y`. The deletion is also written to the metadata-only audit log with the number of credentials and folder mappings removed.

@@ -145,3 +145,7 @@ bash install.sh --agent openclaw --with-mcp
 - Credential duplication happens locally between private stores and never returns copied values.
 - Credential creation/rotation is a secure handoff, not a JSON write operation.
 - Delete/default/map/rename/duplicate operations require explicit confirmation on the machine surface.
+
+## Credential acquisition metadata
+
+`sc.user.credential.request` returns `referenceUrl`, `createCommand`, `navigation[]`, and `navigationText` before the hidden-terminal handoff. These fields come from `lib/providers.js`; agents should present them instead of inventing provider dashboard directions.

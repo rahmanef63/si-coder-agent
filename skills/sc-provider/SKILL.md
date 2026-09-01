@@ -90,6 +90,18 @@ sc providers delete openai --yes
 
 Deleting a custom provider/key also purges the corresponding managed values from all si-coder profiles and the managed `~/.bashrc` block so an orphaned credential does not escape profile isolation. User-owned exports outside the managed block are reported and left untouched.
 
+
+## Credential source guidance — one SSOT
+
+Every built-in credential field declares its acquisition metadata in `lib/providers.js`:
+
+- `url` — official/reference dashboard or credential endpoint when one exists,
+- `cmd` — safe local command when the value is generated/discovered locally,
+- `navigation[]` — the exact menu/click path to reach or create it,
+- `note` — scope/permission caveats.
+
+`lib/credential-guidance.js` renders that same metadata in the Finder `PREVIEW`, hidden-input CLI flow, onboarding, and `sc.user.credential.request`. Agents should surface `referenceUrl` + `navigation` before asking the user to enter anything locally. Do not invent a dashboard path when the registry already provides one.
+
 ## Credential CRUD
 
 `Read` deliberately means status/source/metadata — **plaintext retrieval is disabled**.

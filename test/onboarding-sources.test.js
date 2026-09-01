@@ -97,3 +97,32 @@ test('SRC-11: credential guide includes a non-technical user card', () => {
   assert.strictEqual(g.userCard.technicalDetailsOptional, true);
   assert.ok(g.userCard.primaryAction.url.startsWith('https://'));
 });
+
+test('SRC-12: every built-in dashboard URL has click-by-click navigation metadata', () => {
+  const { PROVIDERS, BUILTIN_PROVIDER_IDS } = require('../lib/providers');
+  for (const p of PROVIDERS.filter(row => BUILTIN_PROVIDER_IDS.includes(row.id))) {
+    for (const v of p.vars) {
+      if (!v.url) continue;
+      assert.ok(Array.isArray(v.navigation) && v.navigation.length > 0,
+        `${p.id}/${v.key} has a URL but no navigation steps`);
+      assert.ok(v.navigation.every(step => typeof step === 'string' && step.trim()),
+        `${p.id}/${v.key} has an invalid navigation step`);
+    }
+  }
+});
+
+test('SRC-13: credential guide returns reference URL plus navigation, or a local generation path', () => {
+  const { credentialGuide, humanGuideLines } = require('../lib/credential-guidance');
+  const github = credentialGuide('GITHUB_TOKEN', { user: 'alpha' });
+  assert.strictEqual(github.referenceUrl, 'https://github.com/settings/tokens/new');
+  assert.ok(github.navigation.length >= 3);
+  assert.match(github.navigationText, /repo scope/i);
+  assert.match(github.userCard.navigationText, /Generate token/i);
+  assert.match(humanGuideLines('GITHUB_TOKEN', { user: 'alpha' }).join('\n'), /Navigate\s+:/);
+
+  const webhook = credentialGuide('SC_GIT_WEBHOOK_SECRET', { user: 'alpha' });
+  assert.strictEqual(webhook.referenceUrl, null);
+  assert.match(webhook.createCommand, /openssl rand -hex 32/);
+  assert.match(webhook.navigationText, /GitHub webhook Secret field/);
+  assert.match(webhook.userCard.message, /locally/i);
+});

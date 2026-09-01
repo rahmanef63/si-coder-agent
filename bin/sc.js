@@ -140,7 +140,9 @@ function printCredentialGuide(key, indent = '      ', options = {}) {
   console.log(`${indent}${c.title}`);
   console.log(`${indent}${c.message}`);
   if (c.primaryAction?.url) console.log(`${indent}Buka di      : ${c.primaryAction.url}`);
-  if (c.instructions) console.log(`${indent}Pilih        : ${c.instructions}`);
+  if (c.getWith) console.log(`${indent}Ambil dengan : ${c.getWith}`);
+  if (c.navigationText) console.log(`${indent}Klik         : ${c.navigationText}`);
+  if (c.instructions) console.log(`${indent}Catatan      : ${c.instructions}`);
   if (c.saveAction) console.log(`${indent}Simpan lewat : ${c.saveAction}`);
   console.log(`${indent}Simpan di    : penyimpanan aman SI-Coder di perangkat ini`);
   if (c.after) console.log(`${indent}Setelah itu  : ${c.after}`);
@@ -250,6 +252,8 @@ function cmdProviderDefinition(id) {
   for (const v of p.vars) {
     console.log(`  ${v.required ? '• required' : '• optional'} ${v.key}`);
     if (v.url) console.log(`    create/manage: ${v.url}`);
+    if (Array.isArray(v.navigation) && v.navigation.length) console.log(`    navigate: ${v.navigation.join(' → ')}`);
+    if (v.cmd) console.log(`    get with: ${v.cmd}`);
     if (v.note) console.log(`    note: ${v.note}`);
   }
   console.log('');
@@ -1264,7 +1268,7 @@ function menuLayer(stack) {
       { id: 'credentials', kind: 'branch', label: 'Credentials', hint: `individual keys owned by ${ctx.user}` },
       { id: 'details', kind: 'action', label: 'Provider details', hint: `status for ${ctx.provider} as ${ctx.user}` },
       { id: 'verify', kind: 'action', label: 'Verify as this user', hint: 'live API check using only this user credentials' },
-      { id: 'set-all', kind: 'action', label: 'Set / rotate provider', hint: `enter all ${ctx.provider} credentials for ${ctx.user}` },
+      { id: 'set-all', kind: 'action', label: 'Set / rotate provider', hint: `enter all ${ctx.provider} credentials for ${ctx.user}`, preview: UC.previewForProviderSetup(ctx.user, ctx.provider) },
     ];
   }
 
@@ -1275,10 +1279,11 @@ function menuLayer(stack) {
   if (ctx.user && ctx.provider && ctx.credential && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/credentials/credential:${ctx.credential}`) {
     const own = P.readProfile(ctx.user);
     const stored = own[ctx.credential] !== undefined;
+    const guidePreview = UC.previewForCredential(ctx.user, ctx.provider, ctx.credential);
     return [
-      { id: 'status', kind: 'action', label: 'Status', hint: `show state/source for ${ctx.user}; plaintext disabled` },
-      { id: 'set', kind: 'action', label: stored ? 'Rotate credential' : 'Set credential', hint: `hidden input stored only under ${ctx.user}` },
-      ...(stored ? [{ id: 'remove', kind: 'action', label: 'Remove credential', hint: `delete only ${ctx.credential} from ${ctx.user}` }] : []),
+      { id: 'status', kind: 'action', label: 'Status', hint: `show state/source for ${ctx.user}; plaintext disabled`, preview: guidePreview },
+      { id: 'set', kind: 'action', label: stored ? 'Rotate credential' : 'Set credential', hint: `hidden input stored only under ${ctx.user}`, preview: guidePreview },
+      ...(stored ? [{ id: 'remove', kind: 'action', label: 'Remove credential', hint: `delete only ${ctx.credential} from ${ctx.user}`, preview: guidePreview }] : []),
     ];
   }
 

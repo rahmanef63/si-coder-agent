@@ -267,3 +267,27 @@ test('SCCP-11: MCP lists user-scoped tools and rejects secret-shaped nested agen
   assert.match(bad.stderr, /forbidden on the agent surface/);
   assert.doesNotMatch(bad.stdout, /must-not-enter-agent-json/);
 });
+
+test('SCCP-12: user credential request exposes source URL/navigation but never a credential value', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['user', 'add', 'alpha'], { env });
+  const r = spawnSync(process.execPath, [AGENT, 'user.credential.request'], {
+    cwd: ROOT,
+    env,
+    input: JSON.stringify({ user: 'alpha', provider: 'github', key: 'GITHUB_TOKEN' }),
+    encoding: 'utf8',
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.referenceUrl, 'https://github.com/settings/tokens/new');
+  assert.ok(Array.isArray(out.navigation) && out.navigation.length >= 3);
+  assert.match(out.navigationText, /Generate token/i);
+  assert.strictEqual(out.requiresUserTerminal, true);
+  assert.match(out.command, /sc user credential-set alpha github GITHUB_TOKEN/);
+  assert.doesNotMatch(r.stdout, /ghp_[A-Za-z0-9]/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

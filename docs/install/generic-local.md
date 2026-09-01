@@ -4,8 +4,8 @@ The Agent Skills standard defines a skill as a **directory containing `SKILL.md`
 
 ## Canonical source
 
-- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.9/skills/sc)
-- [raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.9/skills/sc/SKILL.md)
+- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.10/skills/sc)
+- [raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.10/skills/sc/SKILL.md)
 
 Use the whole directory when resources are present; do not copy only `SKILL.md` unless the client or skill is intentionally single-file.
 
@@ -43,8 +43,8 @@ SI-Coder exposes one stdio MCP server at `scripts/sc-mcp.js`. Its `tools/list` c
 
 Only when a client explicitly asks for an archive/package:
 
-- [ZIP package](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.9/sc.zip)
-- [optional `.skill` archive](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.9/sc.skill)
+- [ZIP package](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip)
+- [optional `.skill` archive](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.skill)
 
 The `.skill` extension is not part of the core Agent Skills directory specification; it is an optional distribution convention.
 

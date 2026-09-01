@@ -219,6 +219,10 @@ async function main() {
         command: key ? `sc user credential-set ${user} ${provider} ${key}` : `sc user credential-set ${user} ${provider}`,
         userAction: setup?.userCard || null,
         createAt: setup?.createAt || null,
+        referenceUrl: setup?.referenceUrl || null,
+        createCommand: setup?.createCommand || null,
+        navigation: setup?.navigation || [],
+        navigationText: setup?.navigationText || null,
         policy: 'Never send the credential in chat or tool JSON. Enter it only in the hidden local terminal prompt or an explicitly connected secure credential action.',
       }, null, 2)}
 `);
@@ -293,6 +297,10 @@ async function main() {
         ...(setup ? {
           userAction: setup.userCard,
           createAt: setup.createAt,
+          referenceUrl: setup.referenceUrl,
+          createCommand: setup.createCommand,
+          navigation: setup.navigation,
+          navigationText: setup.navigationText,
           saveWith: setup.saveWith,
           saveDestination: setup.saveDestination,
           continueWith: setup.continueWith,
