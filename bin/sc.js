@@ -27,6 +27,7 @@ const {
   selectFinderFrame, waitForEnter, stripAnsi,
 } = require(path.resolve(__dirname, '../lib/finder-tui'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
+const UC = require(path.resolve(__dirname, '../lib/user-control'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
 const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
@@ -282,7 +283,7 @@ function providerItems(env = currentEnv()) {
 // reason you opened this menu almost every time.
 function providerItemsForUser(name) {
   const env = P.loadEnvForProfile(name, { shellRcEnv: readShellRcEnv(), reason: `selected user ${name}` }).env;
-  return providerItems(env).map(item => ({ ...item, hint: `${item.hint} · user: ${name}` }));
+  return providerItems(env).map(item => ({ ...item, hint: `${item.hint} · user: ${name}`, preview: UC.previewForProvider(name, item.id) }));
 }
 
 function credentialItemsForUser(name, providerId) {
@@ -297,6 +298,7 @@ function credentialItemsForUser(name, providerId) {
       pathLabel: v.key,
       label: `${stored ? (valid ? '✅' : '❗') : (v.required ? '❌' : '⚪')} ${v.key}`,
       hint: `${stored ? (valid ? 'stored' : 'stored but invalid') : (v.required ? 'missing required' : 'not set')} · belongs to ${name}`,
+      preview: UC.previewForCredential(name, providerId, v.key),
     };
   });
 }
@@ -939,6 +941,7 @@ function cmdUserUse(name) {
   const st = ensureScMd();
   P.writeScMd({ active: name, mappings: st.mappings });
   invalidateEnvCache();
+  audit('profile.default', { profile: name });
   console.log(`✅ default user: ${name}`);
   const resolved = P.resolveProfile();
   if (resolved.mapping && resolved.profile !== name) {
@@ -957,6 +960,7 @@ function cmdUserMap(dir, name) {
   mappings.sort((a, b) => a.resolved.localeCompare(b.resolved));
   P.writeScMd({ active: st.active, mappings });
   invalidateEnvCache();
+  audit('profile.map', { profile: name, path: shown });
   console.log(`✅ ${shown} → user ${name}`);
 }
 
@@ -966,17 +970,25 @@ function cmdUserUnmap(dir) {
   const resolved = path.resolve(P.expandHome(dir === '.' ? process.cwd() : dir));
   const kept = st.mappings.filter(m => m.resolved !== resolved);
   if (kept.length === st.mappings.length) die(`no rule for ${dir}`);
+  const removedRule = st.mappings.find(m => m.resolved === resolved);
   P.writeScMd({ active: st.active, mappings: kept });
   invalidateEnvCache();
+  audit('profile.unmap', { profile: removedRule?.profile, path: dir });
   console.log(`✅ removed the rule for ${dir}`);
 }
 
 async function cmdUserRm(name, args) {
   if (!name) die('usage: sc user rm <name> [--yes]');
-  if (!P.profileExists(name)) die(`no such profile "${name}"`);
+  if (!P.profileExists(name)) die(`no such user "${name}"`);
+  const before = UC.showUser(name);
   if (!args.yes) {
-    if (!isInteractive()) die('refusing to delete a profile without --yes on a non-TTY');
-    if (!await confirm(`Delete profile "${name}" for owner "${P.profileOwner(name)}" and its stored credentials?`)) { console.log('aborted'); return; }
+    if (!isInteractive()) die('refusing to delete a user without --yes on a non-TTY');
+    console.log(`
+⚠️ This deletes user "${name}" and ${before.credentialCount} stored credential(s).`);
+    if (before.isDefault) console.log('   This user is currently the default.');
+    if (before.folders.length) console.log(`   Folder mappings removed: ${before.folders.join(', ')}`);
+    const typed = await askVisible(`Type ${name} to confirm deletion: `);
+    if (typed !== name) { console.log('aborted'); return; }
   }
   P.deleteProfile(name);
   const st = ensureScMd();
@@ -985,7 +997,19 @@ async function cmdUserRm(name, args) {
     mappings: st.mappings.filter(m => m.profile !== name),
   });
   invalidateEnvCache();
-  console.log(`✅ deleted profile "${name}", its ownership metadata, and any sc.md rules pointing at it`);
+  audit('profile.delete', {
+    profile: name,
+    credentialCount: before.credentialCount,
+    wasDefault: before.isDefault,
+    folderCount: before.folders.length,
+  });
+  console.log(`✅ deleted user "${name}", its credential store, metadata, and folder rules`);
+}
+
+async function cmdUserVerify(name, providerId) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  if (providerId && !byId.has(providerId)) die(`unknown provider "${providerId}"`);
+  return withUserProfile(name, () => cmdDoctor(providerId ? { providers: providerId } : {}));
 }
 
 // `sc env` used to print plaintext export lines for command substitution. That makes a
@@ -1031,6 +1055,7 @@ async function cmdUser(sub, arg, arg2, args) {
     case 'credential-set': return cmdUserCredentialSet(arg, arg2, args._[4], args);
     case 'credential-rm':
     case 'credential-delete': return cmdUserCredentialRm(arg, arg2, args._[4], args);
+    case 'verify': return cmdUserVerify(arg, arg2);
     case 'use': {
       if (!arg && isInteractive()) {
         const names = P.listProfiles();
@@ -1204,6 +1229,7 @@ function menuLayer(stack) {
         kind: 'branch',
         label: r.name,
         hint: `${r.keys} credential(s)${marks.length ? ` · ${marks.join(', ')}` : ''}`,
+        preview: UC.previewForUser(r.name),
       };
     });
     return [
@@ -1230,7 +1256,7 @@ function menuLayer(stack) {
   }
 
   if (ctx.user && here === `users/user:${ctx.user}/providers`) {
-    return providerItemsForUser(ctx.user).map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.label, hint: p.hint }));
+    return providerItemsForUser(ctx.user).map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.label, hint: p.hint, preview: p.preview }));
   }
 
   if (ctx.user && ctx.provider && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}`) {
@@ -1257,7 +1283,7 @@ function menuLayer(stack) {
   }
 
   if (here === 'catalog') {
-    return PROVIDERS.map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.id, hint: p.blurb }));
+    return PROVIDERS.map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.id, hint: p.blurb, preview: [`provider ${p.id} — ${p.title}`, p.blurb, `${p.vars.length} credential field(s) · choose a User to manage values`] }));
   }
   if (ctx.provider && here === `catalog/provider:${ctx.provider}`) return [
     { id: 'details', kind: 'action', label: 'Provider definition', hint: 'metadata/setup requirements only; choose a User to manage credentials' },
@@ -1450,12 +1476,14 @@ async function cmdMenu() {
       if (!result || result.type === 'quit') break;
       if (result.type === 'noop') continue;
       if (result.type === 'back') {
+        activity = [];
         if (stack.length) stack.pop();
         continue; // Esc/Left at Home intentionally does not close the CLI.
       }
       const item = items.find(x => x.id === result.id);
       if (!item) continue;
       if (result.type === 'open' && item.kind === 'branch') {
+        activity = [];
         stack.push({ id: item.id, label: stripAnsi(item.pathLabel || item.label).trim() });
         continue;
       }

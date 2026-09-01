@@ -187,3 +187,83 @@ test('SCCP-9: secret request promotes a simple userAction before technical crede
   assert.strictEqual(out.recommendation.label, '[rekomendasi]');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('SCCP-10: user-scoped agent tools duplicate/read/delete credentials without plaintext', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys', '--prefix', 'demo_'], { env });
+  run(['user', 'add', 'alpha'], { env });
+  const secret = 'demo_machine_private_123456';
+  run(['secret', 'set', 'demo', 'DEMO_API_KEY', '--stdin'], { env, input: secret });
+
+  const call = (action, input) => spawnSync(process.execPath, [AGENT, action], {
+    cwd: ROOT, env, input: JSON.stringify(input), encoding: 'utf8', timeout: 20000,
+  });
+
+  let r = call('user.list', {});
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, new RegExp(secret));
+  assert.ok(JSON.parse(r.stdout).users.some(u => u.name === 'alpha'));
+
+  r = call('user.duplicate', { source: 'alpha', target: 'beta', confirm: true });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, new RegExp(secret));
+  assert.strictEqual(JSON.parse(r.stdout).target.name, 'beta');
+
+  r = call('user.credentials.status', { user: 'beta', provider: 'demo' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const beta = JSON.parse(r.stdout);
+  assert.strictEqual(beta.credentials[0].state, 'stored');
+  assert.strictEqual(beta.credentials[0].readable, false);
+  assert.doesNotMatch(r.stdout, new RegExp(secret));
+
+  r = call('user.credential.request', { user: 'beta', provider: 'demo', key: 'DEMO_API_KEY' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const handoff = JSON.parse(r.stdout);
+  assert.strictEqual(handoff.requiresUserTerminal, true);
+  assert.match(handoff.command, /sc user credential-set beta demo DEMO_API_KEY/);
+  assert.doesNotMatch(r.stdout, new RegExp(secret));
+
+  r = call('user.credential.delete', { user: 'beta', provider: 'demo', key: 'DEMO_API_KEY', confirm: true });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.strictEqual(JSON.parse(r.stdout).status.credentials[0].state, 'unset');
+  assert.doesNotMatch(r.stdout, new RegExp(secret));
+
+  r = call('user.credentials.status', { user: 'alpha', provider: 'demo' });
+  assert.strictEqual(JSON.parse(r.stdout).credentials[0].state, 'stored', 'deleting beta must not alter alpha');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-11: MCP lists user-scoped tools and rejects secret-shaped nested agent input', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
+  const names = new Set(manifest.functions.map(f => f.name));
+  for (const name of [
+    'sc.user.list', 'sc.user.show', 'sc.user.which', 'sc.user.create', 'sc.user.duplicate',
+    'sc.user.rename', 'sc.user.default', 'sc.user.map', 'sc.user.delete',
+    'sc.user.providers.list', 'sc.user.provider.verify', 'sc.user.credentials.status',
+    'sc.user.credential.status', 'sc.user.credential.request', 'sc.user.credential.delete',
+  ]) assert.ok(names.has(name), `${name} missing from tool manifest`);
+  assert.ok(![...names].some(n => /^sc\.user\.credential\.(set|put|rotate)$/.test(n)), 'MCP must never accept credential values');
+
+  const mcp = spawnSync(process.execPath, [path.join(ROOT, 'scripts/sc-mcp.js')], {
+    cwd: ROOT,
+    input: `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })}\n`,
+    encoding: 'utf8', timeout: 20000,
+  });
+  assert.strictEqual(mcp.status, 0, mcp.stderr);
+  const listed = JSON.parse(mcp.stdout.trim()).result.tools.map(t => t.name);
+  assert.ok(listed.includes('sc.user.credential.request'));
+  assert.ok(listed.includes('sc.user.duplicate'));
+
+  const bad = spawnSync(process.execPath, [AGENT, 'user.list'], {
+    cwd: ROOT,
+    input: JSON.stringify({ nested: { token: 'must-not-enter-agent-json' } }),
+    encoding: 'utf8', timeout: 20000,
+  });
+  assert.strictEqual(bad.status, 1);
+  assert.match(bad.stderr, /forbidden on the agent surface/);
+  assert.doesNotMatch(bad.stdout, /must-not-enter-agent-json/);
+});

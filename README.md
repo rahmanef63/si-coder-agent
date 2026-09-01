@@ -159,6 +159,8 @@ The technical control plane contains:
 3. **Connected provider tools** — secure hosted account connections and managed provider execution.
 4. **MCP/MSO function surface** — machine-readable, secret-safe operations for agents.
 
+Tool calling is user-scoped as well: agents should use `sc.user.*` functions so ownership is explicit instead of inferred from cwd. The same `.mso/functions.json` schemas are exposed through the bundled MCP server to MSO, Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients. See [Tool calling](docs/tool-calling.md).
+
 ## Local CLI navigation and user ownership
 
 Run `sc` on a TTY to open a Finder-style alternate-screen console. Navigation repaints one stable frame instead of appending lines to scrollback. The top `SECTIONS` tabs and `PATH` breadcrumb stay visible while Finder-like columns show parent/current layers side by side. `Tab`/`→` enters a deeper branch, `Enter` opens or runs the selected item, and `←`/`Esc` goes back. Finishing an action returns to the same frame instead of terminating the CLI.
@@ -197,13 +199,13 @@ The policy hard-caps the first discovery phase at three questions and explicitly
 
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.7/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.7/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.7/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.7/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.8/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.8/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.7/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.7/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.8/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
 If an AI is given only this repository URL and asked to install SI-Coder, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the current surface automatically.
@@ -254,7 +256,7 @@ Use the release `sc.zip`. Anthropic currently documents Claude Web custom-skill 
 
 Direct downloads from `main`:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.7/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip`
 
 Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
 
@@ -264,7 +266,7 @@ For a managed workspace, the closest match to “install this GitHub repo” is 
 
 For personal Skills, OpenAI documents a `SKILL.md`-based skill and an Upload from your computer flow, but does not currently require the `.skill` extension. SI-Coder recommends the complete `sc.zip` package.
 
-Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.7/sc.zip`
+Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip`
 
 After installation, ChatGPT can use the skill automatically. OpenAI documents explicit Skill selection by **@ mention**; SI-Coder registers the OpenAI display name `sc`, so use `@sc`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 

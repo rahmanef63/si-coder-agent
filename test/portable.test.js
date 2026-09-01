@@ -88,7 +88,7 @@ test('SCPORT-8: Claude plugin manifest and MCP config stay portable', () => {
   const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
   const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'));
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.8.7');
+  assert.strictEqual(plugin.version, '0.8.8');
   const cfg = mcp.mcpServers['si-coder'];
   assert.ok(cfg.args.join(' ').includes('${CLAUDE_PLUGIN_ROOT}/scripts/sc-mcp.js'));
   assert.doesNotMatch(JSON.stringify(mcp), /(TOKEN|API_KEY|SECRET|PASSWORD)/i);
@@ -158,4 +158,12 @@ test('SCPORT-13: ambiguous local route asks a plain-language server choice', () 
   assert.strictEqual(p.userPlan.status, 'needs-answer');
   assert.match(p.userPlan.question, /server|hosting/i);
   assert.ok(p.userPlan.choices.some(x => /easiest/i.test(x.label)));
+});
+
+test('SCPORT-14: --with-mcp has native registration paths for Codex, Hermes, and OpenClaw', () => {
+  const install = fs.readFileSync(path.join(ROOT, 'install.sh'), 'utf8');
+  assert.match(install, /codex mcp add si-coder -- node/);
+  assert.match(install, /hermes mcp add si-coder --command node --args/);
+  assert.match(install, /openclaw mcp add si-coder --command node --cwd/);
+  assert.match(install, /scripts\/sc-mcp\.js/);
 });

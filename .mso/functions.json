@@ -87,6 +87,470 @@
       "timeoutMs": 10000
     },
     {
+      "name": "sc.user.list",
+      "description": "List SI-Coder users with default/current state, credential counts, provider summaries, and folder ownership. Never returns credential values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.list"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.show",
+      "description": "Read one SI-Coder user, provider summary, mappings, and credential key names without credential values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.show"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.which",
+      "description": "Resolve which SI-Coder user owns a directory, including default and explicit folder rules.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.which"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.create",
+      "description": "Create an empty isolated SI-Coder user credential store. Does not accept credential values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.create"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.duplicate",
+      "description": "Duplicate one user credential store into another independent user without returning values. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "replaceEmpty": {
+            "type": "boolean"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.duplicate"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.rename",
+      "description": "Rename one SI-Coder user and migrate default/folder mappings. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.rename"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.default",
+      "description": "Set the default SI-Coder user. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.default"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.map",
+      "description": "Map a directory tree to an explicit SI-Coder user. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "path",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.map"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.unmap",
+      "description": "Remove an explicit directory-to-user mapping. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "path",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.unmap"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.delete",
+      "description": "Delete one SI-Coder user and its managed credential store/mappings without returning values. Explicit confirmation is required.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.delete"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.providers.list",
+      "description": "List provider readiness and credential status for one explicit SI-Coder user. Values are never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.providers.list"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.provider.verify",
+      "description": "Run live provider verification using only one explicit user credential store. Values are never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.provider.verify"
+      ],
+      "timeoutMs": 30000
+    },
+    {
+      "name": "sc.user.credentials.status",
+      "description": "Read all or one provider credential status for one explicit SI-Coder user. Plaintext reads are impossible.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.credentials.status"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.credential.status",
+      "description": "Read one provider/key status for one explicit user, or provider-level status when key is omitted. Plaintext reads are impossible.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          }
+        },
+        "required": [
+          "user",
+          "provider"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.credential.status"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.credential.request",
+      "description": "Return a safe user-specific credential creation/rotation handoff. Never accepts a credential value; the user enters it only in hidden local terminal input or a connected secure action.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          }
+        },
+        "required": [
+          "user",
+          "provider"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.credential.request"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.credential.delete",
+      "description": "Delete one key or all managed credentials for a provider from one explicit user. Never returns values and requires confirmation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "provider",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.credential.delete"
+      ],
+      "timeoutMs": 10000
+    },
+    {
       "name": "sc.providers.list",
       "description": "List si-coder built-in and custom provider metadata plus credential state/source. Secret values are never returned.",
       "inputSchema": {

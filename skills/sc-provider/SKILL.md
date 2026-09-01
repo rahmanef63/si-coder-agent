@@ -123,22 +123,31 @@ sc user which
 
 For backward compatibility, machines with no profile still use the managed `~/.bashrc` block.
 
-## Agent / MSO function surface
+## Agent / MSO / MCP function surface
 
-The repository exposes `.mso/functions.json` functions for safe agent operations:
+`.mso/functions.json` is the machine-tool SSOT. MSO reads it directly and `scripts/sc-mcp.js` exposes the same functions to Claude Code, Codex, Hermes, OpenClaw, or another MCP client.
+
+Prefer the explicit user-scoped tools:
+
+- `sc.user.list`, `sc.user.show`, `sc.user.which`
+- `sc.user.create`, `sc.user.duplicate`, `sc.user.rename`, `sc.user.delete`
+- `sc.user.default`, `sc.user.map`, `sc.user.unmap`
+- `sc.user.providers.list`, `sc.user.provider.verify`
+- `sc.user.credentials.status`, `sc.user.credential.status`
+- `sc.user.credential.request` — returns a user-specific hidden-terminal handoff, never a secret field
+- `sc.user.credential.delete`
+
+Global provider-definition tools remain available:
 
 - `sc.providers.list`
 - `sc.provider.create`, `sc.provider.update`, `sc.provider.delete`
 - `sc.provider.key-add`, `sc.provider.key-remove`
-- `sc.secrets.status`
-- `sc.secret.request` — returns the hidden-terminal handoff, not a secret field
-- `sc.secret.delete`
-- `sc.deploy.plan` — returns VPS/managed route + provider backends, no values
-- `sc.doctor`
-- `sc.update.check`, `sc.update`
-- `sc.version`, `sc.verify`
 
-There is intentionally **no** `sc.secret.set` MCP/function tool accepting a value. A secret value in function input would put it back into the agent/chat boundary this design is meant to avoid.
+Legacy resolved-context `sc.secrets.status`, `sc.secret.request`, and `sc.secret.delete` remain for compatibility, but new agents should prefer `sc.user.*` so credential ownership never depends on cwd.
+
+There is intentionally **no** `sc.user.credential.set` or `sc.secret.set` MCP/function tool accepting a value. Creation/rotation is requested with `sc.user.credential.request`, then the human enters the value only in a hidden local terminal prompt or an explicitly connected secure credential action.
+
+See `docs/tool-calling.md` for registration examples across MSO, Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
 
 ## Self-update
 

@@ -88,6 +88,30 @@ if [[ "$with_mcp" == "1" ]]; then
     echo "ℹ️ Claude plugin mode loads .mcp.json automatically: claude --plugin-dir '$REPO_DIR'"
     echo "   Standalone skills can register it manually with: claude mcp add --scope user si-coder -- node '$REPO_DIR/scripts/sc-mcp.js'"
   fi
+  if [[ "$agent" == "hermes" || "$agent" == "all" ]]; then
+    if command -v hermes >/dev/null 2>&1; then
+      if hermes mcp list 2>/dev/null | grep -Fq 'si-coder'; then
+        echo "✅ Hermes MCP 'si-coder' already configured"
+      else
+        hermes mcp add si-coder --command node --args "$REPO_DIR/scripts/sc-mcp.js"
+        echo "✅ Registered SI-Coder MCP in Hermes"
+      fi
+    else
+      echo "ℹ️ Hermes CLI not found. When installed: hermes mcp add si-coder --command node --args '$REPO_DIR/scripts/sc-mcp.js'"
+    fi
+  fi
+  if [[ "$agent" == "openclaw" || "$agent" == "all" ]]; then
+    if command -v openclaw >/dev/null 2>&1; then
+      if openclaw mcp show si-coder >/dev/null 2>&1; then
+        echo "✅ OpenClaw MCP 'si-coder' already configured"
+      else
+        openclaw mcp add si-coder --command node --cwd "$REPO_DIR" --arg "$REPO_DIR/scripts/sc-mcp.js"
+        echo "✅ Registered SI-Coder MCP in OpenClaw"
+      fi
+    else
+      echo "ℹ️ OpenClaw CLI not found. When installed: openclaw mcp add si-coder --command node --cwd '$REPO_DIR' --arg '$REPO_DIR/scripts/sc-mcp.js'"
+    fi
+  fi
 fi
 
 echo ""

@@ -72,11 +72,22 @@ ChatGPT also has a Plugin Directory. Plugins can bundle Skills and Apps. Publish
 
 ## Hermes / OpenClaw / generic local Agent Skills
 
+Skills only:
+
 ```bash
 bash install.sh --agent hermes
 bash install.sh --agent openclaw
 bash install.sh --skills-dir /path/to/skills
 ```
+
+Skills + SI-Coder tool calling:
+
+```bash
+bash install.sh --agent hermes --with-mcp
+bash install.sh --agent openclaw --with-mcp
+```
+
+The installer registers the same `scripts/sc-mcp.js` server used by the `.mso/functions.json` tool SSOT. Hermes uses `hermes mcp add`; OpenClaw uses `openclaw mcp add`. The MCP surface is user-scoped (`sc.user.*`) and never accepts plaintext credential values. Use `sc.user.credential.request` when an agent needs a credential created/rotated; the actual value is entered only through hidden local terminal input or another explicitly secure credential channel.
 
 ## Package contract
 

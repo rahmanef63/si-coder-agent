@@ -91,6 +91,8 @@ sc user which
 
 Finder hierarchy: `Users → <user> → Providers → <provider> → Credentials → <KEY>`. Duplicate creates an independent credential store, so rotating one user's GitHub token never changes another user's credentials. Never expose plaintext credential values.
 
+For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/functions.json`; use `sc.user.credential.request` for create/rotate handoff because machine JSON never accepts raw secret values.
+
 ## Secret-safe commands
 
 | Command | Purpose |

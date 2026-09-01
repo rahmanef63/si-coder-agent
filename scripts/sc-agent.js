@@ -7,6 +7,8 @@
 // or a trusted local stdin/env/file flow, never chat/tool JSON.
 const path = require('path');
 const { spawnSync } = require('child_process');
+const P = require('../lib/profiles');
+const UC = require('../lib/user-control');
 
 const SC = path.resolve(__dirname, '../bin/sc.js');
 const ACTION = process.argv[2];
@@ -54,18 +56,183 @@ function providerArgs(input) {
 
 async function main() {
   const input = await readJson();
-  // Defense in depth: these names should never exist in the MCP schema. Reject them anyway
-  // so a future manifest edit cannot silently turn tool JSON into a secret transport.
-  for (const k of Object.keys(input)) {
-    if (/^(value|secret|secretValue|token|tokenValue|password|apiKey|apiKeyValue)$/i.test(k)) {
-      throw new Error(`field ${k} is forbidden on the agent surface; secrets must not enter tool JSON`);
+  // Defense in depth: secret-shaped field names are forbidden recursively, not only at
+  // the top level. A future schema edit must not accidentally turn MCP JSON into a secret transport.
+  const inspect = (value, prefix = '') => {
+    if (!value || typeof value !== 'object') return;
+    for (const [k, v] of Object.entries(value)) {
+      const field = prefix ? `${prefix}.${k}` : k;
+      if (/^(value|secret|secretValue|token|tokenValue|password|apiKey|apiKeyValue)$/i.test(k)) {
+        throw new Error(`field ${field} is forbidden on the agent surface; secrets must not enter tool JSON`);
+      }
+      inspect(v, field);
     }
-  }
+  };
+  inspect(input);
 
   switch (ACTION) {
     case 'product.interview': {
       const { productInterview } = require('../lib/product-interview');
       process.stdout.write(`${JSON.stringify(productInterview(input), null, 2)}\n`);
+      return;
+    }
+    case 'user.list': {
+      process.stdout.write(`${JSON.stringify(UC.listUsers(input.cwd || process.cwd()), null, 2)}
+`);
+      return;
+    }
+    case 'user.show': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      process.stdout.write(`${JSON.stringify(UC.showUser(user, input.cwd || process.cwd()), null, 2)}
+`);
+      return;
+    }
+    case 'user.which': {
+      process.stdout.write(`${JSON.stringify(UC.whichUser(input.cwd || process.cwd()), null, 2)}
+`);
+      return;
+    }
+    case 'user.create': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const argv = ['user', 'add', user];
+      if (input.owner) argv.push('--owner', assertString(input.owner, 'owner'));
+      const r = captureSc(argv);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); if (r.stdout) process.stderr.write(r.stdout); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ created: true, user: UC.showUser(user) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.duplicate': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const source = assertString(input.source, 'source', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const target = assertString(input.target, 'target', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const argv = ['user', 'duplicate', source, target];
+      if (input.replaceEmpty === true) argv.push('--replace-empty');
+      const r = captureSc(argv);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); if (r.stdout) process.stderr.write(r.stdout); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ duplicated: true, source, target: UC.showUser(target) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.rename': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const source = assertString(input.source, 'source', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const target = assertString(input.target, 'target', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const r = captureSc(['user', 'rename', source, target]);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); if (r.stdout) process.stderr.write(r.stdout); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ renamed: true, source, target: UC.showUser(target) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.default': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const r = captureSc(['user', 'use', user]);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ defaultUser: user, state: UC.listUsers() }, null, 2)}
+`);
+      return;
+    }
+    case 'user.map': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const cwd = assertString(input.path, 'path');
+      const r = captureSc(['user', 'map', cwd, user]);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ mapped: true, path: cwd, user, resolution: UC.whichUser(cwd) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.unmap': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const cwd = assertString(input.path, 'path');
+      const r = captureSc(['user', 'unmap', cwd]);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ unmapped: true, path: cwd, resolution: UC.whichUser(cwd) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.delete': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const before = UC.showUser(user);
+      const r = captureSc(['user', 'rm', user, '--yes']);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ deleted: true, user, credentialCount: before.credentialCount, wasDefault: before.isDefault, foldersRemoved: before.folders }, null, 2)}
+`);
+      return;
+    }
+    case 'user.import-current': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const argv = ['user', 'import', user, '--yes'];
+      if (input.overwrite === true) argv.push('--overwrite');
+      const r = captureSc(argv);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ imported: true, user: UC.showUser(user) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.providers.list': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      process.stdout.write(`${JSON.stringify({ user, providers: UC.userProviders(user) }, null, 2)}
+`);
+      return;
+    }
+    case 'user.provider.verify': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = input.provider ? assertString(input.provider, 'provider') : null;
+      const r = captureSc(['user', 'verify', user, ...(provider ? [provider] : [])]);
+      process.stdout.write(`${JSON.stringify({ user, provider, ok: r.code === 0, output: (r.stdout || r.stderr).trim() }, null, 2)}
+`);
+      process.exitCode = r.code;
+      return;
+    }
+    case 'user.credentials.status': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      if (input.provider) {
+        process.stdout.write(`${JSON.stringify(UC.providerStatus(user, assertString(input.provider, 'provider')), null, 2)}
+`);
+      } else {
+        process.stdout.write(`${JSON.stringify({ user, providers: UC.userProviders(user) }, null, 2)}
+`);
+      }
+      return;
+    }
+    case 'user.credential.status': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = assertString(input.provider, 'provider');
+      const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
+      process.stdout.write(`${JSON.stringify(key ? UC.credentialStatus(user, provider, key) : UC.providerStatus(user, provider), null, 2)}
+`);
+      return;
+    }
+    case 'user.credential.request': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = assertString(input.provider, 'provider');
+      const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
+      const status = key ? UC.credentialStatus(user, provider, key) : UC.providerStatus(user, provider);
+      const setup = key ? status.setup : null;
+      process.stdout.write(`${JSON.stringify({
+        ...status,
+        requiresUserTerminal: true,
+        command: key ? `sc user credential-set ${user} ${provider} ${key}` : `sc user credential-set ${user} ${provider}`,
+        userAction: setup?.userCard || null,
+        createAt: setup?.createAt || null,
+        policy: 'Never send the credential in chat or tool JSON. Enter it only in the hidden local terminal prompt or an explicitly connected secure credential action.',
+      }, null, 2)}
+`);
+      return;
+    }
+    case 'user.credential.delete': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = assertString(input.provider, 'provider');
+      const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
+      const r = captureSc(['user', 'credential-rm', user, provider, ...(key ? [key] : []), '--yes']);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ deleted: true, user, provider, key, status: UC.providerStatus(user, provider) }, null, 2)}
+`);
       return;
     }
     case 'providers.list':

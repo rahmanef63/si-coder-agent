@@ -31,6 +31,11 @@ Users                 │ rahmanfakh             │ Providers               │
 
 Credentials are intentionally **not** edited from a global Accounts screen. Select a user first so the owner is always visible in `PATH`.
 
+The bottom panel is selection-driven:
+
+- `PREVIEW` always describes the item currently highlighted, using the explicit user in the Finder path.
+- `RESULT` is temporary action output. It disappears as soon as the selection/filter changes, so stale provider output cannot look like the currently selected provider.
+
 ## User model
 
 Internally, the existing profile files remain the credential-store implementation for backward compatibility, but the product/UI concept is a **user**:
@@ -112,6 +117,24 @@ Users
 → GITHUB_TOKEN
 → Status / Set or Rotate / Remove
 ```
+
+## Delete a user safely
+
+Interactive deletion requires typing the exact user name, not only pressing `y`. The deletion is also written to the metadata-only audit log with the number of credentials and folder mappings removed.
+
+```bash
+sc user rm old-user
+```
+
+Machine/tool calling requires an explicit `confirm: true` on `sc.user.delete`.
+
+## Tool calling
+
+The Finder hierarchy has a matching secret-safe machine surface. MSO reads `.mso/functions.json`; the bundled `scripts/sc-mcp.js` exposes the same tools to Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
+
+Prefer `sc.user.*` tools so ownership is always explicit. Credential creation/rotation uses `sc.user.credential.request`; no MCP/function accepts a raw token/key/password value.
+
+See [`tool-calling.md`](tool-calling.md).
 
 ## Default user and folder mappings
 

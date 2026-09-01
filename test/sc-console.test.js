@@ -254,9 +254,11 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(sc, /users\/user:/, 'user must be the first identity layer');
   assert.match(sc, /providers\/provider:/, 'providers must live under a selected user');
   assert.match(sc, /credentials\/credential:/, 'individual credentials must live under a user/provider path');
+  assert.match(sc, /UC\.previewForProvider/, 'provider rows must preview the explicitly selected user');
+  assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
 
-test('SCC-7b: Finder renderer paints tabs, path, columns and last action into one cleared frame', () => {
+test('SCC-7b: Finder renderer paints live preview and transient result into one cleared frame', () => {
   const { renderFinderFrame } = require(path.join(ROOT, 'lib/finder-tui'));
   let out = '';
   const output = { isTTY: true, columns: 100, rows: 28, write(chunk) { out += String(chunk); } };
@@ -264,7 +266,7 @@ test('SCC-7b: Finder renderer paints tabs, path, columns and last action into on
     { id: 'users', kind: 'branch', label: 'Users', hint: 'identities' },
     { id: 'catalog', kind: 'branch', label: 'Provider catalog', hint: 'definitions' },
   ];
-  const users = [{ id: 'user:rahmanef', kind: 'branch', label: 'rahmanef', hint: '4 credentials · default' }];
+  const users = [{ id: 'user:rahmanef', kind: 'branch', label: 'rahmanef', hint: '4 credentials · default', preview: ['user rahmanef · default', '4 credential(s) · values hidden'] }];
   renderFinderFrame({
     title: 'SI-Coder',
     breadcrumb: ['SI-Coder', 'Users'],
@@ -282,7 +284,9 @@ test('SCC-7b: Finder renderer paints tabs, path, columns and last action into on
   assert.match(out, /SECTIONS/);
   assert.match(out, /PATH/);
   assert.match(out, /│/, 'Finder columns must have visible separators');
-  assert.match(out, /LAST ACTION/);
+  assert.match(out, /PREVIEW/);
+  assert.match(out, /user rahmanef · default/);
+  assert.match(out, /RESULT/);
   assert.match(out, /owner : rahmanef/);
   assert.doesNotMatch(out, /\x1b\[\d+A/, 'render must never cursor-walk into previous lines');
 });
