@@ -2,6 +2,12 @@
 
 Use this path when the account exposes **Plugins → Skills** and skill uploading. OpenAI currently documents Skills for eligible ChatGPT Business, Enterprise, Healthcare, and Edu users, subject to workspace settings and rollout.
 
+## Direct download
+
+[Download SI-Coder Skill v0.8.1 (.zip)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.1/sc.zip)
+
+This link downloads the stable release ZIP directly. You do not need to open the GitHub Release page first.
+
 ## Install
 
 1. Download `sc.skill` or `sc.zip` from the SI-Coder GitHub release.
