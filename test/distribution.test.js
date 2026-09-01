@@ -90,3 +90,47 @@ test('DIST-6: OpenAI repository marketplace exposes a web-compatible skill-only 
     assert.deepStrictEqual(generated, source, `${name} OpenAI plugin copy drifted from source`);
   }
 });
+
+test('DIST-7: per-surface install docs exist and keep invocation claims surface-specific', () => {
+  const files = [
+    'docs/install/README.md',
+    'docs/install/claude-code.md',
+    'docs/install/claude-web.md',
+    'docs/install/codex.md',
+    'docs/install/chatgpt-personal-skills.md',
+    'docs/install/chatgpt-workspace-marketplace.md',
+    'docs/install/generic-local.md',
+    'docs/install/first-run-onboarding.md',
+    'docs/publishing/openai-plugin-directory.md',
+    'OPENAI_SUBMISSION.md',
+  ];
+  for (const rel of files) assert.ok(fs.existsSync(path.join(ROOT, rel)), rel);
+
+  const claudeCode = fs.readFileSync(path.join(ROOT, 'docs/install/claude-code.md'), 'utf8');
+  assert.match(claudeCode, /\/sc Build/);
+
+  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-workspace-marketplace.md'), 'utf8');
+  assert.match(chatgpt, /@SI-Coder/);
+  assert.doesNotMatch(chatgpt, /After installation, use:\s*`?\/sc\b/i);
+
+  const boundary = fs.readFileSync(path.join(ROOT, 'docs/publishing/openai-plugin-directory.md'), 'utf8');
+  assert.match(boundary, /does not currently provide a general self-serve submission endpoint/i);
+  assert.match(boundary, /workspace directory/i);
+
+  const pkg = readJson('package.json');
+  assert.ok(pkg.files.includes('docs/'));
+  assert.ok(pkg.files.includes('OPENAI_SUBMISSION.md'));
+});
+
+test('DIST-8: packaged .skill artifacts are reproducible for unchanged source', () => {
+  const skill = path.join(ROOT, 'dist/sc.skill');
+  const before = require('crypto').createHash('sha256').update(fs.readFileSync(skill)).digest('hex');
+  execFileSync('python3', [path.join(ROOT, 'scripts/package-web-skill.py')], { cwd: ROOT, stdio: 'ignore' });
+  const after = require('crypto').createHash('sha256').update(fs.readFileSync(skill)).digest('hex');
+  execFileSync('python3', [path.join(ROOT, 'scripts/package-web-skill.py')], { cwd: ROOT, stdio: 'ignore' });
+  const again = require('crypto').createHash('sha256').update(fs.readFileSync(skill)).digest('hex');
+  assert.strictEqual(after, again);
+  // The first comparison may differ once when migrating from an older non-deterministic archive.
+  assert.match(after, /^[0-9a-f]{64}$/);
+  assert.match(before, /^[0-9a-f]{64}$/);
+});

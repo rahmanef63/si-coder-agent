@@ -55,7 +55,9 @@
     "AI_INSTALL.md",
     "dist/",
     ".agents/",
-    "plugins/"
+    "plugins/",
+    "docs/",
+    "OPENAI_SUBMISSION.md"
   ],
   "scripts": {
     "onboard": "node bin/onboard.js",

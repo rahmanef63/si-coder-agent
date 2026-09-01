@@ -193,6 +193,18 @@ The policy hard-caps the first discovery phase at three questions and explicitly
 
 If an AI is given only this repository URL and asked to install SI-Coder, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the current surface automatically.
 
+Detailed install/onboarding guides:
+
+- [Installation matrix](docs/install/README.md)
+- [Claude Code](docs/install/claude-code.md)
+- [Claude Web / claude.ai](docs/install/claude-web.md)
+- [Codex](docs/install/codex.md)
+- [ChatGPT personal Skills](docs/install/chatgpt-personal-skills.md)
+- [ChatGPT workspace marketplace](docs/install/chatgpt-workspace-marketplace.md)
+- [Generic local Agent Skills](docs/install/generic-local.md)
+- [First-run account onboarding](docs/install/first-run-onboarding.md)
+- [OpenAI Plugin Directory publication status](docs/publishing/openai-plugin-directory.md)
+
 ### Claude Code — repository/plugin install
 
 Preferred full install:
@@ -240,7 +252,7 @@ For personal Skills, OpenAI currently documents ChatGPT Skills for eligible work
 
 Direct download: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
 
-After installation, ChatGPT can use the skill automatically. OpenAI Academy documents explicit skill selection by **@ mention**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
+After installation, ChatGPT can use the skill automatically. OpenAI Help Center documents explicit plugin selection by **@ mention**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 
 ### Other local Agent Skills runtimes
 

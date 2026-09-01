@@ -4,6 +4,8 @@ This file is written for AI agents that are asked: **"Install this repository fo
 
 Repository: `https://github.com/rahmanef63/si-coder-agent`
 
+Detailed human-facing guides live in `docs/install/README.md`. After detecting the current surface, use the matching file under `docs/install/` rather than inventing setup steps.
+
 ## Choose the current surface first
 
 ### Claude Code

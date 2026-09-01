@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import stat
 import tempfile
 import zipfile
 from pathlib import Path
@@ -20,6 +21,7 @@ DIST = ROOT / "dist"
 CORE_REFS = ["sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
 OPENAI_PLUGIN_SKILLS = ["sc", "sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
 REPO_REFS = ["provider-routing.md", "portable-skills.md", "output-styles.md"]
+FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 
 def add_tree(zipf: zipfile.ZipFile, skill_dir: Path) -> None:
@@ -31,7 +33,13 @@ def add_tree(zipf: zipfile.ZipFile, skill_dir: Path) -> None:
             continue
         if path.name in {".DS_Store"} or path.suffix == ".pyc":
             continue
-        zipf.write(path, path.relative_to(parent))
+        rel = path.relative_to(parent).as_posix()
+        info = zipfile.ZipInfo(rel, date_time=FIXED_ZIP_TIME)
+        info.create_system = 3
+        mode = stat.S_IMODE(path.stat().st_mode)
+        info.external_attr = (stat.S_IFREG | mode) << 16
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zipf.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
 
 
 def package(skill_dir: Path, out: Path) -> None:
