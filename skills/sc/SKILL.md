@@ -25,6 +25,17 @@ Do not ask the user to choose a SI-Coder sub-skill.
 
 The route is internal. Do not narrate the skill handoff unless it helps recover from a problem.
 
+
+## Standalone package mode
+
+This skill may be installed either as part of the full SI-Coder repository/plugin or as the one-file `sc.skill` web package.
+
+- If sibling SI-Coder skills are installed, route to them normally.
+- If they are not installed, use the bundled files under `references/si-coder/` inside the package.
+- Do not tell a web user to install a local CLI merely because sibling skills are absent. Hosted web execution should use the tools/apps/connectors available on that surface.
+
+Surface invocation is not universal: Claude Code can invoke this as `/sc`; Codex can invoke the installed skill with its skill syntax such as `$sc`; ChatGPT currently documents automatic activation or explicit @-mention selection.
+
 ## Non-technical default
 
 Lead with outcomes. Hide stack, hosting vendor, database vendor, repository mechanics, DNS, environment variables, containers, deploy keys, and provider routing unless:

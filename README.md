@@ -33,25 +33,24 @@ Important slash skills:
 
 Provider-specific skills such as `/sc-vercel`, `/sc-dokploy`, `/sc-convex`, and `/sc-git` remain available for advanced users, but normal users should not need to choose them.
 
-## Why there is no `.skill` file
+## Source format vs install package
 
-SI-Coder follows the Agent Skills convention: each portable skill is a directory containing a file named **`SKILL.md`**.
+SI-Coder now ships **both layers** of the Agent Skills ecosystem:
 
-Examples:
+- `skills/*/SKILL.md` is the canonical editable source.
+- `dist/sc.skill` is the one-file distributable package for web/import surfaces. It is a ZIP-format skill package.
+- `dist/sc.zip` is byte-identical to `sc.skill` for upload UIs that explicitly filter for `.zip`.
+
+This matches Anthropic's current skill-creator packaging model: a `.skill` file is a distributable ZIP containing the skill directory, whose required entry point is still `SKILL.md`. OpenAI Skills also use the Agent Skills `SKILL.md` standard.
 
 ```text
-skills/
-├── sc/
-│   └── SKILL.md        # /sc
-├── sc-build/
-│   └── SKILL.md        # /sc-build
-├── sc-all/
-│   └── SKILL.md        # /sc-all
-└── sc-provider/
-    └── SKILL.md        # /sc-provider
+skills/sc/SKILL.md       # source of truth
+        ↓ package:skills
+dist/sc.skill             # install/import artifact
+dist/sc.zip               # ZIP-extension compatibility copy
 ```
 
-The skill name in frontmatter is the durable skill identity. Claude-style clients can expose installed skills through slash invocation; other Agent Skills runtimes may use their own invocation syntax. SI-Coder keeps one `skills/` source of truth instead of maintaining separate copies per runtime.
+The standalone `sc.skill` bundle also includes the core build, deploy, provider, install, and help workflows as generated references so a web user only needs to upload **one file**.
 
 ## Non-technical product interview
 
@@ -192,22 +191,58 @@ The policy hard-caps the first discovery phase at three questions and explicitly
 
 ## Installation
 
-### Claude Code plugin
+If an AI is given only this repository URL and asked to install SI-Coder, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the current surface automatically.
 
-```bash
-git clone https://github.com/rahmanef63/si-coder-agent.git
-cd si-coder-agent
-claude --plugin-dir "$PWD"
+### Claude Code — repository/plugin install
+
+Preferred full install:
+
+```text
+/plugin marketplace add rahmanef63/si-coder-agent
+/plugin install si-coder@si-coder-marketplace
 ```
 
-The plugin includes:
+The repository now contains `.claude-plugin/marketplace.json`, so the repo itself is a Claude Code marketplace. After installation, use:
 
-- `.claude-plugin/plugin.json`
-- `skills/*/SKILL.md`
-- `.mcp.json`
-- the bundled secret-safe SI-Coder MCP server
+```text
+/sc Create a booking app for my salon.
+```
 
-### Standalone Agent Skills
+A local developer can still use `claude --plugin-dir /path/to/si-coder-agent`. Anthropic also supports skill-only GitHub installs; the full plugin path is preferred here because SI-Coder includes multiple skills plus MCP support.
+
+### Codex — ask the built-in skill installer
+
+Codex has a built-in `$skill-installer` that supports GitHub repository paths. Ask Codex:
+
+```text
+Install SI-Coder from https://github.com/rahmanef63/si-coder-agent
+Follow AI_INSTALL.md and install the core SI-Coder skills.
+```
+
+The core paths are `skills/sc`, `skills/sc-build`, `skills/sc-all`, `skills/sc-provider`, and `skills/sc-install`. Codex explicit skill syntax is `$sc`, not Claude's `/sc`.
+
+### Claude.ai / Claude Web — one-file upload
+
+Use `dist/sc.skill`. It is the distributable `.skill` package. If the upload picker explicitly requests ZIP, use the byte-identical `dist/sc.zip`.
+
+Direct downloads from `main`:
+
+- `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
+- `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.zip`
+
+Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
+
+### ChatGPT Web — Skills / Plugins
+
+OpenAI currently documents ChatGPT Skills for eligible workspaces and allows uploaded skills that follow the Agent Skills standard. Upload `dist/sc.skill` (or `dist/sc.zip` if the picker requires ZIP).
+
+Direct download: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
+
+After installation, ChatGPT can use the skill automatically. The documented explicit invocation is an **@ mention / skill picker**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
+
+OpenAI also now uses Plugins as the main workflow directory. A plugin may bundle skills and connected apps. SI-Coder's repository is prepared around the same `SKILL.md` source and OpenAI `agents/openai.yaml` UI metadata; publishing to the ChatGPT Plugin Directory is a separate distribution/review step from installing a personal uploaded skill.
+
+### Other local Agent Skills runtimes
 
 ```bash
 bash install.sh --agent claude
@@ -219,7 +254,13 @@ bash install.sh --agent all
 
 Add `--with-mcp` when the local runtime should also register the bundled SI-Coder MCP server.
 
-The installer discovers every `skills/*/SKILL.md` directory automatically, so newly added slash skills do not require a second hard-coded list.
+### Rebuild install artifacts
+
+```bash
+npm run package:skills
+```
+
+This regenerates `dist/sc.skill`, `dist/sc.zip`, `dist/sc-build.skill`, and `dist/manifest.json` from the canonical source.
 
 ## Advanced CLI
 

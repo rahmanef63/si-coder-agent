@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",
@@ -51,7 +51,9 @@
     ".env.example",
     "install.sh",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "AI_INSTALL.md",
+    "dist/"
   ],
   "scripts": {
     "onboard": "node bin/onboard.js",
@@ -62,6 +64,7 @@
     "preversion": "npm test",
     "postversion": "git push --follow-tags origin main",
     "route": "node scripts/route-plan.js",
-    "mcp": "node scripts/sc-mcp.js"
+    "mcp": "node scripts/sc-mcp.js",
+    "package:skills": "python3 scripts/package-web-skill.py"
   }
 }

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "si-coder-marketplace",
+  "description": "SI-Coder: build and publish web apps from plain-language goals.",
+  "owner": {
+    "name": "Rahman EF"
+  },
+  "plugins": [
+    {
+      "name": "si-coder",
+      "description": "Non-technical web-app builder and deployment workflow with safe account connections and provider automation.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/sc",
+        "./skills/sc-build",
+        "./skills/sc-all",
+        "./skills/sc-provider",
+        "./skills/sc-install",
+        "./skills/sc-help",
+        "./skills/sc-git",
+        "./skills/sc-dokploy",
+        "./skills/sc-convex",
+        "./skills/sc-convex-cloud",
+        "./skills/sc-vercel",
+        "./skills/sc-cf",
+        "./skills/sc-resend",
+        "./skills/sc-stripe",
+        "./skills/sc-clerk",
+        "./skills/sc-supabase",
+        "./skills/sc-sync",
+        "./skills/sc-n8n"
+      ]
+    }
+  ],
+  "metadata": {
+    "description": "SI-Coder marketplace for non-technical web-app building, deployment, and secure provider workflows."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "format": "agent-skills",
+  "source": "skills/*/SKILL.md",
+  "artifacts": [
+    {
+      "file": "sc.skill",
+      "sha256": "033751efbd93751613de77c17fc80bde3ebd58e7cda9c6e2f4d3950d1573069f",
+      "bytes": 25422
+    },
+    {
+      "file": "sc.zip",
+      "sha256": "033751efbd93751613de77c17fc80bde3ebd58e7cda9c6e2f4d3950d1573069f",
+      "bytes": 25422
+    },
+    {
+      "file": "sc-build.skill",
+      "sha256": "73bbd62d578779120d0c52fb283ae139d6973c8d70ae9745dbb94783e0807167",
+      "bytes": 2865
+    }
+  ]
+}

@@ -7,3 +7,7 @@ node_modules/
 !.env.example
 *.pem
 *.key
+
+# Python tooling cache
+__pycache__/
+*.pyc

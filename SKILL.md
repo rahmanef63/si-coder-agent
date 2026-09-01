@@ -93,7 +93,7 @@ Keep the literal `[rekomendasi]` marker, but write the block content in the user
 
 ## Portability
 
-The `skills/` directory is the Agent Skills SSOT. A portable skill is a directory containing `SKILL.md`; do not create divergent `.skill` copies.
+The `skills/` directory is the Agent Skills SSOT. A portable skill's canonical source is a directory containing `SKILL.md`. For distribution, SI-Coder also builds `.skill` ZIP packages from that source; never hand-edit the generated package.
 
 Important skill identities:
 
@@ -102,3 +102,5 @@ Important skill identities:
 - `skills/sc-all/SKILL.md` → `/sc-all`
 - `skills/sc-provider/SKILL.md` → `/sc-provider`
 - `skills/sc-install/SKILL.md` → `/sc-install`
+
+Invocation is surface-specific: Claude Code supports `/sc`; Codex commonly uses `$sc`; ChatGPT currently documents automatic skill use and explicit @-mention selection.

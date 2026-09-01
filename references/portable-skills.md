@@ -1,48 +1,57 @@
-# Portable skill/plugin installation
+# Portable SI-Coder distribution
 
-SI-Coder uses the Agent Skills `SKILL.md` format. The same `skills/` tree is the SSOT; execution behavior changes by runtime.
+SI-Coder separates **source format**, **distribution artifact**, and **invocation syntax**.
 
-## Hosted web/chat surfaces — Claude Web, ChatGPT chat
-
-A hosted chat does **not** need a VPS and does **not** need a local SC vault to run the default deployment flow.
-
-Treat it as `runtime=hosted`:
-
-```text
-Composio → GitHub → Convex Cloud → Vercel → Hostinger DNS → verify
-```
-
-All four deployment providers are Composio connected accounts. If an account is disconnected, provide the secure Composio auth link and continue after it becomes active. Never ask for raw provider API keys in chat.
-
-The SI-Coder skill is the orchestration/script policy; the hosted agent executes equivalent connector calls directly. A local `sc` binary is optional/not required for this route.
-
-If the hosted user explicitly requests VPS/Dokploy, a connected VPS runner/MCP or local runtime is required.
+- Canonical source: `skills/<name>/SKILL.md`.
+- Web/import artifact: `dist/sc.skill` (ZIP format) plus `dist/sc.zip` compatibility copy.
+- Invocation syntax belongs to the client, not to the Agent Skills standard.
 
 ## Claude Code
 
-- Plugin development/test: `claude --plugin-dir /path/to/si-coder-agent`
-- Standalone skill links: `bash install.sh --agent claude`
-- Plugin installs can start the bundled local `si-coder` MCP from `.mcp.json`.
-- Because this is a local runtime, `/sc-all` branches first on VPS ownership when not already known.
+The repository is a Claude Code marketplace. Preferred install:
 
-## Codex CLI
+```text
+/plugin marketplace add rahmanef63/si-coder-agent
+/plugin install si-coder@si-coder-marketplace
+```
 
-- Install user skills: `bash install.sh --agent codex`
-- Skills link to `~/.agents/skills`.
-- `--with-mcp` registers the bundled SC MCP when Codex CLI is available.
-- Local routing: VPS yes → Dokploy; VPS no → managed Vercel. GitHub stays local/SC by default.
+Claude Code supports direct skill invocation such as `/sc`. The filesystem source remains `SKILL.md`.
 
-## Hermes / OpenClaw / generic local agents
+## Claude.ai / Claude Web
 
-Use `bash install.sh --agent hermes`, `--agent openclaw`, or `--skills-dir /custom/skills`.
+Upload `dist/sc.skill` through the Skills UI; use `dist/sc.zip` if the picker filters for ZIP. The `.skill` artifact is a ZIP package containing the `sc/` skill directory and its required `SKILL.md`. The web package bundles core SI-Coder workflows so one upload is sufficient.
 
-They follow the same local branch: first determine whether the user has a VPS, then choose VPS/Dokploy or managed/Vercel.
+Hosted execution does not require a VPS or local SC vault. Use the connected tools/apps available to the web surface. Claude may activate installed skills automatically; do not assume a slash picker unless the current UI exposes it.
 
-## Runtime rule summary
+## Codex
 
-| Runtime | VPS question | GitHub | Managed providers |
-|---|---|---|---|
-| Hosted web/chat | **No** | Composio | Composio |
-| Local, VPS unknown | **Ask once** | SC after branch | depends on branch |
-| Local, no VPS | already answered | SC | Composio preferred / SC fallback |
-| Local + VPS | already answered | SC | Dokploy/self-hosted via SC |
+Codex follows Agent Skills and includes a `$skill-installer` that can install GitHub repository paths. `AI_INSTALL.md` lists the core SI-Coder paths. Codex invocation is not Claude slash syntax; use the current Codex skill/plugin syntax such as `$sc` when explicit selection is required.
+
+## ChatGPT Web
+
+OpenAI Skills follow the Agent Skills open standard and can be uploaded when Skills are available for the account/workspace. Install `dist/sc.skill` (or `dist/sc.zip`). ChatGPT currently documents automatic activation and explicit @-mention/skill selection, for example `@SI-Coder`.
+
+OpenAI's Plugin Directory is now the primary workflow directory and plugins can bundle skills plus connected apps. A public SI-Coder plugin would require the OpenAI plugin publishing/review flow; a repository URL alone is not documented as a direct ChatGPT Web plugin-install mechanism.
+
+## Local fallback installer
+
+```bash
+bash install.sh --agent claude
+bash install.sh --agent codex
+bash install.sh --agent hermes
+bash install.sh --agent openclaw
+bash install.sh --agent all
+```
+
+These link the canonical skill folders into the runtime's local skills directory.
+
+## Runtime routing after installation
+
+| Runtime | Default infrastructure behavior |
+|---|---|
+| Hosted web/chat | managed/connected-account path; no VPS question |
+| Local, VPS unknown | ask once whether to use an existing server or managed hosting |
+| Local, no VPS | managed path |
+| Local + VPS | own-server path |
+
+Installation and provider authorization are separate. Never move raw provider secrets as part of installing a skill or plugin.
