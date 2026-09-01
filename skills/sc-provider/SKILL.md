@@ -27,6 +27,19 @@ sc run -- <command> [args...]
 
 This injects the profile environment into the child without printing secret values.
 
+## SC + Composio hybrid routing
+
+SC is the local secret/control-plane boundary. Composio is a connected-account boundary for providers that benefit from managed tool execution. Read `../../references/provider-routing.md` before choosing a backend.
+
+Default policy:
+
+- GitHub deployment identity → **SC only by default**.
+- Dokploy/VPS credentials → **SC**.
+- Vercel, Convex Cloud, Hostinger on a no-VPS route → **Composio preferred**, SC fallback.
+- Composio project key itself → SC only when a local SC runtime is needed; if the host already provides a native Composio connector, use that connection instead of duplicating the key.
+
+When using Composio, the agent may ask the connector for a secure connection link. It must not ask the user for the underlying Vercel/Convex/Hostinger secret in chat.
+
 ## Provider CRUD
 
 Built-in provider definitions are code-reviewed and immutable. Custom provider definitions live at `~/.config/si-coder/providers.json` (0600) and contain metadata only.
@@ -85,6 +98,7 @@ The repository exposes `.mso/functions.json` functions for safe agent operations
 - `sc.secrets.status`
 - `sc.secret.request` — returns the hidden-terminal handoff, not a secret field
 - `sc.secret.delete`
+- `sc.deploy.plan` — returns VPS/managed route + provider backends, no values
 - `sc.doctor`
 - `sc.update.check`, `sc.update`
 - `sc.version`, `sc.verify`

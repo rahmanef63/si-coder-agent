@@ -1,336 +1,272 @@
-# SI Coder Agent
+# SI-Coder
 
-> Zero-human full-stack deployment as a bundle of `/sc-*` Claude Code slash commands — GitHub, Convex, Dokploy, Vercel, and DNS, all driven by an AI agent.
+> Portable Agent Skills + MCP deployment control plane: one prompt from repository to a verified production domain, with automatic **VPS/Dokploy** or **managed Vercel** routing and a secret boundary designed for AI agents.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Skills](https://img.shields.io/badge/skills-9%20implemented%20%2B%204%20stubs-8A2BE2)](#skill-catalog)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-skill%20bundle-D97757)](https://claude.com/claude-code)
+SI-Coder has three cooperating layers:
 
-**SI Coder Agent** is a modular set of `/sc-*` slash commands for Claude Code (and any agent that loads Skills) that take a local Next.js + Convex app from source to a live, verified URL with **zero human steps**. It creates the GitHub repo, pushes code, provisions the backend and frontend, wires up DNS, triggers the build, and polls until the site responds. Built for solo developers and agents who want to ship full stacks without clicking through dashboards. No runtime dependencies — just Node 18+ and your API tokens.
+1. **Agent Skills** — the `skills/` directory is the portable behavior/instruction SSOT.
+2. **SC** — local provider registry, profiles, secret-safe credential lifecycle, GitHub identity, and VPS operations.
+3. **Connected provider tools** — on managed/no-VPS deployments, Composio-connected **Vercel, Convex, and Hostinger** accounts are preferred when available; SC remains the fallback.
 
-## Three deploy paths
+A provider credential should never need to be pasted into chat.
 
-All paths share the **same flow shape** — `GitHub → backend → frontend → DNS → verify` — and are driven by the same orchestrator. Pick by where you want things to run:
+## One prompt, two routes
 
-| | **(A) Self-hosted** | **(B) Hybrid** | **(C) Online** |
-|---|---|---|---|
-| Command | `/sc-all --target dokploy` (default) | `/sc-all --target hybrid` | `/sc-all --target vercel` |
-| Frontend | Dokploy app (your VPS) | Dokploy app (your VPS) | Vercel |
-| Backend | Convex self-hosted (Docker Compose on Dokploy) | Convex Cloud (managed) | Convex Cloud (managed) |
-| DNS | Hostinger A-record → VPS | Hostinger A-record → VPS (frontend only) | Hostinger CNAME (sub) / A (apex) → Vercel |
-| Pick when | You own the box, want full control, $0 marginal cost | You want your app on the box but the DB managed — no compose to babysit | You want a managed edge, no VPS to babysit |
+The normal entry point is `/sc-all` or:
 
-```mermaid
-flowchart LR
-    A["Local app<br/>Next.js + Convex"] --> B["/sc-provider<br/>profiles + secret-safe credentials"]
-    B --> C["GitHub repo<br/>create + push (SSH)"]
-    C --> D{"/sc-all --target"}
-    D -->|"dokploy<br/>(self-hosted)"| E1["Dokploy app<br/>your VPS"]
-    D -->|"hybrid<br/>(VPS + cloud)"| H1["Dokploy app<br/>your VPS"]
-    D -->|"vercel<br/>(online)"| F1["Vercel<br/>managed edge"]
-    E1 --> E2[("Convex self-hosted<br/>Docker Compose")]
-    H1 --> H2[("Convex Cloud<br/>managed")]
-    F1 --> F2[("Convex Cloud<br/>managed")]
-    E2 --> E3["Hostinger DNS<br/>A → VPS"]
-    H2 --> H3["Hostinger DNS<br/>A → VPS (frontend)"]
-    F2 --> F3["Hostinger DNS<br/>CNAME / A → Vercel"]
-    E3 --> Z(["Live, verified URL ✅"])
-    H3 --> Z
-    F3 --> Z
+```bash
+sc deploy plan --target auto
 ```
 
-## Skill catalog
+`auto` chooses the route from available capability instead of asking the user to understand the infrastructure first.
 
-After `bash install.sh`, these slash commands are available. **Implemented** commands do the work; **stubs** are boilerplate and exit with code `2` until someone fills them in (contributions welcome).
+```mermaid
+flowchart TD
+    U["User: deploy this app on my domain"] --> I["Inspect repo + provider status"]
+    I --> R{"Usable VPS / Dokploy?"}
+    R -->|yes| V["VPS route"]
+    V --> VG["GitHub · SC"]
+    VG --> VC["Convex self-hosted"]
+    VC --> VD["Dokploy"]
+    VD --> VH["Hostinger DNS"]
+    R -->|no| M["Managed route"]
+    M --> MG["GitHub · SC"]
+    MG --> MC["Convex Cloud · Composio preferred"]
+    MC --> MV["Vercel · Composio preferred"]
+    MV --> MH["Hostinger DNS · Composio preferred"]
+    VH --> Z["Verify DNS + HTTPS + app"]
+    MH --> Z
+    Z --> N["Offer one useful next step"]
+```
 
-| Command | Status | What it does | Key env |
+| Route | Frontend | Backend | Provider policy |
 |---|---|---|---|
-| `/sc-all` | ✅ | Orchestrator — end-to-end deploy; `--target dokploy\|hybrid\|vercel` | `GITHUB_TOKEN` + path env (below) |
-| `/sc-help` | ✅ | Quick-reference card — every `/sc-*` command + the three deploy targets and their env | — |
-| `/sc-dokploy` | ✅ | Dokploy CRUD/audit/debug: projects, apps, compose, domains, stale-domain audit | `DOKPLOY_API_URL`, `DOKPLOY_API_KEY` |
-| `/sc-convex` | ✅ | Convex **self-hosted** on Dokploy: deploy, rotate admin key, JWT auth env, probe `api-/site-/dash-` | `DOKPLOY_*` (+ admin key) |
-| `/sc-convex-cloud` | ✅ | Convex **Cloud** (managed) deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probe `*.convex.cloud` | `CONVEX_DEPLOY_KEY` |
-| `/sc-vercel` | ✅ | Vercel online frontend: GitHub-bound project, Convex-coupled build, custom domain/subdomain, Hostinger DNS | `VERCEL_TOKEN` (+`VERCEL_TEAM_ID` opt), `CONVEX_DEPLOY_KEY`, `HOSTINGER_API_TOKEN` (opt) |
-| `/sc-git` | ✅ | GitHub repo CRUD + Actions cost reduction: audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron | `GITHUB_TOKEN` |
-| `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing; profile-aware with managed `~/.bashrc` fallback | — |
-| `/sc-provider` | ✅ | Provider CRUD + secret-safe control plane for agents; hidden secret entry, profiles, audit, `sc update`, MSO functions | — |
-| `/sc-sync` | ✅ | Tailscale rsync of gitignored files between VPS and local machine (same repo, shared via git, some docs kept out of `.gitignore`) | `SYNC_ROLE`, `SYNC_VPS_TS_ADDR`, `SYNC_LOCAL_TS_ADDR` |
-| `/sc-cf` | 🚧 stub | Cloudflare — DNS A/AAAA/CNAME (Hostinger alt), Workers/Pages, R2, Zero Trust tunnel | — |
-| `/sc-stripe` | 🚧 stub | Payments — products/prices, webhooks, customer portal, restricted keys | — |
-| `/sc-resend` | 🚧 stub | Email — domain verify (DKIM/SPF/DMARC), API keys, template send | — |
-| `/sc-clerk` | 🚧 stub | Auth (alt) — origins, JWT template for Convex, paired with Clerk MCP | — |
-| `/sc-supabase` | 🚧 stub | Backend (alt) — project provision, migrations, edge functions, types gen | — |
+| **VPS** | Dokploy | Convex self-hosted | GitHub/Dokploy/Convex in SC; Hostinger via Composio or SC |
+| **VPS hybrid** | Dokploy | Convex Cloud | explicit advanced option |
+| **Managed / no VPS** | Vercel | Convex Cloud | GitHub in SC; Vercel/Convex/Hostinger prefer Composio |
 
-## Quick start
+GitHub is intentionally kept in SC by default so repo creation/push uses the intended local identity. A Composio GitHub connection can still be used for optional PR, issue, or release automation, but it is not silently substituted as the deployment source identity.
+
+## Secret model
+
+`sc` is a control plane, not a secret-printing CLI.
+
+```bash
+sc providers                     # metadata + status
+sc secret list resend            # state/source only
+sc secret get resend RESEND_API_KEY
+sc secret set resend RESEND_API_KEY   # hidden terminal input
+sc secret rm resend RESEND_API_KEY --yes
+sc run -- <command>              # inject resolved profile into child
+```
+
+Rules:
+
+- `sc secret get` **does not return plaintext**.
+- `sc env` is disabled because printing exports would expose credentials.
+- Secret creation/rotation uses hidden TTY, trusted stdin/env/file, or a provider connection flow.
+- Preferred local storage: `~/.config/si-coder/profiles/<name>.env` mode `0600`.
+- Custom provider metadata: `~/.config/si-coder/providers.json`, also `0600`, with **no credential values**.
+- Audit records contain lifecycle metadata only.
+
+For an agent/MCP client, `sc.secret.request` returns a secure handoff such as:
+
+```text
+sc secret set composio COMPOSIO_API_KEY
+```
+
+It never accepts a field containing the secret itself.
+
+See [`skills/sc-provider/SKILL.md`](skills/sc-provider/SKILL.md) and [`references/provider-routing.md`](references/provider-routing.md).
+
+## Composio routing
+
+On a managed deployment, the skill should use connected provider tools rather than asking for raw provider API keys when possible.
+
+Canonical policy:
+
+| Provider | Default backend |
+|---|---|
+| GitHub deployment identity | **SC** |
+| Dokploy / VPS | **SC** |
+| Vercel, no-VPS route | **Composio preferred**, SC fallback |
+| Convex Cloud, no-VPS route | **Composio preferred**, SC fallback |
+| Hostinger DNS, no-VPS route | **Composio preferred**, SC fallback |
+| Composio bootstrap key | SC only if a local connector needs it; otherwise use the host's native Composio connection |
+
+SI-Coder deliberately does **not** proxy raw Composio/provider credentials through its MCP server. The orchestration skill coordinates the SI-Coder MCP namespace and the host's Composio connector. This keeps each credential inside the system that owns it.
+
+## Portable installation
+
+The repository uses the open `SKILL.md` Agent Skills structure. The same skill directories are linked into different agent runtimes; there are no divergent copies.
+
+### Claude Code plugin
 
 ```bash
 git clone https://github.com/rahmanef63/si-coder-agent.git
 cd si-coder-agent
-bash install.sh        # symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
-npm link               # puts the `sc` console on PATH (or just use `node bin/sc.js`)
-sc setup               # interactive credential setup (non-AI)
-sc update --check      # check for a safe fast-forward update
-# source ~/.bashrc only when using the legacy no-profile fallback
+claude --plugin-dir "$PWD"
 ```
 
-> `sc` here is **this repo's console**, installed by `npm link` from the clone.
-> Do **not** `apt install sc` — that is an unrelated Debian package (a terminal
-> spreadsheet calculator). If you already did: `sudo apt remove sc`.
+Plugin assets:
 
-Driving via an AI agent instead? Use `/sc-provider` for provider/secret lifecycle and `/sc-onboarding` for guided first-time setup. **Do not paste API keys into chat.** The agent should request a hidden-terminal handoff (`sc secret set <provider> <KEY>`) or consume an already-stored profile through `sc run -- <cmd>`.
+- `.claude-plugin/plugin.json`
+- `skills/*/SKILL.md`
+- `.mcp.json` → bundled secret-safe `si-coder` MCP server
 
-### `sc` as an agent-safe provider control plane
+Standalone user-skill mode:
 
 ```bash
-sc providers --json
-sc providers create openai --key OPENAI_API_KEY --prefix sk-
-sc secret set openai OPENAI_API_KEY
-sc secret get openai OPENAI_API_KEY --json
-sc run -- node my-agent.js
-sc audit --limit 25
+bash install.sh --agent claude
+```
+
+### Codex / ChatGPT local Agent Skills
+
+```bash
+bash install.sh --agent codex --with-mcp
+```
+
+Skills are linked to `~/.agents/skills`; the installer can register the local SI-Coder MCP server through `codex mcp`.
+
+### Hermes / OpenClaw
+
+```bash
+bash install.sh --agent hermes
+bash install.sh --agent openclaw
+```
+
+### Install everywhere or use a custom directory
+
+```bash
+bash install.sh --agent all
+bash install.sh --skills-dir /path/to/agent/skills
+```
+
+See [`skills/sc-install/SKILL.md`](skills/sc-install/SKILL.md) and [`references/portable-skills.md`](references/portable-skills.md).
+
+## Skill catalog
+
+| Skill | Status | Purpose |
+|---|---:|---|
+| `/sc-all` | ✅ | One-prompt deploy; auto VPS or managed route; domain + verification + next action |
+| `/sc-provider` | ✅ | Provider CRUD, secret-safe status/rotation handoff, audit, update, MCP boundary |
+| `/sc-install` | ✅ | Portable Agent Skills/plugin installation |
+| `/sc-help` | ✅ | Quick routing/reference card |
+| `/sc-onboarding` | ✅ | Guided local SC credential setup |
+| `/sc-git` | ✅ | GitHub repo + Actions/runner operations |
+| `/sc-dokploy` | ✅ | Dokploy project/app/compose/domain CRUD |
+| `/sc-convex` | ✅ | Convex self-hosted operations |
+| `/sc-convex-cloud` | ✅ | Convex Cloud deployment helpers |
+| `/sc-vercel` | ✅ | Vercel deployment/domain helpers |
+| `/sc-cf` | ✅ | Cloudflare DNS operations |
+| `/sc-sync` | ✅ | Tailscale file sync |
+| `/sc-n8n` | ✅ | n8n CLI workflows/credentials |
+| `/sc-resend` | 🚧 | Full email/domain/send automation; credential management is already in SC |
+| `/sc-stripe` | 🚧 | Payments automation |
+| `/sc-clerk` | 🚧 | Clerk provisioning |
+| `/sc-supabase` | 🚧 | Supabase alternative backend |
+
+## One-prompt managed example
+
+User intent:
+
+> Deploy this project to `app.example.com`.
+
+Expected orchestration when no VPS is usable:
+
+1. Inspect the project and infer repo/project names.
+2. `sc deploy plan --target auto --composio` → managed/Vercel.
+3. Verify GitHub through SC; if missing, give the hidden `sc secret set github GITHUB_TOKEN` handoff.
+4. Use connected Convex tools for the managed backend when available.
+5. Create/reuse Vercel project and deployment through connected Vercel tools when available.
+6. Attach **the exact requested domain** to Vercel.
+7. Read the DNS configuration Vercel requires and write/validate that record in Hostinger.
+8. Poll deployment/domain state and verify DNS, HTTPS, and public response.
+9. Report the canonical URL.
+10. Offer **one** useful next action, including prerequisites before the user opts in.
+
+A good follow-up after deploy is contextual, for example:
+
+> The site is live. The highest-value next step is transactional email for password reset/invites. I can configure Resend next; it needs a Resend account/API key and a verified sender domain. If you want, I’ll give you the secure connection/terminal handoff and continue.
+
+This is proactive, not coercive: explain the value and prerequisites, then let the user opt in. Do not repeatedly suggest services that are already configured.
+
+## `sc` command reference
+
+```bash
+# Route/deploy planning
+sc deploy plan --target auto --json
+sc deploy plan --target managed --composio
+sc deploy plan --target vps
+
+# Provider/credential state
+sc providers [--json]
+sc providers show <id>
+sc providers create <id> --key <ENV_KEY>
+sc providers update <id> ...
+sc providers key-add <id> <ENV_KEY> ...
+sc providers key-rm <id> <ENV_KEY> --yes
+sc providers delete <id> --yes
+
+sc secret list [provider] [--json]
+sc secret get <provider> [ENV_KEY] [--json]
+sc secret set <provider> [ENV_KEY]
+sc secret rm <provider> [ENV_KEY] --yes
+sc run -- <command>
+
+# Identity/profile isolation
+sc user add <name> [--from-shell]
+sc user use <name>
+sc user map <folder> <name>
+sc user which
+
+# Health/update
+sc doctor [--providers a,b]
 sc update --check
 sc update
+sc version --json
+sc audit --json
 ```
 
-Custom provider definitions contain **no secret values** and live in `~/.config/si-coder/providers.json` (0600). Preferred credential storage is `~/.config/si-coder/profiles/<name>.env` (0600); the managed `~/.bashrc` block remains for backward compatibility when no profiles exist. `sc secret get` intentionally cannot reveal plaintext.
-
-For MSO, this repo exposes `.mso/functions.json` with provider CRUD, secret status/delete/handoff, doctor, update/version, and verify functions. There is intentionally no function whose input accepts an API-key value: new or rotated secrets cross the boundary only through a hidden terminal or trusted local stdin/env/file source.
-
-**Deploy — self-hosted (Dokploy + Convex self-hosted):**
-
-```bash
-# Orchestrated (default target is dokploy):
-/sc-all --target dokploy
-
-# Or just the Convex self-hosted backend, standalone:
-node skills/sc-convex/scripts/deploy-convex.js \
-  --project myproj --app myapp --domain myapp.example.com --with-auth-keys
-```
-
-**Deploy — hybrid (Dokploy VPS frontend + Convex Cloud backend):**
-
-```bash
-# Same monolith as self-hosted, plus CONVEX_DEPLOY_KEY in env. Pushes the backend to
-# Convex Cloud, then deploys the Dokploy app with NEXT_PUBLIC_CONVEX_URL = the cloud URL.
-node scripts/deploy.js \
-  --project myproj --app myapp --domain app.example.com --target hybrid
-
-# Orchestrated:
-/sc-all --target hybrid
-```
-
-No `docker-compose.yml` needed — the backend is managed. For a preview/project deploy key
-(which doesn't carry the deployment name), also export `NEXT_PUBLIC_CONVEX_URL`. Only the
-frontend domain gets DNS + a Dokploy domain; the backend lives on `*.convex.cloud`.
-
-**Deploy — online (Vercel + Convex Cloud):**
-
-```bash
-# 1. Backend (Convex Cloud) — coupled build injects NEXT_PUBLIC_CONVEX_URL
-node skills/sc-convex-cloud/scripts/deploy-cloud.js
-
-# 2. Frontend (Vercel) + custom domain + Hostinger DNS + deploy
-node skills/sc-vercel/scripts/deploy.js \
-  --project myapp --app myapp --domain app.example.com \
-  --git-owner <your-gh-user> --git-repo myapp --prod
-
-# Or orchestrated — runs both, skips Dokploy + self-hosted Convex:
-/sc-all --target vercel
-```
-
-The Vercel build command is set to `npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`. DNS is `CNAME → cname.vercel-dns.com` for a subdomain, `A → 76.76.21.21` for an apex (always read live from Vercel's domain config).
-
-**Legacy one-shot** (monolith, still functional). Secrets are read **only from the environment** (`DOKPLOY_API_URL`, `DOKPLOY_API_KEY`, `GITHUB_TOKEN`) — never argv, so nothing leaks via `ps aux`. Only non-secret project/app/domain go on the command line:
-
-```bash
-# export DOKPLOY_API_URL / DOKPLOY_API_KEY / GITHUB_TOKEN in ~/.bashrc first
-# cwd is the target app you want to deploy; the script path points at your
-# si-coder-agent checkout (it imports ../lib/*, so it must run from the clone).
-cd ~/projects/<app>
-node ~/path/to/si-coder-agent/scripts/deploy.js --project "<PROJECT>" --app "<APP>" --domain "<DOMAIN>"
-```
+`sc update` is fast-forward only. It refuses dirty, ahead, diverged, or detached checkouts; it never resets/stashes/rebases user work.
 
 ## Architecture
 
-Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. `sc` is also a provider/secret control plane: built-ins come from `lib/providers.js`, custom provider metadata from `~/.config/si-coder/providers.json`, credentials from profile files/managed shell state, and `.mso/functions.json` exposes the safe subset to MSO. CommonJS, Node 18+ native `fetch`, no runtime deps.
-
-```mermaid
-flowchart TB
-    subgraph cmds["/sc-* slash commands"]
-        all["sc-all<br/>orchestrator"]
-        dok["sc-dokploy"]
-        cvx["sc-convex"]
-        cc["sc-convex-cloud"]
-        vrc["sc-vercel"]
-        git["sc-git"]
-        onb["sc-onboarding"]
-    end
-    all --> dok
-    all --> cvx
-    all --> cc
-    all --> vrc
-    subgraph libs["lib/ — thin REST clients, zero runtime deps"]
-        ld["dokploy.js"]
-        lcx["convex.js"]
-        lcc["convex-cloud.js"]
-        lv["vercel.js"]
-        lh["hostinger.js"]
-        le["env.js"]
-        guard["proc.js · tls.js<br/>(no-shell · TLS-verify)"]
-    end
-    dok --> ld
-    cvx --> lcx
-    cc --> lcc
-    vrc --> lv
-    onb --> le
-    subgraph ext["External APIs"]
-        eGh(["GitHub"])
-        eDok(["Dokploy"])
-        eVrc(["Vercel"])
-        eCvx(["Convex"])
-        eHost(["Hostinger DNS"])
-    end
-    ld --> eDok
-    lv --> eVrc
-    lcx --> eCvx
-    lcc --> eCvx
-    lh --> eHost
-```
-
-```
+```text
 si-coder-agent/
-├── SKILL.md           umbrella; points to sc-*
-├── README.md
-├── LICENSE             MIT
-├── .env.example
-├── install.sh         symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
-├── lib/
-│   ├── dokploy.js       Dokploy REST client + CRUD helpers
-│   ├── hostinger.js     Hostinger DNS A/CNAME-record sync
-│   ├── convex.js        admin key / schema deploy / JWT keys / probe
-│   ├── convex-cloud.js  Convex Cloud deploy / URL derive / probe
-│   ├── vercel.js        Vercel REST client + deploy/domain/DNS helpers
-│   ├── proc.js          no-shell execFileSync wrappers
-│   ├── tls.js           TLS verification helpers (always on)
-│   └── env.js           env-string parse, merge, .bashrc append
-├── skills/
-│   ├── sc-all/SKILL.md
-│   ├── sc-dokploy/
-│   │   ├── SKILL.md
-│   │   └── scripts/{_shared,projects,apps,compose,domains,audit,debug}.js
-│   ├── sc-convex/
-│   │   ├── SKILL.md
-│   │   └── scripts/{deploy-convex,check-backend,rotate-admin-key,set-auth-env}.js
-│   ├── sc-convex-cloud/
-│   │   ├── SKILL.md
-│   │   └── scripts/{deploy-cloud,check-cloud}.js
-│   ├── sc-vercel/
-│   │   ├── SKILL.md
-│   │   └── scripts/{_shared,deploy}.js
-│   ├── sc-git/SKILL.md + scripts/
-│   ├── sc-onboarding/
-│   ├── sc-provider/SKILL.md     provider + secret control plane contract
-│   │   ├── SKILL.md
-│   │   ├── lib/onboarding-domains.js   single source: domain registry + validators
-│   │   ├── scripts/scan-env.js
-│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,composio,clerk,vercel,supabase,sync}.md
-│   ├── sc-sync/SKILL.md + scripts/   Tailscale rsync of gitignored files (vps <-> local)
-│   ├── use-si-coder/SKILL.md   vendored legacy-monolith doc (@convex-dev/auth lessons)
-│   └── sc-{cf,stripe,resend,clerk,supabase}/   provider-specific skills (some still stub; `sc` credential console is independent)
-├── scripts/
-│   └── deploy.js      legacy monolith (still functional)
-├── test/
-│   ├── deploy-helpers.test.js  pure helpers from scripts/deploy.js
-│   ├── lib.test.js             lib/tls, lib/convex, lib/convex-cloud, lib/hostinger, lib/env
-│   ├── resilience.test.js      fetch retry/backoff + bounded-timeout branches
-│   ├── sc-git.test.js          sc-git helper coverage
-│   ├── sc-sync.test.js         sc-sync route() + isBlockedPath()
-│   └── vercel.test.js          lib/vercel DNS normalize + 409 disambiguation
-└── bin/
-    └── onboard.js     one-shot CLI wizard
+├── .claude-plugin/plugin.json     Claude Code plugin manifest
+├── .mcp.json                      Claude plugin MCP declaration
+├── .mso/functions.json            MSO function surface (same safe schemas)
+├── bin/sc.js                      human/operator CLI
+├── scripts/sc-agent.js            machine-facing safe adapter
+├── scripts/sc-mcp.js              portable stdio MCP server
+├── lib/deploy-route.js            pure VPS/managed route policy
+├── lib/providers.js               built-in provider SSOT
+├── lib/custom-providers.js        metadata-only provider extensions
+├── lib/profiles.js                per-identity credential isolation
+├── skills/                        portable Agent Skills SSOT
+└── references/                    routing + portability policy
 ```
 
-## Security
+Provider-specific low-level libraries remain in `lib/` and `skills/sc-*`. `/sc-all` owns **when/where/how to route**; provider sub-skills own the mechanics.
 
-Every skill (legacy `/use-si-coder` and all `/sc-*`) is adversarially audited and hardened:
+## Security properties
 
-- **No shell** — every external call uses `execFileSync` (no `sh -c`), so no command injection.
-- **TLS always verified** — never disabled, even for self-signed probes.
-- **No secret leaks** — tokens never appear in argv (`ps`-safe), logs, build args, or git URLs.
-- **Redact-by-default inspection** — `sc-dokploy` `env`/`show` redact secrets by key **and** value-shape (+ URL userinfo), and mask non-`env` credential fields (`customGitUrl` PAT, registry password, SSH keys).
-- **Validated env keys** — onboarding rejects non-identifier env-var names before writing `~/.bashrc` (no key-name shell injection).
-- **Every external fetch bounded** — `AbortController` timeout + retry/backoff on 429/5xx across all REST clients, so a hung API can't stall a zero-human run.
-- **`0600` secret files** — `~/.bashrc` and credential files are written owner-read/write only.
-- **Shell-safe `~/.bashrc`** — values are single-quote escaped and merged in place.
+- Secrets are not allowed in MCP tool input schemas.
+- Agent adapter rejects fields named like `value`, `secretValue`, `tokenValue`, `apiKeyValue`, or `password` as defense in depth.
+- Git URL credentials are not persisted.
+- Profile/custom-provider/audit files are `0600`.
+- `sc run` injects secrets directly into a child environment without SI-Coder printing them.
+- Managed provider connections should be used server-side; do not decrypt a credential merely to copy it to another provider.
+- Destructive provider/key deletion requires explicit confirmation.
 
-## Development & tests
-
-The canonical test entrypoint is:
+## Development
 
 ```bash
-npm test        # runs node --test --test-concurrency=1 "test/**/*.test.js"
+npm test
+npm run route -- --target auto --json
+npm run mcp
+npm pack --dry-run
 ```
 
-`--test-concurrency=1` is not optional: run the files in parallel and Node 22's test
-runner intermittently kills a random file with `uncaughtException: Unable to deserialize
-cloned data due to invalid or unsupported version` (~50% of runs). That is the runner's
-IPC channel corrupting, not our code — serial execution costs ~2s and is always green.
-
-Use `npm test` (or `node --test test/deploy-helpers.test.js` for a single file). Avoid the
-bare directory form `node --test test/` — on some Node versions it resolves `test/` as a
-module entry and fails with `MODULE_NOT_FOUND` instead of discovering the `*.test.js` files.
-Tests use only Node built-ins (`node:test` + `node:assert`); no extra dev deps.
-
-### Releasing a version
-
-`npm version` is the whole release flow — `preversion` runs the tests, npm bumps
-`package.json` + commits + tags `vX.Y.Z`, and `postversion` pushes main with the tag.
-
-```bash
-npm version patch   # bugfix       0.3.0 -> 0.3.1
-npm version minor   # new skill/feature
-npm version major   # breaking change to an sc-* contract or env name
-```
-
-Failing tests abort the bump — nothing is committed, nothing is pushed.
-
-## Core mandates (shared across all sc-*)
-
-1. **Self-hosted Convex by default** — never silently swap to Clerk. Use `@convex-dev/auth`.
-2. **`convex/_generated` committed** — never run codegen inside the Dockerfile.
-3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
-4. **Idempotency** — duplicate domain create = no-op.
-5. **Admin key sync** — Dokploy compose env + repo env file always match.
-6. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rename it inside any script.
-7. **Clerk MCP for Clerk apps** — `clerk` at `https://mcp.clerk.com/mcp`.
-8. **Exact cloning** — replicate site layout, not a generic admin dashboard.
-
-## Adding a new `/sc-*` domain
-
-1. `mkdir skills/sc-<name>/{scripts}`
-2. Write `skills/sc-<name>/SKILL.md` with frontmatter `name: sc-<name>` + `description:`.
-3. Put scripts under `skills/sc-<name>/scripts/*.js`. Import shared utils from `../../../lib/`.
-4. Add domain-required vars to `skills/sc-onboarding/lib/onboarding-domains.js` → `DOMAIN_VARS`.
-5. Add a validator to `skills/sc-onboarding/lib/onboarding-domains.js` → `VALIDATORS` (single source of truth; `scripts/scan-env.js` and `bin/onboard.js` only import these).
-6. Add a step doc at `skills/sc-onboarding/steps/<name>.md`.
-7. Edit `install.sh` → add `link_skill "sc-<name>"`.
-8. Re-run `bash install.sh`.
-
-## FAQ
-
-**Q: Site stuck loading?** Check your `Dockerfile` uses `ARG NEXT_PUBLIC_CONVEX_URL=<real-url>`, not a dummy.
-
-**Q: Vercel build succeeds but app can't reach Convex Cloud?** The build command must be the coupled `npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` so the live deployment URL is injected at build time. `/sc-vercel` sets this for you.
-
-**Q: Convex dashboard 401/404?** Run `/sc-convex` → `rotate-admin-key.js`. The admin key now lives in Dokploy compose env.
-
-**Q: Dokploy shows old `*.traefik.me` domains?** Run `node skills/sc-dokploy/scripts/audit.js --fix`.
-
-**Q: "Connection lost while action was in flight"?** See `skills/sc-convex/SKILL.md` — five common causes for self-hosted Dokploy.
-
-**Q: `npx convex env set JWT_PRIVATE_KEY` errors on `--`?** Use `skills/sc-convex/scripts/set-auth-env.js` (REST API) instead.
-
-## License
-
-[MIT](LICENSE) — Created by Rahman EF.
+License: MIT.

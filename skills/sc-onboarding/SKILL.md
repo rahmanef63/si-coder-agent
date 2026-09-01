@@ -210,3 +210,8 @@ Stub domains pre-register vars so `/sc-onboarding` can collect them; their `/sc-
 - Never echo secrets back to the user — confirm with a capped preview only (at most the first ~25% of the value, max 4 chars) plus `…[len=N]`.
 - Never overwrite an existing export silently. Detect existing values, ask before rotating.
 - The append block is a fixed, dedup-managed block delimited by `# --- si-coder onboarding ---` / `# --- end si-coder onboarding ---`, so the user can audit/remove it later.
+
+
+## Relationship to Composio
+
+This skill configures the **local SC store**. On the managed/no-VPS `/sc-all` route, Vercel/Convex/Hostinger should prefer an already available Composio connected account rather than duplicating raw provider keys in SC. GitHub deployment identity remains SC-direct. Use `/sc-provider` for the canonical routing policy.

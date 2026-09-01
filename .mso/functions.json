@@ -2,10 +2,51 @@
   "version": 1,
   "functions": [
     {
+      "name": "sc.deploy.plan",
+      "description": "Plan the automatic deployment route (VPS/Dokploy or managed/Vercel) and provider credential backends without returning secret values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "vps",
+              "managed",
+              "dokploy",
+              "hybrid",
+              "vercel"
+            ]
+          },
+          "composioAvailable": {
+            "type": "boolean"
+          },
+          "vpsAvailable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "deploy.plan"
+      ],
+      "timeoutMs": 10000
+    },
+    {
       "name": "sc.providers.list",
       "description": "List si-coder built-in and custom provider metadata plus credential state/source. Secret values are never returned.",
-      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "command": ["node", "scripts/sc-agent.js", "providers.list"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "providers.list"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -14,21 +55,52 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
-          "key": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,127}$" },
-          "title": { "type": "string" },
-          "blurb": { "type": "string" },
-          "required": { "type": "boolean" },
-          "public": { "type": "boolean" },
-          "url": { "type": "string" },
-          "note": { "type": "string" },
-          "prefix": { "type": "string" },
-          "minLength": { "type": "integer", "minimum": 1, "maximum": 10000 }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "blurb": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "public": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "minLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
         },
-        "required": ["id", "key"],
+        "required": [
+          "id",
+          "key"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "provider.create"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "provider.create"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -37,14 +109,26 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "title": { "type": "string" },
-          "blurb": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "blurb": {
+            "type": "string"
+          }
         },
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "provider.update"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "provider.update"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -53,13 +137,25 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "confirmPurgeCredentials": { "type": "boolean", "const": true }
+          "id": {
+            "type": "string"
+          },
+          "confirmPurgeCredentials": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["id", "confirmPurgeCredentials"],
+        "required": [
+          "id",
+          "confirmPurgeCredentials"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "provider.delete"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "provider.delete"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -68,19 +164,45 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "key": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,127}$" },
-          "required": { "type": "boolean" },
-          "public": { "type": "boolean" },
-          "url": { "type": "string" },
-          "note": { "type": "string" },
-          "prefix": { "type": "string" },
-          "minLength": { "type": "integer", "minimum": 1, "maximum": 10000 }
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "public": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "minLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
         },
-        "required": ["id", "key"],
+        "required": [
+          "id",
+          "key"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "provider.key-add"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "provider.key-add"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -89,14 +211,29 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "key": { "type": "string" },
-          "confirmPurgeCredentials": { "type": "boolean", "const": true }
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "confirmPurgeCredentials": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["id", "key", "confirmPurgeCredentials"],
+        "required": [
+          "id",
+          "key",
+          "confirmPurgeCredentials"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "provider.key-remove"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "provider.key-remove"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -104,10 +241,18 @@
       "description": "Read credential status/source for all or one provider. Plaintext credential reads are deliberately impossible.",
       "inputSchema": {
         "type": "object",
-        "properties": { "provider": { "type": "string" } },
+        "properties": {
+          "provider": {
+            "type": "string"
+          }
+        },
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "secrets.status"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "secrets.status"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -116,13 +261,23 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "provider": { "type": "string" },
-          "key": { "type": "string" }
+          "provider": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
         },
-        "required": ["provider"],
+        "required": [
+          "provider"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "secret.request"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "secret.request"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -131,14 +286,28 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "provider": { "type": "string" },
-          "key": { "type": "string" },
-          "confirm": { "type": "boolean", "const": true }
+          "provider": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["provider", "confirm"],
+        "required": [
+          "provider",
+          "confirm"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "secret.delete"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "secret.delete"
+      ],
       "timeoutMs": 10000
     },
     {
@@ -147,18 +316,36 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "providers": { "type": "array", "items": { "type": "string" }, "maxItems": 50 }
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50
+          }
         },
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "doctor"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "doctor"
+      ],
       "timeoutMs": 30000
     },
     {
       "name": "sc.update.check",
       "description": "Fetch and report whether the si-coder checkout is behind/ahead/diverged/dirty. Does not modify the checkout.",
-      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "command": ["node", "scripts/sc-agent.js", "update.check"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "update.check"
+      ],
       "timeoutMs": 30000
     },
     {
@@ -166,25 +353,51 @@
       "description": "Safely self-update si-coder by git fast-forward only. Refuses dirty, ahead, diverged, or detached checkouts. Requires explicit confirmation.",
       "inputSchema": {
         "type": "object",
-        "properties": { "confirm": { "type": "boolean", "const": true } },
-        "required": ["confirm"],
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "confirm"
+        ],
         "additionalProperties": false
       },
-      "command": ["node", "scripts/sc-agent.js", "update.apply"],
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "update.apply"
+      ],
       "timeoutMs": 30000
     },
     {
       "name": "sc.version",
       "description": "Read the installed si-coder version, source checkout and git state.",
-      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "command": ["node", "scripts/sc-agent.js", "version"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "version"
+      ],
       "timeoutMs": 10000
     },
     {
       "name": "sc.verify",
       "description": "Run the si-coder repository test suite without changing provider credentials.",
-      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "command": ["npm", "test"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "command": [
+        "npm",
+        "test"
+      ],
       "timeoutMs": 30000
     }
   ]

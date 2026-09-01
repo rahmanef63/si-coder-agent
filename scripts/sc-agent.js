@@ -131,6 +131,15 @@ async function main() {
       argv.push('--yes');
       return runSc(argv);
     }
+    case 'deploy.plan': {
+      const argv = ['deploy', 'plan', '--json'];
+      if (input.target) argv.push('--target', assertString(input.target, 'target'));
+      if (input.composioAvailable === true) argv.push('--composio');
+      if (input.composioAvailable === false) argv.push('--no-composio');
+      if (input.vpsAvailable === true) argv.push('--vps');
+      if (input.vpsAvailable === false) argv.push('--no-vps');
+      return runSc(argv);
+    }
     case 'doctor': {
       const argv = ['doctor'];
       if (Array.isArray(input.providers) && input.providers.length) argv.push('--providers', input.providers.map(x => assertString(x, 'provider')).join(','));

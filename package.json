@@ -1,7 +1,7 @@
 {
   "name": "si-coder-agent",
-  "version": "0.4.0",
-  "description": "Agent-safe provider and deployment control plane: secret-safe credential profiles, provider CRUD, GitHub + Dokploy + Convex + Vercel + DNS automation for AI agents.",
+  "version": "0.5.0",
+  "description": "Portable agent deployment control plane: one-prompt VPS-or-managed routing, secret-safe SC profiles, Composio-aware provider orchestration, Agent Skills and MCP plugin support.",
   "keywords": [
     "claude-code",
     "claude-skills",
@@ -39,6 +39,9 @@
     "sc": "bin/sc.js"
   },
   "files": [
+    "references/",
+    ".mcp.json",
+    ".claude-plugin/",
     ".mso/",
     "lib/",
     "scripts/",
@@ -57,6 +60,8 @@
     "deploy": "node scripts/deploy.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
     "preversion": "npm test",
-    "postversion": "git push --follow-tags origin main"
+    "postversion": "git push --follow-tags origin main",
+    "route": "node scripts/route-plan.js",
+    "mcp": "node scripts/sc-mcp.js"
   }
 }

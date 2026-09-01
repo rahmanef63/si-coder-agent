@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "si-coder": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/sc-mcp.js"],
+      "cwd": "${CLAUDE_PROJECT_DIR}"
+    }
+  }
+}

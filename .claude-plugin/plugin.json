@@ -1,0 +1,21 @@
+{
+  "name": "si-coder",
+  "version": "0.5.0",
+  "description": "Portable deployment and provider control plane: auto-routes VPS or managed deployments, keeps secrets out of chat, and coordinates SC with Composio-backed Vercel/Convex/Hostinger tools.",
+  "author": {
+    "name": "Rahman EF"
+  },
+  "homepage": "https://github.com/rahmanef63/si-coder-agent",
+  "repository": "https://github.com/rahmanef63/si-coder-agent",
+  "license": "MIT",
+  "keywords": [
+    "deployment",
+    "agent-skills",
+    "mcp",
+    "vercel",
+    "dokploy",
+    "convex",
+    "composio",
+    "secrets"
+  ]
+}

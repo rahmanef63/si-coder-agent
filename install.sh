@@ -1,101 +1,112 @@
 #!/usr/bin/env bash
-# install.sh — symlink each sc-* skill into ~/.claude/skills/ so they show as /sc-* slash commands.
-# Idempotent: re-running replaces existing symlinks safely. Aborts if a non-symlink path exists.
+# install.sh — portable Agent Skills installer for SI-Coder.
+# One skills/ SSOT; symlink into the runtime's user skills directory.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="${SC_SKILLS_DIR:-$HOME/.claude/skills}"
+agent="claude"
+custom_dir="${SC_SKILLS_DIR:-}"
+with_mcp=0
+run_onboarding=1
 
-mkdir -p "$TARGET_DIR"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --agent) agent="${2:?--agent needs claude|codex|hermes|openclaw|all}"; shift 2 ;;
+    --skills-dir) custom_dir="${2:?--skills-dir needs a path}"; agent="custom"; shift 2 ;;
+    --with-mcp) with_mcp=1; shift ;;
+    --no-onboard) run_onboarding=0; shift ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: bash install.sh [options]
+
+  --agent claude|codex|hermes|openclaw|all   target runtime (default: claude)
+  --skills-dir PATH                          custom Agent Skills directory
+  --with-mcp                                 register local SC MCP where supported
+  --no-onboard                               skip interactive credential setup
+
+Claude plugin mode needs no symlink install:
+  claude --plugin-dir /path/to/si-coder-agent
+EOF
+      exit 0 ;;
+    *) echo "❌ unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+case "$agent" in
+  claude) dirs=("$HOME/.claude/skills") ;;
+  codex) dirs=("$HOME/.agents/skills") ;;
+  hermes) dirs=("$HOME/.hermes/skills") ;;
+  openclaw) dirs=("$HOME/.openclaw/workspace/skills") ;;
+  all) dirs=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.hermes/skills" "$HOME/.openclaw/workspace/skills") ;;
+  custom) dirs=("$custom_dir") ;;
+  *) echo "❌ unknown --agent $agent" >&2; exit 1 ;;
+esac
 
 link_skill() {
-  local name="$1"
-  local src="$REPO_DIR/skills/$name"
-  local dst="$TARGET_DIR/$name"
-
-  if [[ ! -d "$src" ]]; then
-    echo "⚠️  skipping $name (not found in repo: $src)"
-    return
-  fi
-
+  local src="$1" dst_dir="$2" name dst
+  name="$(basename "$src")"
+  dst="$dst_dir/$name"
+  mkdir -p "$dst_dir"
   if [[ -e "$dst" && ! -L "$dst" ]]; then
-    echo "❌ refusing to overwrite non-symlink: $dst"
-    echo "   Move it aside first, then re-run install.sh."
-    exit 1
+    echo "❌ refusing to overwrite non-symlink: $dst" >&2
+    return 1
   fi
-
   ln -sfn "$src" "$dst"
-  echo "🔗 linked $dst -> $src"
+  echo "🔗 $dst -> $src"
 }
 
-echo "📦 Installing sc-* skills into $TARGET_DIR"
+mapfile -t skill_dirs < <(find "$REPO_DIR/skills" -mindepth 1 -maxdepth 1 -type d -print | sort)
+for dst in "${dirs[@]}"; do
+  echo "📦 Installing SI-Coder Agent Skills into $dst"
+  for src in "${skill_dirs[@]}"; do
+    [[ -f "$src/SKILL.md" ]] || continue
+    link_skill "$src" "$dst"
+  done
+done
 
-link_skill "sc-all"
-link_skill "sc-help"
-link_skill "sc-convex"
-link_skill "sc-convex-cloud"
-link_skill "sc-dokploy"
-link_skill "sc-git"
-link_skill "sc-onboarding"
-link_skill "sc-provider"
-link_skill "sc-sync"
-link_skill "sc-vercel"
+# The npm link gives humans/agents the `sc` command without touching /usr/bin/sc.
+if [[ "${SC_SKIP_NPM_LINK:-0}" != "1" ]] && command -v npm >/dev/null 2>&1; then
+  (cd "$REPO_DIR" && npm link >/dev/null 2>&1) || true
+fi
 
-# --- Stubs (boilerplate only, NOT IMPLEMENTED YET). Linked so they appear as
-# discoverable slash commands; each script exits with code 2 + a TODO pointer.
-link_skill "sc-cf"
-link_skill "sc-stripe"
-link_skill "sc-resend"
-link_skill "sc-clerk"
-link_skill "sc-supabase"
-
-# --- Legacy umbrella as /use-si-coder. The in-repo skill is the single source of truth
-# (skills/use-si-coder/SKILL.md). It drives the repo-root scripts/deploy.js, so run that
-# monolith from this checkout (the SKILL.md documents the exact path + env-only secrets).
-link_skill "use-si-coder"
+if [[ "$with_mcp" == "1" ]]; then
+  echo ""
+  echo "🔌 MCP"
+  if [[ "$agent" == "codex" || "$agent" == "all" ]]; then
+    if command -v codex >/dev/null 2>&1; then
+      if codex mcp get si-coder >/dev/null 2>&1; then
+        echo "✅ Codex MCP 'si-coder' already configured"
+      else
+        codex mcp add si-coder -- node "$REPO_DIR/scripts/sc-mcp.js"
+        echo "✅ Registered SI-Coder MCP in Codex"
+      fi
+    else
+      echo "ℹ️ Codex CLI not found. When installed: codex mcp add si-coder -- node '$REPO_DIR/scripts/sc-mcp.js'"
+    fi
+  fi
+  if [[ "$agent" == "claude" || "$agent" == "all" ]]; then
+    echo "ℹ️ Claude plugin mode loads .mcp.json automatically: claude --plugin-dir '$REPO_DIR'"
+    echo "   Standalone skills can register it manually with: claude mcp add --scope user si-coder -- node '$REPO_DIR/scripts/sc-mcp.js'"
+  fi
+fi
 
 echo ""
-echo "✅ done. Available slash commands:"
-echo "   /sc-all          → end-to-end deploy (--target dokploy|hybrid|vercel)"
-echo "   /sc-help         → quick-reference card for the whole sc-* bundle"
-echo "   /sc-dokploy      → Dokploy CRUD/audit/debug"
-echo "   /sc-convex       → Convex self-hosted ops"
-echo "   /sc-convex-cloud → Convex Cloud (managed) deploy"
-echo "   /sc-vercel       → Vercel online frontend deploy"
-echo "   /sc-git          → GitHub repo CRUD + Actions cost reduction"
-echo "   /sc-onboarding   → credential setup wizard"
-echo "   /sc-provider     → provider CRUD + secret-safe agent control plane"
-echo "   /sc-sync         → Tailscale rsync of gitignored files (vps <-> local)"
-echo ""
-echo "Stubs (boilerplate only, scripts exit code 2 until implemented):"
-echo "   /sc-cf           → Cloudflare DNS/Workers/Pages/R2"
-echo "   /sc-stripe       → Stripe products/webhooks/portal"
-echo "   /sc-resend       → Resend domain verify + send"
-echo "   /sc-clerk        → Clerk provisioning (pair with Clerk MCP for code)"
-echo "   /sc-supabase     → Supabase backend alternative"
-echo ""
-echo "Legacy umbrella:"
-echo "   /use-si-coder    → one-shot monolith (runs repo-root scripts/deploy.js; secrets via env only)"
+echo "✅ SI-Coder skills installed for: $agent"
+echo "   /sc-all      → one-prompt deploy; auto VPS or managed route"
+echo "   /sc-provider → secret-safe provider control plane"
+echo "   /sc-install  → portable install guidance"
+echo "   sc deploy plan --target auto --json"
 
-# --- Interactive credential setup ------------------------------------------
-# Offer the wizard right after install so a first-time user goes from clone to
-# configured in one flow. The wizard prints where to get each secret and reads
-# them without echoing. Skipped automatically in CI / piped installs, or with
-# --no-onboard, so `curl … | bash` never blocks on a prompt.
-run_onboarding=1
-[[ "${1:-}" == "--no-onboard" ]] && run_onboarding=0
-[[ -t 0 && -t 1 ]] || run_onboarding=0   # not a TTY → non-interactive install
-
+[[ -t 0 && -t 1 ]] || run_onboarding=0
 if [[ "$run_onboarding" == "1" ]]; then
   echo ""
-  read -r -p "Set up credentials now with the interactive wizard? [Y/n] " _ans
+  read -r -p "Set up credentials now? [Y/n] " _ans
   if [[ ! "$_ans" =~ ^[Nn] ]]; then
     node "$REPO_DIR/bin/sc.js" setup
-  else
-    echo "Skipped. Run it anytime:  node $REPO_DIR/bin/sc.js setup"
   fi
 else
   echo ""
-  echo "Set up credentials when ready:  node $REPO_DIR/bin/sc.js setup"
-  echo "Verify them live with:          node $REPO_DIR/bin/sc.js doctor"
+  echo "Credential setup: sc setup"
+  echo "Provider status : sc providers"
+  echo "Live verification: sc doctor"
 fi

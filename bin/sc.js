@@ -26,6 +26,7 @@ const P = require(path.resolve(__dirname, '../lib/profiles'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
 const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
+const { planDeploy } = require(path.resolve(__dirname, '../lib/deploy-route'));
 const PKG = require(path.resolve(__dirname, '../package.json'));
 
 const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
@@ -830,10 +831,33 @@ async function cmdPreflight(args) {
 }
 
 
+function cmdDeploy(sub, args) {
+  if (!sub || sub === 'plan') {
+    const plan = planDeploy({
+      requestedTarget: args.target || 'auto',
+      env: currentEnv(),
+      composioAvailable: args.composio === true ? true : args['no-composio'] === true ? false : process.env.SC_COMPOSIO_AVAILABLE,
+      vpsAvailable: args.vps === true ? true : args['no-vps'] === true ? false : undefined,
+    });
+    if (args.json || !process.stdout.isTTY) console.log(JSON.stringify(plan, null, 2));
+    else {
+      console.log(`\n🚀 deploy route: ${plan.route} → ${plan.target}`);
+      console.log(`   ${plan.reason}`);
+      console.log(`   ${plan.flow.join(' → ')}`);
+      console.log('\n   provider routing:');
+      for (const p of plan.providerRouting) console.log(`     ${p.provider.padEnd(10)} ${p.backend}`);
+      console.log('');
+    }
+    return;
+  }
+  die(`unknown: deploy ${sub}`);
+}
+
 // Bare `sc` on a terminal opens the console rather than printing a wall of usage. On a pipe
 // it still prints usage, so `sc | head` and scripts behave the way anyone would expect.
 async function cmdMenu() {
   const action = await selectOne('sc — provider + secret control plane', [
+    { id: 'deploy',    label: 'deploy   ', hint: 'auto-route VPS or managed deployment' },
     { id: 'providers', label: 'providers', hint: 'registry + safe credential status' },
     { id: 'secrets',   label: 'secrets  ', hint: 'credential status; values never printed' },
     { id: 'setup',     label: 'setup    ', hint: 'hidden credential entry' },
@@ -846,6 +870,7 @@ async function cmdMenu() {
     { id: 'quit',      label: 'quit     ', hint: '' },
   ]);
   switch (action) {
+    case 'deploy':    return cmdDeploy('plan', {});
     case 'providers': return cmdProvidersList({});
     case 'secrets':   return cmdSecretList(undefined, {});
     case 'setup':     return cmdSetup({});
@@ -871,6 +896,8 @@ sc — si-coder provider console + secret control plane
 
   sc update [--check] [--json]        safe self-update: fetch + fast-forward only
   sc version [--json]                 version, source checkout and git state
+  sc deploy plan [--target auto|vps|managed|dokploy|hybrid|vercel] [--composio] [--json]
+                                      route planner; auto prefers VPS when Dokploy is ready
 
   sc providers [--json]               list built-in + custom providers; never secret values
   sc providers show <id>              provider detail (secret values redacted)
@@ -942,6 +969,7 @@ async function main() {
       if (sub === 'set' || sub === 'put' || sub === 'rotate') return cmdSecretSet(arg, args._[3], args);
       if (sub === 'rm' || sub === 'delete') return cmdSecretRm(arg, args._[3], args);
       return die(`unknown: secret ${sub}`);
+    case 'deploy':    return cmdDeploy(sub, args);
     case 'update':    return cmdUpdate(args);
     case 'version':   return cmdVersion(args);
     case 'audit':     return cmdAudit(args);

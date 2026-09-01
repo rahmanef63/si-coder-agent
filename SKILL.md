@@ -1,157 +1,84 @@
 ---
 name: si-coder
-description: "Zero human involvement full-stack deployment. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-convex-cloud, sc-vercel, sc-git, sc-onboarding, sc-provider) plus the legacy monolithic deploy.js. Two deploy paths share one flow shape: self-hosted (Dokploy app + self-hosted Convex) and online (Vercel frontend + Convex Cloud). The user can invoke /sc-all for end-to-end (--target dokploy|vercel), /sc-convex/-cloud, /sc-vercel, or /sc-dokploy for narrower domain ops, /sc-git for GitHub repo/Actions ops, or /sc-onboarding to set up credentials."
+description: "Portable SI-Coder umbrella for deployment and provider operations. Prefer /sc-all for one-prompt deploys, /sc-provider for secret-safe provider lifecycle, and /sc-install for installing the same Agent Skills/plugin across Claude Code, Codex, Hermes, OpenClaw, or compatible runtimes. Auto-route deploys to VPS/Dokploy when usable, otherwise managed Vercel + Convex Cloud. GitHub deployment identity stays in SC; Vercel/Convex/Hostinger prefer connected Composio tools on the managed route."
 ---
 
-# si-coder-agent — Umbrella
+# SI-Coder umbrella
 
-This is the parent skill for the SI Coder family. After installing (see `install.sh`), the following slash commands are available:
+Use the narrowest SI-Coder skill that satisfies the task:
 
-**Implemented (9):**
-
-| Command | Domain | Purpose |
-|---|---|---|
-| `/sc-all` | Orchestrator | End-to-end full-stack deploy; `--target dokploy` (default, self-hosted) or `--target vercel` (online) |
-| `/sc-dokploy` | Dokploy | CRUD on projects/apps/compose/domains, audit, debug, stale-domain detection |
-| `/sc-convex` | Convex self-hosted | Deploy on Dokploy, rotate admin key, set JWT auth env, probe `api-/site-/dash-` |
-| `/sc-convex-cloud` | Convex Cloud | Managed Convex deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probes `*.convex.cloud` |
-| `/sc-vercel` | Vercel | Online frontend bound to a GitHub repo; build couples Convex Cloud deploy, custom domain/subdomain, Hostinger DNS (CNAME sub / A apex) |
-| `/sc-git` | GitHub | Repo CRUD + Actions cost reduction (audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron) |
-| `/sc-onboarding` | Setup | Guided credential setup; profile-aware with managed `~/.bashrc` fallback |
-| `/sc-provider` | Provider/Secrets | Agent-safe provider CRUD, hidden secret entry, status-only reads, profiles, audit, self-update, MSO function surface |
-| `/sc-sync` | Sync | rsync gitignored files between a VPS and local machine over Tailscale (same repo, mirrored checkout); dry-run first, `--apply` to copy |
-
-### Two deploy paths (same flow shape)
-
-- **(A) Self-hosted** — GitHub → Dokploy app + self-hosted Convex compose → Hostinger A-record → verify. `/sc-all --target dokploy`
-- **(B) Online** — GitHub → Vercel frontend + Convex Cloud backend → Hostinger CNAME/A to Vercel → verify. `/sc-all --target vercel`
-
-```mermaid
-flowchart TD
-    O["/sc-all"] --> G["/sc-git<br/>repo create + push"]
-    G --> T{"--target?"}
-    T -->|dokploy| H1["/sc-dokploy<br/>project · app · compose · domains"]
-    H1 --> C1["/sc-convex<br/>self-hosted backend + admin key + JWT"]
-    C1 --> D1["Hostinger A → VPS"]
-    T -->|vercel| H2["/sc-convex-cloud<br/>managed backend (coupled build)"]
-    H2 --> C2["/sc-vercel<br/>GitHub-bound project + domain"]
-    C2 --> D2["Hostinger CNAME / A → Vercel"]
-    D1 --> V["verify live URL"]
-    D2 --> V
-    SY["/sc-sync<br/>aux · rsync gitignored files<br/>between VPS and local (out-of-band)"]
-```
-
-**Provider-specific skill stubs:** `/sc-stripe` (payments), `/sc-resend` (full email/domain automation), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt). Cloudflare is implemented. Resend credentials and Composio project API keys are already managed/verified by the `sc` provider console.
-
-The **legacy `/use-si-coder`** continues to work in parallel — it runs the monolithic `scripts/deploy.js` which still bundles GitHub + Dokploy + Convex + Hostinger DNS.
-
-## Why modular?
-
-- **Surgical ops** — change a Convex admin key without re-deploying the world
-- **Discoverable** — `/sc-dokploy` makes Dokploy CRUD a first-class skill, not buried inside deploy.js
-- **Composable** — `/sc-all` is the only consumer that pulls everything together
-- **Provider control plane** — `/sc-provider` lets agents CRUD provider metadata/status without receiving plaintext credentials; secret entry stays in hidden terminal/local trusted channels
-- **Onboarding-aware** — `/sc-onboarding` knows which `/sc-*` you ticked and asks for only what's missing
-
-## CORE MANDATES (shared)
-
-These apply across every sub-skill:
-
-1. **Self-Hosted Convex by default**: never silently swap to Clerk. Use `@convex-dev/auth`.
-2. **`convex/_generated` is committed**: don't run codegen inside Dockerfile.
-3. **`npm install --yes --legacy-peer-deps`** — no interactive prompts.
-4. **Idempotency**: duplicate domain creation = no-op, not error.
-5. **Admin key sync rule**: Dokploy compose env + repo env file always match.
-6. **Preserve your Dokploy control host** (the one in `DOKPLOY_API_URL`) — never rewrite it inside scripts.
-7. **Clerk MCP for Clerk apps**: if target uses Clerk, preserve it; use Clerk MCP (`clerk` at `https://mcp.clerk.com/mcp`).
-8. **Exact cloning**: if user wants a clone of an existing site, fetch and replicate layout, not a generic dashboard.
-
-## Output styles (optional)
-
-Owner-selectable token-savers that trim how much the agent *says*, never what a skill *does*.
-Set `SC_OUTPUT_STYLE` before running any `sc-*` skill:
-
-| `SC_OUTPUT_STYLE` | The agent should… |
+| Intent | Skill |
 |---|---|
-| `off` (default) | use normal phrasing |
-| `caveman` | be terse — drop articles/filler/pleasantries, fragments OK — while keeping **all** technical substance and exact code/errors verbatim |
-| `ponytail` | act as a lazy senior dev — the shortest solution that works, no unrequested abstractions, code first, then ≤3 short lines of explanation |
+| "deploy/ship this app" | `/sc-all` |
+| provider/API key/secret lifecycle | `/sc-provider` |
+| install skills/plugin/MCP in another agent | `/sc-install` |
+| GitHub operations | `/sc-git` |
+| Dokploy-only operations | `/sc-dokploy` |
+| Convex self-hosted | `/sc-convex` |
+| Convex Cloud | `/sc-convex-cloud` |
+| Vercel-only operations | `/sc-vercel` |
+| first-time local SC credential setup | `/sc-onboarding` |
 
-When `SC_OUTPUT_STYLE` is `caveman` or `ponytail`, adopt that style for all `sc-*` output. An
-unknown/empty value means `off`. This only affects phrasing — every mandate above still holds.
-Full text + a resolver CLI live in `references/output-styles.md` and `lib/output-styles.js`
-(ported from the MSO project's `OsConfig.tokenSaver`).
+## Default deploy behavior
 
-## Repo layout
+Do not require the user to choose infrastructure terminology first.
 
-```
-si-coder-agent/
-├── SKILL.md           ← this file
-├── README.md
-├── .env.example
-├── install.sh         ← symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
-├── lib/               ← shared modules
-│   ├── dokploy.js     ← Dokploy REST
-│   ├── hostinger.js   ← Hostinger DNS (A/CNAME)
-│   ├── convex.js      ← Convex self-hosted (Dokploy compose)
-│   ├── convex-cloud.js← Convex Cloud (managed) deploy
-│   ├── vercel.js      ← Vercel projects/domains/deploys
-│   ├── proc.js        ← no-shell execFileSync process runner
-│   ├── tls.js         ← TLS verification helpers (always on)
-│   └── env.js         ← env scan + ~/.bashrc merge writer
-├── skills/
-│   ├── sc-all/SKILL.md
-│   ├── sc-dokploy/{SKILL.md, scripts/}
-│   ├── sc-convex/{SKILL.md, scripts/}
-│   ├── sc-convex-cloud/{SKILL.md, scripts/}
-│   ├── sc-vercel/{SKILL.md, scripts/}
-│   ├── sc-git/{SKILL.md, scripts/}
-│   ├── sc-onboarding/{SKILL.md, scripts/, steps/}
-│   ├── sc-provider/SKILL.md
-│   └── sc-sync/{SKILL.md, scripts/}
-├── scripts/
-│   └── deploy.js      ← legacy monolith, still functional
-└── bin/
-    └── onboard.js     ← one-shot CLI wizard (no AI needed)
-```
+1. Inspect the repo and current provider capability.
+2. Run/derive `sc deploy plan --target auto`.
+3. If a usable VPS/Dokploy control plane exists → VPS route.
+4. Otherwise → managed Vercel + Convex Cloud route.
+5. GitHub repo creation/push uses **SC** on both routes.
+6. On the managed route, use connected **Composio Vercel/Convex/Hostinger** tools when available; otherwise fall back to SC-managed provider credentials/sub-skills.
+7. Configure the requested custom domain and verify production end-to-end.
 
-## Security posture (hardened 2026-06-14)
+Read `skills/sc-all/SKILL.md` for the full orchestration contract.
 
-All `sc-*` skills: no-shell `execFileSync` (no command injection), TLS verification always on, no secrets in logs / build-args / git-URLs, `~/.bashrc` writes single-quote escaped. Requires **Node >=18** (native `fetch`), no runtime deps, CommonJS. Legacy one-shot `scripts/deploy.js` remains available.
+## Secret boundary
 
-## Deployment profile (placeholders only)
+Never ask the user to paste a secret into chat or MCP JSON.
 
-```bash
-# GitHub
-GITHUB_TOKEN=ghp_<your_token>
+- Agent reads provider/credential **status**, not plaintext.
+- New/rotated local secret → `sc secret set <provider> <KEY>` hidden-terminal handoff.
+- Connected provider → initiate the provider's secure connection/auth flow.
+- Consumer command → `sc run -- <command>`.
+- `sc env` is intentionally disabled.
+- GitHub deployment identity remains SC-direct; never silently change it to a different connected GitHub account.
 
-# Dokploy
-DOKPLOY_API_URL=https://<your-dokploy-host>/api
-DOKPLOY_API_KEY=<your_dokploy_api_key>
+Read `skills/sc-provider/SKILL.md` and `references/provider-routing.md`.
 
-# Hostinger DNS (optional)
-HOSTINGER_API_TOKEN=<your_hostinger_token>
+## Portability
 
-# Clerk (only for explicitly-Clerk apps)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_<clerk_publishable_key>
-CLERK_SECRET_KEY=sk_live_<clerk_secret_key>
-NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://<clerk-issuer-domain>
+The repository's `skills/` directory is the Agent Skills SSOT. Do not maintain Claude/Codex/Hermes-specific copies.
 
-# Convex self-hosted (filled in by deploy)
-CONVEX_SELF_HOSTED_URL=https://<convex-api-domain>
-CONVEX_SELF_HOSTED_ADMIN_KEY=<convex_admin_key>
-NEXT_PUBLIC_CONVEX_URL=https://<convex-api-domain>
-NEXT_PUBLIC_CONVEX_SITE_URL=https://<convex-site-domain>
-```
+- Claude Code plugin: `.claude-plugin/plugin.json` + `.mcp.json` + `skills/`.
+- Codex/global Agent Skills: installer links to `~/.agents/skills`.
+- Claude standalone: `~/.claude/skills`.
+- Hermes/OpenClaw/custom directories are installer targets over the same skill folders.
 
-Never store real keys or live hostnames inside skill examples or agent instructions — always placeholders.
+Read `skills/sc-install/SKILL.md`.
 
-## Existing domain vs public-IP fallback
+## Proactive next action
 
-For a port-exposed managed service or webapp that can run without DNS, domain configuration is an enhancement, not an install dependency:
+After completing a meaningful milestone, offer exactly **one** relevant next action.
 
-1. If the deployment/app already has a canonical domain and its DNS/TLS route is configured, **preserve and prefer that domain for browser/UI access**. Never replace a working existing domain with a newly invented subdomain.
-2. If no domain is configured, do not block a healthy install solely for DNS. Keep the declared public port reachable on the server public IP when the app's security model allows it, and report `http://<public-ip>:<port>` as the fallback.
-3. When both exist, the domain is the primary UI/embedded origin; public IP is fallback/diagnostic only.
-4. Domain provider automation runs only for an explicit desired domain or an existing project domain that needs repair. Missing Hostinger/Cloudflare credentials must not cause an unrelated port-based runtime install to fail.
-5. Existing-domain creation errors are idempotent no-ops. Do not delete or recreate a working route merely to make the automation own it.
+The offer should contain:
+
+1. why it matters,
+2. prerequisites,
+3. a simple opt-in question.
+
+If accepted, provide the secure connection link or terminal handoff and continue. Do not dump a generic upsell list, repeatedly suggest configured services, or imply the user must accept.
+
+Typical progression when relevant:
+
+`deploy → email → auth/account flows → observability → backups → CI/release hardening`
+
+## Core engineering mandates
+
+- Preserve existing project architecture unless a migration was requested.
+- Prefer idempotent create-or-reuse behavior.
+- Never overwrite a working canonical domain with an invented one.
+- Never persist PATs in Git URLs.
+- Never expose secrets in logs/build args/tool schemas.
+- For Convex projects, preserve the project's intended auth/backend model rather than silently replacing it.
+- Verify the final public result, not just the API side effects.
