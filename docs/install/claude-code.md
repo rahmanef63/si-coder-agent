@@ -21,8 +21,8 @@ Then start with:
 
 Claude Code skills use a directory containing `SKILL.md`. The full plugin marketplace route above is preferred for SI-Coder, but the canonical main skill source is:
 
-- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.10/skills/sc)
-- [raw skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.10/skills/sc/SKILL.md)
+- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.11/skills/sc)
+- [raw skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.11/skills/sc/SKILL.md)
 
 Do not use `sc.zip` or `sc.skill` for the normal Claude Code plugin installation. Those are archive artifacts for upload/package workflows.
 
@@ -55,7 +55,7 @@ Local Claude Code can use your own server or the easiest managed route. If that 
 
 ## Account access
 
-When a provider credential is genuinely required locally, SI-Coder gives the official creation page and a secure `sc secret set ...` handoff. Do not paste raw provider keys into chat.
+When provider access is required locally, SI-Coder first chooses/creates a labeled connection and shows the official auth/credential page. OAuth stays in the external connected-account flow; direct keys use `sc user credential-set ... --connection <alias>` with hidden input. Do not paste raw provider keys into chat.
 
 Verify local provider access with:
 

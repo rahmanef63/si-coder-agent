@@ -88,7 +88,7 @@ test('SCP-8: Resend and Composio are credential-ready providers, not setup stubs
   const composio = PROVIDERS.find(p => p.id === 'composio');
   assert.strictEqual(resend?.status, 'implemented');
   assert.strictEqual(composio?.status, 'implemented');
-  assert.deepStrictEqual(composio?.vars.map(v => v.key), ['COMPOSIO_API_KEY']);
+  assert.deepStrictEqual(composio?.vars.map(v => v.key), ['COMPOSIO_API_KEY', 'COMPOSIO_ORG_API_KEY']);
 });
 
 
@@ -253,7 +253,8 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(sc, /Esc\/Left at Home intentionally does not close the CLI/);
   assert.match(sc, /users\/user:/, 'user must be the first identity layer');
   assert.match(sc, /providers\/provider:/, 'providers must live under a selected user');
-  assert.match(sc, /credentials\/credential:/, 'individual credentials must live under a user/provider path');
+  assert.match(sc, /connections\/connection:/, 'provider credentials must be grouped into named connections');
+  assert.match(sc, /credentials\/credential:/, 'individual credentials must live under a user/provider/connection path');
   assert.match(sc, /UC\.previewForProvider/, 'provider rows must preview the explicitly selected user');
   assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
@@ -364,7 +365,7 @@ test('SCC-8: profile ownership is configurable from the CLI without exposing cre
   assert.match(shown, /values hidden/);
   const listed = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user'],
     { encoding: 'utf8', env, timeout: 20000 });
-  assert.match(listed, /alpha\s+0 credential\(s\)/);
+  assert.match(listed, /alpha\s+0 connection\(s\).*0 field\(s\)/);
   assert.match(listed, /ownership\s+:/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -398,4 +399,23 @@ test('SCC-9: user duplicate + user-scoped credential CRUD never exposes plaintex
   assert.match(guide, /sc user credential-set target github GITHUB_TOKEN/, 'user-scoped guidance must never fall back to the current-folder credential store');
   assert.doesNotMatch(guide, new RegExp(token));
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCP-11: Composio doctor distinguishes organization token x-org-api-key from project x-api-key', async () => {
+  const composio = PROVIDERS.find(p => p.id === 'composio');
+  const originalFetch = global.fetch;
+  let seen;
+  global.fetch = async (url, options = {}) => {
+    seen = { url: String(url), options };
+    return new Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const result = await composio.check({ COMPOSIO_ORG_API_KEY: 'organization-token-value-1234' });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(seen.url, 'https://backend.composio.dev/api/v3.1/org/project/list');
+    assert.strictEqual(seen.options.headers['x-org-api-key'], 'organization-token-value-1234');
+    assert.ok(!('x-api-key' in seen.options.headers));
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

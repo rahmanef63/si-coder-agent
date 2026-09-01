@@ -26,33 +26,81 @@ The footer is fixed-height as well: `PREVIEW` shows the highlighted item, while 
 
 ```text
 SECTIONS   [ Users ]   Build   Providers   System
-PATH       SI-Coder › Users › rahmanfakh › Providers › GitHub › Credentials › GITHUB_TOKEN
+PATH       SI-Coder › Users › rahmanfakhr › Providers › convex-cloud › Connections › Project A
 
-Users                 │ rahmanfakh             │ Providers               │ GitHub
-❯ › rahmanef          │ ❯ › Providers          │ ❯ › github              │ ❯ › Credentials
-  › rahmanfakh        │   · Credential overview│   › hostinger           │   · Provider details
-  › rahmnf            │   · Set as default     │   › dokploy             │   · Verify as this user
-  · Add user          │   · Duplicate user     │   › vercel              │   · Set / rotate provider
+Users                 │ rahmanfakhr            │ Providers               │ convex-cloud
+❯ › rahmanef          │ ❯ › Providers          │   › github              │ ❯ › Connections
+  › rahmanfakhr       │   · Credential overview│ ❯ › convex-cloud        │   › Add connection
+  › rahmnf            │   · Set as default     │   › hostinger           │   · Provider details
+  · Add user          │   · Duplicate user     │   › vercel              │   · Verify default connection
 ```
 
-Credentials are intentionally **not** edited from a global Accounts screen. Select a user first so the owner is always visible in `PATH`.
+Deeper layers slide the oldest column out while preserving the four-column grid:
+
+```text
+Providers → convex-cloud → Connections → Project A
+                                       → Admin
+```
+
+Credentials are intentionally **not** edited from a global Accounts screen. Select a user, provider, and named connection first so ownership and scope are always visible in `PATH`.
 
 The bottom panel is selection-driven:
 
-- `PREVIEW` always describes the item currently highlighted, using the explicit user in the Finder path.
-- `RESULT` is temporary action output. It disappears as soon as the selection/filter changes, so stale provider output cannot look like the currently selected provider.
+- `PREVIEW` always describes the highlighted user/provider/connection/credential.
+- `RESULT` is temporary action output and disappears after navigation.
 
-## User model
+## User → provider → connection model
 
-Internally, the existing profile files remain the credential-store implementation for backward compatibility, but the product/UI concept is a **user**:
+The product model is:
 
 ```text
-~/.config/si-coder/profiles/<user>.env   # that user's credentials, mode 0600
-~/.config/si-coder/profile-meta.json     # non-secret user metadata, mode 0600
-~/.config/si-coder/sc.md                 # default user + folder → user rules
+User
+└─ Provider
+   ├─ Connection: Work GitHub
+   ├─ Connection: Personal GitHub
+   └─ Connection: Client A Production
+      └─ credential fields
 ```
 
-When a user governs the current directory, registry credential keys not owned by that user are stripped from the child environment. This prevents a stale GitHub/Hostinger/Dokploy token from another user leaking into a deployment.
+A connection has a **label**, immutable internal id/alias, auth method, scope, default flag, and its own isolated secret file. Labels must be unique within one user+provider.
+
+```text
+~/.config/si-coder/connections.json                         # non-secret metadata, 0600
+~/.config/si-coder/connections/<user>/<provider>/<id>.env  # one connection's values, 0600
+~/.config/si-coder/profiles/<user>.env                     # legacy compatibility store
+~/.config/si-coder/profile-meta.json                       # user metadata
+~/.config/si-coder/sc.md                                   # default user + folder → user rules
+```
+
+Only the selected/default connection for each provider is injected into a child process. Fields from two different provider connections are never merged together. Registry credentials not owned by the selected user/connection are stripped from the child environment.
+
+### Connection CRUD
+
+```bash
+sc user connections rahmanfakhr convex-cloud
+
+sc user connection-add rahmanfakhr convex-cloud "Convex Admin" \
+  --auth personal-access-token --default
+
+sc user connection-add rahmanfakhr convex-cloud "Client A Production" \
+  --auth deployment-key
+
+sc user connection-use rahmanfakhr convex-cloud client-a-production
+sc user connection-label rahmanfakhr convex-cloud client-a-production "Client A Prod"
+sc user connection-rm rahmanfakhr convex-cloud client-a-production
+```
+
+Use `sc user connection-migrate <user> [provider]` to move legacy profile values into named connections locally. Migration does not print the values.
+
+### One-shot explicit connection selection
+
+The stored default does not have to change for one operation:
+
+```bash
+sc run --connection github=work,convex-cloud=client-a-production -- <command>
+```
+
+This mirrors explicit account selection in multi-account agent systems: the override is used only for that child process.
 
 ## Duplicate and rename users
 
@@ -88,42 +136,47 @@ sc user import rahmanef --yes
 
 Import is non-destructive by default: existing credentials already stored in the user win. Use `--overwrite` only when intentionally replacing them.
 
-## Credential CRUD per user
+## Credential CRUD per connection
 
 Read/list status; values are never printed:
 
 ```bash
-sc user credentials rahmanfakh
-sc user credentials rahmanfakh github
-sc user credential-status rahmanfakh github GITHUB_TOKEN
+sc user credentials rahmanfakhr convex-cloud
+sc user credentials rahmanfakhr convex-cloud --connection client-a-production
+sc user credential-status rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-a-production
 ```
 
-Create or update one credential:
+Create or update one field:
 
 ```bash
-sc user credential-set rahmanfakh github GITHUB_TOKEN
+sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOYMENT_NAME --connection client-a-production
+sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-a-production
 ```
 
-On a TTY the input is hidden. Scripted use must use a safe input source such as stdin/env/file; never put a secret in argv.
+On a TTY secret input is hidden. Scripted trusted-local use may use stdin/env/file, but the value must never be put in argv or agent JSON.
 
-Delete one credential:
+Delete one field:
 
 ```bash
-sc user credential-rm rahmanfakh github GITHUB_TOKEN --yes
+sc user credential-rm rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY \
+  --connection client-a-production --yes
 ```
 
 The Finder path for the same operation is:
 
 ```text
 Users
-→ rahmanfakh
+→ rahmanfakhr
 → Providers
-→ GitHub
+→ convex-cloud
+→ Connections
+→ Client A Production
 → Credentials
-→ GITHUB_TOKEN
+→ CONVEX_DEPLOY_KEY
 → Status / Set or Rotate / Remove
 ```
 
+OAuth/external connections intentionally have no local credential editor. Their connection menu shows an authorization guide instead.
 
 ## Where to get each credential
 
@@ -132,7 +185,7 @@ Before SI-Coder opens hidden input, the selected credential shows the same sourc
 ```text
 INFO     Set credential — hidden input stored only under rahmanfakhr
 PREVIEW
-user rahmanfakhr › github › GITHUB_TOKEN
+user rahmanfakhr › github › Work GitHub › GITHUB_TOKEN
 state: missing · plaintext read disabled
 open: https://github.com/settings/tokens/new
 click: Open the token page → Set a note/name → Choose expiration → Enable repo scope → Generate token → Copy it now
@@ -140,7 +193,7 @@ click: Open the token page → Set a note/name → Choose expiration → Enable 
 
 Pressing **Enter** repeats the reference URL and navigation path before the hidden `value:` prompt. Credentials generated locally use `get with:` instead of a URL; generated-at-deploy values explain that they should normally be left blank.
 
-The source metadata is defined once in `lib/providers.js` (`url`/`cmd`, `navigation[]`, `note`) and rendered by `lib/credential-guidance.js`. Tool-calling returns the same fields as `referenceUrl`, `createCommand`, `navigation`, and `navigationText`.
+The source/auth metadata is defined once in `lib/providers.js` (`auth[]`, `url`/`cmd`, `navigation[]`, `note`) and rendered by `lib/credential-guidance.js`. Tool-calling returns the same fields as `referenceUrl`, `createCommand`, `navigation`, and `navigationText`.
 
 ## Delete a user safely
 
@@ -156,7 +209,7 @@ Machine/tool calling requires an explicit `confirm: true` on `sc.user.delete`.
 
 The Finder hierarchy has a matching secret-safe machine surface. MSO reads `.mso/functions.json`; the bundled `scripts/sc-mcp.js` exposes the same tools to Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
 
-Prefer `sc.user.*` tools so ownership is always explicit. Credential creation/rotation uses `sc.user.credential.request`; no MCP/function accepts a raw token/key/password value.
+Prefer `sc.user.*` tools so ownership is always explicit. Agents use `sc.user.connections.list`, `sc.user.connection.manage`, and `sc.user.connection.request` for labeled accounts; credential creation/rotation uses `sc.user.credential.request` with an optional `connection`. No MCP/function accepts a raw token/key/password value.
 
 See [`tool-calling.md`](tool-calling.md).
 
@@ -184,7 +237,7 @@ sc user which
 
 The UI may show user names, provider names, credential key names, state, and source. It must never print credential values.
 
-Use `sc run -- <command>` to inject the resolved user's credentials into a child process without exporting plaintext back into the parent terminal.
+Use `sc run [--connection provider=alias] -- <command>` to inject the resolved user's selected connections into a child process without exporting plaintext back into the parent terminal.
 
 ## Non-interactive behavior
 

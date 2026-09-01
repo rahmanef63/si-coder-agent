@@ -21,7 +21,7 @@ Hosted deployments use Composio connected accounts for all deployment providers:
 - Vercel
 - Hostinger
 
-There is no local SC/Git identity to preserve in this mode. The agent should discover the toolkit actions, ensure the correct account is connected, execute the flow, and keep provider credentials inside Composio.
+There is no local SC/Git identity to preserve in this mode. The agent should discover toolkit actions, ensure the correct **labeled connected account** is active, explicitly select its alias when several accounts exist, execute the flow, and keep provider credentials inside Composio.
 
 If Composio is unavailable, stop at a secure connection/enablement step. Never ask the user to paste provider API keys into chat and never pretend a local SC vault exists.
 
@@ -41,7 +41,7 @@ When connected, prefer Composio for:
 - Convex Cloud control-plane operations,
 - Hostinger domain/DNS operations.
 
-Fallback to SC-managed credentials only because a local SC runtime exists and can safely own that secret boundary.
+Fallback to SC-managed credentials only because a local runtime can safely own that boundary. The fallback must use a labeled SI-Coder connection and explicit scope; do not merge account/project credentials into one profile blob.
 
 ## Rule 4 — local VPS keeps VPS control in SC
 
@@ -51,8 +51,8 @@ Dokploy credentials stay in SC. Self-hosted Convex runs under the VPS/Dokploy pa
 
 If a host provides Composio natively, use its secure connection flow. Do not duplicate provider secrets into SC.
 
-`COMPOSIO_API_KEY` belongs in SC only when a local runtime actually needs to call Composio by API key. Never pass it through chat/tool JSON.
+A local runtime may use a named **project** connection containing `COMPOSIO_API_KEY` (`x-api-key`) or, only for cross-project administration, a distinct **organization** connection containing `COMPOSIO_ORG_API_KEY` (`x-org-api-key`). Prefer scoped project keys. Never pass either value through chat/tool JSON.
 
 ## Convex boundary
 
-Do not expose a newly created Convex deploy key to the model just to copy it elsewhere. Prefer connected-account operations or a server-side credential handoff. On local fallback, keep the deploy key inside SC/local CI and consume it through `sc run` or another non-printing path.
+Do not expose a newly created Convex deploy key to the model just to copy it elsewhere. Prefer connected-account operations or a server-side credential handoff. On local fallback, store deployment access as a labeled `convex-cloud` deployment connection (`CONVEX_DEPLOYMENT_NAME` + `CONVEX_DEPLOY_KEY`) and consume it through `sc run --connection convex-cloud=<alias> -- ...` or another non-printing path. Keep account-level Convex Bearer/PAT connections separate.

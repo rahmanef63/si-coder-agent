@@ -104,7 +104,10 @@ test('SCCP-5: MSO agent adapter has no plaintext secret input and returns only s
     const props = Object.keys(fn.inputSchema?.properties || {});
     assert.ok(!props.some(k => forbidden.test(k)), `${fn.name} exposes a plaintext-secret-shaped input field`);
   }
-  assert.ok(manifest.functions.some(fn => fn.name === 'sc.secret.request'));
+  for (const name of ['sc.user.connections.list', 'sc.user.connection.manage', 'sc.user.connection.request']) {
+    assert.ok(manifest.functions.some(fn => fn.name === name), `${name} must be exposed to agents`);
+  }
+  assert.ok(!manifest.functions.some(fn => fn.name === 'sc.secret.request'), 'MCP must prefer explicit user/connection ownership over cwd-dependent secret tools');
   assert.ok(!manifest.functions.some(fn => /secret\.(set|put|rotate)/.test(fn.name)), 'agent surface must not accept secret creation values');
 
   const dir = tmp();
@@ -113,15 +116,18 @@ test('SCCP-5: MSO agent adapter has no plaintext secret input and returns only s
   fs.mkdirSync(home, { recursive: true });
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
   run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys'], { env });
-  const r = spawnSync(process.execPath, [AGENT, 'secret.request'], {
-    cwd: ROOT, env, input: JSON.stringify({ provider: 'demo', key: 'DEMO_API_KEY' }), encoding: 'utf8',
+  run(['user', 'add', 'agent'], { env });
+  let r = spawnSync(process.execPath, [AGENT, 'user.connection.manage'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'demo', action: 'create', label: 'Work', authMethod: 'direct', confirm: true }), encoding: 'utf8',
   });
   assert.strictEqual(r.status, 0, r.stderr);
-  assert.match(r.stdout, /requiresUserTerminal/);
-  assert.match(r.stdout, /sc secret set demo DEMO_API_KEY/);
+  r = spawnSync(process.execPath, [AGENT, 'user.connection.request'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'demo', connection: 'work' }), encoding: 'utf8',
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
   assert.match(r.stdout, /https:\/\/example\.com\/api-keys/);
-  assert.match(r.stdout, /saveDestination/);
-  assert.match(r.stdout, /\[rekomendasi\]/);
+  assert.match(r.stdout, /sc user credential-set agent demo DEMO_API_KEY --connection work/);
+  assert.match(r.stdout, /Never send provider credentials/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -289,5 +295,104 @@ test('SCCP-12: user credential request exposes source URL/navigation but never a
   assert.strictEqual(out.requiresUserTerminal, true);
   assert.match(out.command, /sc user credential-set alpha github GITHUB_TOKEN/);
   assert.doesNotMatch(r.stdout, /ghp_[A-Za-z0-9]/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-13: sc run can select one non-default named connection without changing the stored default', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys', '--prefix', 'demo_'], { env });
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'demo', 'Primary', '--auth', 'direct', '--default'], { env });
+  run(['user', 'connection-add', 'agent', 'demo', 'Secondary', '--auth', 'direct'], { env });
+  run(['user', 'credential-set', 'agent', 'demo', 'DEMO_API_KEY', '--connection', 'primary', '--stdin'], { env, input: 'demo_primary_value' });
+  run(['user', 'credential-set', 'agent', 'demo', 'DEMO_API_KEY', '--connection', 'secondary', '--stdin'], { env, input: 'demo_secondary_value' });
+
+  const defaultOut = run(['run', '--', process.execPath, '-e', 'process.stdout.write(process.env.DEMO_API_KEY === "demo_primary_value" ? "primary" : "wrong")'], { env });
+  assert.match(defaultOut, /primary/);
+  assert.doesNotMatch(defaultOut, /demo_(primary|secondary)_value/);
+
+  const overrideOut = run(['run', '--connection', 'demo=secondary', '--', process.execPath, '-e', 'process.stdout.write(process.env.DEMO_API_KEY === "demo_secondary_value" ? "secondary" : "wrong")'], { env });
+  assert.match(overrideOut, /secondary/);
+  assert.doesNotMatch(overrideOut, /demo_(primary|secondary)_value/);
+
+  const list = JSON.parse(spawnSync(process.execPath, [AGENT, 'user.connections.list'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'demo' }), encoding: 'utf8',
+  }).stdout);
+  assert.strictEqual(list.connections.find(c => c.id === 'primary').isDefault, true, 'one-shot override must not mutate default connection');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-14: deleting custom provider or key purges named-connection values too', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/api-keys'], { env });
+  run(['providers', 'key-add', 'demo', 'DEMO_ACCOUNT_ID', '--public', '--note', 'account id'], { env });
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'demo', 'Work', '--auth', 'direct', '--default'], { env });
+  run(['user', 'credential-set', 'agent', 'demo', 'DEMO_API_KEY', '--connection', 'work', '--stdin'], { env, input: 'demo_connection_private' });
+  run(['user', 'credential-set', 'agent', 'demo', 'DEMO_ACCOUNT_ID', '--connection', 'work', '--stdin'], { env, input: 'acct_public' });
+
+  run(['providers', 'key-rm', 'demo', 'DEMO_ACCOUNT_ID', '--yes'], { env });
+  let list = JSON.parse(spawnSync(process.execPath, [AGENT, 'user.connections.list'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'demo' }), encoding: 'utf8',
+  }).stdout);
+  assert.deepStrictEqual(list.connections[0].credentials.map(c => c.key), ['DEMO_API_KEY']);
+
+  const del = run(['providers', 'delete', 'demo', '--yes'], { env });
+  assert.doesNotMatch(del, /demo_connection_private/);
+  const meta = path.join(config, 'connections.json');
+  if (fs.existsSync(meta)) assert.doesNotMatch(fs.readFileSync(meta, 'utf8'), /"demo"\s*:/);
+  assert.ok(!fs.existsSync(path.join(config, 'connections', 'agent', 'demo')), 'provider connection directory should be removed');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-15: external OAuth connection request returns alias-based managed-auth handoff without token fields', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['user', 'add', 'agent'], { env });
+  const call = (action, input) => spawnSync(process.execPath, [AGENT, action], {
+    cwd: ROOT, env, input: JSON.stringify(input), encoding: 'utf8', timeout: 20000,
+  });
+  let r = call('user.connection.manage', { user: 'agent', provider: 'github', action: 'create', label: 'Work GitHub', authMethod: 'oauth2', confirm: true });
+  assert.strictEqual(r.status, 0, r.stderr);
+  r = call('user.connection.request', { user: 'agent', provider: 'github', connection: 'work-github' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const j = JSON.parse(r.stdout);
+  assert.strictEqual(j.connection.external, true);
+  assert.strictEqual(j.managedConnectionAction.toolkit, 'github');
+  assert.strictEqual(j.managedConnectionAction.alias, 'work-github');
+  assert.strictEqual(j.managedConnectionAction.requireExplicitSelectionWhenMultiple, true);
+  assert.match(j.managedConnectionAction.strategy, /composio-session-authorize/);
+  assert.deepStrictEqual(j.fields, []);
+  assert.doesNotMatch(r.stdout, /access_token|refresh_token|oauth_token/i);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-16: custom provider acquisition navigation survives metadata -> connection request', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['providers', 'create', 'demo', '--key', 'DEMO_API_KEY', '--url', 'https://example.com/settings', '--navigation', 'Settings > API Keys > Create'], { env });
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'demo', 'Demo Prod', '--auth', 'direct'], { env });
+  const r = spawnSync(process.execPath, [AGENT, 'user.connection.request'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'demo', connection: 'demo-prod' }), encoding: 'utf8', timeout: 20000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const j = JSON.parse(r.stdout);
+  assert.strictEqual(j.fields[0].referenceUrl, 'https://example.com/settings');
+  assert.deepStrictEqual(j.fields[0].navigation, ['Settings', 'API Keys', 'Create']);
   fs.rmSync(dir, { recursive: true, force: true });
 });

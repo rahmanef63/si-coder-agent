@@ -10,6 +10,8 @@ process.env.SC_CONFIG_DIR = SANDBOX;
 const test = require('node:test');
 const assert = require('node:assert');
 const P = require('../lib/profiles');
+const C = require('../lib/connections');
+const { PROVIDERS } = require('../lib/providers');
 
 test.after(() => fs.rmSync(SANDBOX, { recursive: true, force: true }));
 
@@ -183,4 +185,71 @@ test('PRF-15: importProfileFromEnv imports only registry credentials and does no
   assert.strictEqual(P.readProfile('import-user').NOT_A_PROVIDER_SECRET, undefined);
   P.importProfileFromEnv('import-user', { GITHUB_TOKEN: 'replacement' }, { overwrite: true });
   assert.strictEqual(P.readProfile('import-user').GITHUB_TOKEN, 'replacement');
+});
+
+
+test('PRF-16: one user can own multiple labeled provider connections and select one atomically', () => {
+  P.writeProfile('multi', {});
+  C.create('multi', 'github', { id: 'work', label: 'Work GitHub', authMethod: 'personal-access-token', scope: 'account', setDefault: true });
+  C.create('multi', 'github', { id: 'personal', label: 'Personal GitHub', authMethod: 'personal-access-token', scope: 'account' });
+  C.writeValues('multi', 'github', 'work', { GITHUB_TOKEN: 'work-private', GH_OWNER: 'work-owner' });
+  C.writeValues('multi', 'github', 'personal', { GITHUB_TOKEN: 'personal-private', GH_OWNER: 'personal-owner' });
+  let resolved = P.loadEnvForProfile('multi', { shellRcEnv: { GITHUB_TOKEN: 'stale-shell' } });
+  assert.strictEqual(resolved.env.GH_OWNER, 'work-owner');
+  assert.strictEqual(resolved.env.GITHUB_TOKEN, 'work-private');
+  assert.strictEqual(resolved.selectedConnections.github.id, 'work');
+  C.setDefault('multi', 'github', 'personal');
+  resolved = P.loadEnvForProfile('multi', { shellRcEnv: { GITHUB_TOKEN: 'stale-shell' } });
+  assert.strictEqual(resolved.env.GH_OWNER, 'personal-owner');
+  assert.strictEqual(resolved.env.GITHUB_TOKEN, 'personal-private');
+  assert.strictEqual(resolved.selectedConnections.github.id, 'personal');
+  assert.throws(() => C.create('multi', 'github', { label: 'Personal GitHub', authMethod: 'personal-access-token' }), /label.*already exists/);
+  assert.strictEqual(fs.statSync(C.connectionPath('multi', 'github', 'personal')).mode & 0o777, 0o600);
+});
+
+test('PRF-17: explicit connection override selects a non-default account without changing the default', () => {
+  const resolved = P.loadEnvForProfile('multi', { connectionOverrides: { github: 'work' } });
+  assert.strictEqual(resolved.env.GH_OWNER, 'work-owner');
+  assert.strictEqual(resolved.selectedConnections.github.id, 'work');
+  assert.strictEqual(C.selected('multi', 'github').id, 'personal', 'override must not mutate the stored default');
+});
+
+test('PRF-18: legacy Convex deploy credentials migrate into one named deployment connection without plaintext output dependency', () => {
+  const key = 'prod:acoustic-panther-728|' + 'x'.repeat(48);
+  P.writeProfile('convex-legacy', { CONVEX_DEPLOY_KEY: key });
+  const result = C.migrateLegacy('convex-legacy', P.readProfile('convex-legacy'), PROVIDERS, {
+    removeLegacy: keys => P.removeFromProfile('convex-legacy', keys),
+  });
+  assert.deepStrictEqual(result.migratedKeys, ['CONVEX_DEPLOY_KEY']);
+  const row = C.get('convex-legacy', 'convex-cloud', 'default');
+  assert.strictEqual(row.authMethod, 'deployment-key');
+  assert.strictEqual(row.scope, 'deployment');
+  const values = C.readValues('convex-legacy', 'convex-cloud', 'default');
+  assert.strictEqual(values.CONVEX_DEPLOY_KEY, key);
+  assert.strictEqual(values.CONVEX_DEPLOYMENT_NAME, 'acoustic-panther-728');
+  assert.strictEqual(P.readProfile('convex-legacy').CONVEX_DEPLOY_KEY, undefined);
+});
+
+test('PRF-19: duplicate, rename, and delete user lifecycle includes named connections', () => {
+  P.writeProfile('conn-source', {});
+  C.create('conn-source', 'hostinger', { id: 'main', label: 'Main Hostinger', authMethod: 'api-token', setDefault: true });
+  C.writeValues('conn-source', 'hostinger', 'main', { HOSTINGER_API_TOKEN: 'source-only' });
+  const copied = P.duplicateProfile('conn-source', 'conn-copy');
+  assert.strictEqual(copied.connections, 1);
+  assert.strictEqual(C.readValues('conn-copy', 'hostinger', 'main').HOSTINGER_API_TOKEN, 'source-only');
+  C.writeValues('conn-copy', 'hostinger', 'main', { HOSTINGER_API_TOKEN: 'copy-only' });
+  assert.strictEqual(C.readValues('conn-source', 'hostinger', 'main').HOSTINGER_API_TOKEN, 'source-only');
+  P.renameProfile('conn-copy', 'conn-renamed');
+  assert.strictEqual(C.get('conn-renamed', 'hostinger', 'main').label, 'Main Hostinger');
+  P.deleteProfile('conn-renamed');
+  assert.deepStrictEqual(C.list('conn-renamed'), []);
+});
+
+test('PRF-20: named connection env roundtrips quotes and shell metacharacters in a 0600 file', () => {
+  P.writeProfile('quoted-conn', {});
+  C.create('quoted-conn', 'github', { id: 'quoted', label: 'Quoted', authMethod: 'personal-access-token', setDefault: true });
+  const value = "ghp_quote'with $dollar and `tick`";
+  C.writeValues('quoted-conn', 'github', 'quoted', { GITHUB_TOKEN: value, GH_OWNER: 'quoted-owner' });
+  assert.strictEqual(C.readValues('quoted-conn', 'github', 'quoted').GITHUB_TOKEN, value);
+  assert.strictEqual(fs.statSync(C.connectionPath('quoted-conn', 'github', 'quoted')).mode & 0o777, 0o600);
 });

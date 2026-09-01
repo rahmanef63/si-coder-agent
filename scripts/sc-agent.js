@@ -8,6 +8,8 @@
 const path = require('path');
 const { spawnSync } = require('child_process');
 const P = require('../lib/profiles');
+const C = require('../lib/connections');
+const { PROVIDERS } = require('../lib/providers');
 const UC = require('../lib/user-control');
 
 const SC = path.resolve(__dirname, '../bin/sc.js');
@@ -173,6 +175,81 @@ async function main() {
 `);
       return;
     }
+    case 'user.connections.list': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = input.provider ? assertString(input.provider, 'provider') : null;
+      process.stdout.write(`${JSON.stringify({ user, connections: UC.connectionsStatus(user, provider) }, null, 2)}\n`);
+      return;
+    }
+    case 'user.connection.manage': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const provider = assertString(input.provider, 'provider', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+      const action = assertString(input.action, 'action');
+      let argv;
+      if (action === 'create') {
+        const label = assertString(input.label, 'label');
+        const authMethod = assertString(input.authMethod, 'authMethod', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+        argv = ['user','connection-add',user,provider,label,'--auth',authMethod];
+        if (input.setDefault === true) argv.push('--default');
+      } else if (action === 'set-default') {
+        argv = ['user','connection-use',user,provider,assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/)];
+      } else if (action === 'rename') {
+        argv = ['user','connection-label',user,provider,assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/),assertString(input.label,'label')];
+      } else if (action === 'delete') {
+        argv = ['user','connection-rm',user,provider,assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/),'--yes'];
+      } else if (action === 'migrate-legacy') {
+        argv = ['user','connection-migrate',user,provider,'--yes'];
+      } else throw new Error(`unsupported action ${action}`);
+      const r = captureSc(argv);
+      if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); if (r.stdout) process.stderr.write(r.stdout); process.exitCode = r.code; return; }
+      process.stdout.write(`${JSON.stringify({ action, user, provider, connections: UC.connectionsStatus(user, provider) }, null, 2)}\n`);
+      return;
+    }
+    case 'user.connection.request': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const providerId = assertString(input.provider, 'provider', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+      const provider = PROVIDERS.find(p => p.id === providerId);
+      if (!provider) throw new Error(`unknown provider ${providerId}`);
+      const methods = C.authOptions(provider).map(method => ({
+        id: method.id, label: method.label, scheme: method.scheme, scope: method.scope,
+        external: Boolean(method.external), recommended: method.recommended || null,
+        fields: method.fields || [], requiredFields: method.requiredFields || [],
+      }));
+      if (!input.connection) {
+        const selectedMethod = input.authMethod ? methods.find(m => m.id === input.authMethod) : null;
+        process.stdout.write(`${JSON.stringify({
+          user, provider: providerId, authMethods: methods, selectedAuthMethod: selectedMethod || null,
+          composio: provider.composio || null,
+          managedConnectionAction: selectedMethod?.external && provider.composio?.toolkit ? {
+            strategy: 'composio-session-authorize', toolkit: provider.composio.toolkit,
+            aliasRequired: true, secretHandling: 'provider OAuth/token credentials remain in the external connected account; SI-Coder stores only local connection metadata',
+            fallbackMetaTool: 'COMPOSIO_MANAGE_CONNECTIONS',
+          } : null,
+          next: selectedMethod?.external ? 'authorize through the managed/OAuth surface; do not request a raw secret in chat' : 'create a named connection, then request each required credential field through hidden local input',
+        }, null, 2)}\n`);
+        return;
+      }
+      const connection = UC.connectionStatus(user, providerId, assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/));
+      const fieldSetup = connection.credentials.map(c => UC.credentialStatus(user, providerId, c.key, connection.id).setup).map(s => ({
+        key:s.key, referenceUrl:s.referenceUrl, createCommand:s.createCommand, navigation:s.navigation, navigationText:s.navigationText, note:s.note,
+        command:s.saveWith,
+      }));
+      process.stdout.write(`${JSON.stringify({
+        user, provider: providerId, connection,
+        composio: provider.composio || null,
+        managedConnectionAction: connection.external && provider.composio?.toolkit ? {
+          strategy: 'composio-session-authorize', toolkit: provider.composio.toolkit, alias: connection.id,
+          displayLabel: connection.label, requireExplicitSelectionWhenMultiple: true,
+          secretHandling: 'provider credentials stay in the external connected account; do not copy OAuth/access tokens into SI-Coder',
+          fallbackMetaTool: 'COMPOSIO_MANAGE_CONNECTIONS',
+        } : null,
+        next: connection.external ? 'authorize this labeled connection through the managed/OAuth surface' : 'enter only the missing fields in the hidden local terminal',
+        fields: fieldSetup,
+        policy: 'Never send provider credentials in chat or tool JSON.',
+      }, null, 2)}\n`);
+      return;
+    }
     case 'user.providers.list': {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       process.stdout.write(`${JSON.stringify({ user, providers: UC.userProviders(user) }, null, 2)}
@@ -182,8 +259,11 @@ async function main() {
     case 'user.provider.verify': {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       const provider = input.provider ? assertString(input.provider, 'provider') : null;
-      const r = captureSc(['user', 'verify', user, ...(provider ? [provider] : [])]);
-      process.stdout.write(`${JSON.stringify({ user, provider, ok: r.code === 0, output: (r.stdout || r.stderr).trim() }, null, 2)}
+      const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
+      const argv = ['user', 'verify', user, ...(provider ? [provider] : [])];
+      if (connection) argv.push('--connection', connection);
+      const r = captureSc(argv);
+      process.stdout.write(`${JSON.stringify({ user, provider, connection, ok: r.code === 0, output: (r.stdout || r.stderr).trim() }, null, 2)}
 `);
       process.exitCode = r.code;
       return;
@@ -191,11 +271,11 @@ async function main() {
     case 'user.credentials.status': {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       if (input.provider) {
-        process.stdout.write(`${JSON.stringify(UC.providerStatus(user, assertString(input.provider, 'provider')), null, 2)}
-`);
+        const provider = assertString(input.provider, 'provider');
+        const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
+        process.stdout.write(`${JSON.stringify(UC.providerStatus(user, provider, connection), null, 2)}\n`);
       } else {
-        process.stdout.write(`${JSON.stringify({ user, providers: UC.userProviders(user) }, null, 2)}
-`);
+        process.stdout.write(`${JSON.stringify({ user, providers: UC.userProviders(user) }, null, 2)}\n`);
       }
       return;
     }
@@ -203,20 +283,21 @@ async function main() {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       const provider = assertString(input.provider, 'provider');
       const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
-      process.stdout.write(`${JSON.stringify(key ? UC.credentialStatus(user, provider, key) : UC.providerStatus(user, provider), null, 2)}
-`);
+      const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
+      process.stdout.write(`${JSON.stringify(key ? UC.credentialStatus(user, provider, key, connection) : UC.providerStatus(user, provider, connection), null, 2)}\n`);
       return;
     }
     case 'user.credential.request': {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       const provider = assertString(input.provider, 'provider');
       const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
-      const status = key ? UC.credentialStatus(user, provider, key) : UC.providerStatus(user, provider);
+      const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
+      const status = key ? UC.credentialStatus(user, provider, key, connection) : UC.providerStatus(user, provider, connection);
       const setup = key ? status.setup : null;
       process.stdout.write(`${JSON.stringify({
         ...status,
         requiresUserTerminal: true,
-        command: key ? `sc user credential-set ${user} ${provider} ${key}` : `sc user credential-set ${user} ${provider}`,
+        command: key ? `sc user credential-set ${user} ${provider} ${key}${connection ? ` --connection ${connection}` : ''}` : `sc user credential-set ${user} ${provider}${connection ? ` --connection ${connection}` : ''}`,
         userAction: setup?.userCard || null,
         createAt: setup?.createAt || null,
         referenceUrl: setup?.referenceUrl || null,
@@ -233,9 +314,12 @@ async function main() {
       const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
       const provider = assertString(input.provider, 'provider');
       const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
-      const r = captureSc(['user', 'credential-rm', user, provider, ...(key ? [key] : []), '--yes']);
+      const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
+      const argv = ['user', 'credential-rm', user, provider, ...(key ? [key] : []), '--yes'];
+      if (connection) argv.push('--connection', connection);
+      const r = captureSc(argv);
       if (r.code !== 0) { if (r.stderr) process.stderr.write(r.stderr); process.exitCode = r.code; return; }
-      process.stdout.write(`${JSON.stringify({ deleted: true, user, provider, key, status: UC.providerStatus(user, provider) }, null, 2)}
+      process.stdout.write(`${JSON.stringify({ deleted: true, user, provider, connection, key, status: UC.providerStatus(user, provider, connection) }, null, 2)}
 `);
       return;
     }
@@ -246,7 +330,7 @@ async function main() {
       const key = assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/);
       const argv = ['providers', 'create', id, '--key', key];
       pushOpt(argv, '--title', input.title); pushOpt(argv, '--blurb', input.blurb);
-      pushOpt(argv, '--url', input.url); pushOpt(argv, '--note', input.note);
+      pushOpt(argv, '--url', input.url); pushOpt(argv, '--note', input.note); pushOpt(argv, '--navigation', input.navigation);
       pushOpt(argv, '--prefix', input.prefix); pushOpt(argv, '--min-length', input.minLength);
       if (input.required === true) argv.push('--required');
       if (input.public === true) argv.push('--public');
@@ -267,7 +351,7 @@ async function main() {
       const { id } = providerArgs(input);
       const key = assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/);
       const argv = ['providers', 'key-add', id, key];
-      pushOpt(argv, '--url', input.url); pushOpt(argv, '--note', input.note);
+      pushOpt(argv, '--url', input.url); pushOpt(argv, '--note', input.note); pushOpt(argv, '--navigation', input.navigation);
       pushOpt(argv, '--prefix', input.prefix); pushOpt(argv, '--min-length', input.minLength);
       if (input.required === true) argv.push('--required');
       if (input.public === true) argv.push('--public');

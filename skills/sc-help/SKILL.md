@@ -81,17 +81,19 @@ Credential management is user-first. Always select a user before a provider/cred
 sc user
 sc user show <user>
 sc user duplicate <source> <target>
-sc user credentials <user> [provider]
-sc user credential-set <user> <provider> [KEY]
-sc user credential-rm <user> <provider> [KEY] --yes
+sc user connections <user> [provider]
+sc user connection-add <user> <provider> "<label>" --auth <method>
+sc user credentials <user> [provider] [--connection alias]
+sc user credential-set <user> <provider> [KEY] --connection <alias>
+sc user credential-rm <user> <provider> [KEY] --connection <alias> --yes
 sc user use <user>
 sc user map <folder> <user>
 sc user which
 ```
 
-Finder hierarchy: `Users → <user> → Providers → <provider> → Credentials → <KEY>`. Duplicate creates an independent credential store, so rotating one user's GitHub token never changes another user's credentials. Never expose plaintext credential values.
+Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. One user can own several isolated provider connections with unique labels, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
 
-For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/functions.json`; use `sc.user.credential.request` for create/rotate handoff because machine JSON never accepts raw secret values.
+For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/functions.json`. Use `sc.user.connection.request/manage/list` for account/auth selection and `sc.user.credential.request` for direct create/rotate handoff because machine JSON never accepts raw secret values.
 
 ## Secret-safe commands
 
@@ -99,9 +101,9 @@ For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/function
 |---|---|
 | `sc providers [--json]` | provider metadata + safe credential state |
 | `sc secret list/get ...` | state/source only; plaintext disabled |
-| `sc secret set <provider> [KEY]` | hidden local credential entry |
+| `sc user credential-set <user> <provider> [KEY] --connection <alias>` | hidden local credential entry in one labeled connection |
 | `sc secret rm ... --yes` | remove managed credential |
-| `sc run -- <cmd>` | run child with resolved profile, without printing secrets |
+| `sc run --connection provider=alias -- <cmd>` | run child with explicit non-default connection, without printing secrets |
 | `sc doctor` | live provider validation |
 | `sc audit --json` | metadata-only lifecycle audit |
 | `sc update --check` / `sc update` | safe fast-forward self-update |
@@ -128,7 +130,7 @@ claude --plugin-dir /path/to/si-coder-agent
 
 ## After completing a task
 
-Recommend one useful next step with its benefit + prerequisites, then ask whether the user wants it. Never request a raw secret in chat; use a secure provider connection or `sc secret set ...` handoff.
+Recommend one useful next step with its benefit + prerequisites, then ask whether the user wants it. Never request a raw secret in chat; use a secure external connection or connection-scoped hidden terminal handoff.
 
 ## Mandatory credential + next-step response contract
 
@@ -137,13 +139,14 @@ Whenever a credential/API key is missing, **never output only the variable name*
 ```text
 Buat di      : <authoritative provider URL / secure connector auth link>
 Petunjuk     : <minimum scope / exact menu when useful>
-Save with   : <sc secret set provider KEY, or provider connector>
-Stored in   : <SC profile 0600, or Composio connected account>
+Connection  : <user/provider/label + scope>
+Save with   : <sc user credential-set user provider KEY --connection alias, or provider connector>
+Stored in   : <named SC connection 0600, or external connected account>
 Lanjut       : <verification/resume action>
 ```
 
 Rules:
-- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
+- Local SC runtime: resolve/create a labeled connection first, then use the provider endpoint and `sc user credential-set <user> <provider> <KEY> --connection <alias>`. Values live only in that connection's 0600 file; legacy profiles are migration fallback.
 - Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
 - If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
 - Never put the credential value in chat, argv, logs, recommendations, or tool JSON.

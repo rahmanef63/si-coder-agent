@@ -27,6 +27,7 @@ const {
   selectFinderFrame, waitForEnter, stripAnsi,
 } = require(path.resolve(__dirname, '../lib/finder-tui'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
+const C = require(path.resolve(__dirname, '../lib/connections'));
 const UC = require(path.resolve(__dirname, '../lib/user-control'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
@@ -58,25 +59,28 @@ function parseArgs(argv) {
 let NO_PROFILE = false;
 let MENU_MODE = false;
 let USER_OVERRIDE = null;
+let CONNECTION_OVERRIDES = {};
 let _envCache = null;
 function invalidateEnvCache() { _envCache = null; }
 function currentEnvFull() {
   if (!_envCache) {
     _envCache = USER_OVERRIDE
-      ? P.loadEnvForProfile(USER_OVERRIDE, { shellRcEnv: readShellRcEnv(), reason: `selected user ${USER_OVERRIDE}` })
-      : P.loadEnvFor(process.cwd(), { noProfile: NO_PROFILE, shellRcEnv: readShellRcEnv() });
+      ? P.loadEnvForProfile(USER_OVERRIDE, { shellRcEnv: readShellRcEnv(), reason: `selected user ${USER_OVERRIDE}`, connectionOverrides: CONNECTION_OVERRIDES })
+      : P.loadEnvFor(process.cwd(), { noProfile: NO_PROFILE, shellRcEnv: readShellRcEnv(), connectionOverrides: CONNECTION_OVERRIDES });
   }
   return _envCache;
 }
 function currentEnv() { return currentEnvFull().env; }
 
-async function withUserProfile(name, fn) {
+async function withUserProfile(name, fn, connectionOverrides = {}) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
   const previous = USER_OVERRIDE;
+  const previousConnections = CONNECTION_OVERRIDES;
   USER_OVERRIDE = name;
+  CONNECTION_OVERRIDES = { ...connectionOverrides };
   invalidateEnvCache();
   try { return await fn(); }
-  finally { USER_OVERRIDE = previous; invalidateEnvCache(); }
+  finally { USER_OVERRIDE = previous; CONNECTION_OVERRIDES = previousConnections; invalidateEnvCache(); }
 }
 
 // One line, printed once, so it is never a mystery which identity a command ran as.
@@ -90,9 +94,12 @@ function profileBanner() {
 }
 
 function sourceOf(key) {
-  const { profile } = currentEnvFull();
+  const { profile, own, selectedConnections } = currentEnvFull();
   if (profile) {
-    if (P.readProfile(profile)[key]) return `user:${profile}`;
+    const provider = PROVIDERS.find(p => p.vars.some(v => v.key === key));
+    const selected = provider ? selectedConnections?.[provider.id] : null;
+    if (selected && selected.keyNames.includes(key) && own[key] !== undefined) return `connection:${profile}/${provider.id}/${selected.id}`;
+    if (P.readProfile(profile)[key] !== undefined) return `user:${profile}:legacy`;
     if (process.env[key] || readShellRcEnv()[key]) return 'shadowed-by-profile';
     return '—';
   }
@@ -130,7 +137,7 @@ function storeLabel() {
 }
 
 function printCredentialGuide(key, indent = '      ', options = {}) {
-  const guideOptions = { store: storeLabel(), user: options.user || USER_OVERRIDE || undefined };
+  const guideOptions = { store: options.store || storeLabel(), user: options.user || USER_OVERRIDE || undefined, connection: options.connection || undefined };
   const g = credentialGuide(key, guideOptions);
   const c = g.userCard;
   if (!c) {
@@ -248,17 +255,28 @@ function cmdProviderDefinition(id) {
   const p = byId.get(id) || die(`unknown provider "${id}"`);
   console.log(`\n🔌 provider: ${p.id} — ${p.title}`);
   console.log(`   ${p.blurb}`);
-  console.log('   credentials are user-scoped; choose Users → <user> → Providers to manage them.\n');
+  console.log('   credentials are user-scoped and may have multiple named connections.\n');
+  console.log('  Authentication methods:');
+  for (const a of C.authOptions(p)) {
+    console.log(`    • ${a.id} — ${a.label}`);
+    console.log(`      ${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external auth' : ''}${a.recommended ? ` · recommended: ${a.recommended}` : ''}`);
+    if (a.fields?.length) console.log(`      fields: ${a.fields.join(', ')}`);
+  }
+  if (p.composio) {
+    console.log(`\n  Composio toolkit: ${p.composio.toolkit}`);
+    console.log(`    auth: ${(p.composio.authSchemes || []).join(' / ') || '—'}${p.composio.managedAuth ? ' · managed auth available' : ''}`);
+    if (p.composio.mcpToolkit) console.log(`    MCP: ${p.composio.mcpToolkit} · ${p.composio.mcpAuthScheme || 'auth varies'}`);
+    if (p.composio.source) console.log(`    reference: ${p.composio.source}`);
+  }
+  console.log('\n  Credential fields:');
   for (const v of p.vars) {
-    console.log(`  ${v.required ? '• required' : '• optional'} ${v.key}`);
-    if (v.url) console.log(`    create/manage: ${v.url}`);
-    if (Array.isArray(v.navigation) && v.navigation.length) console.log(`    navigate: ${v.navigation.join(' → ')}`);
-    if (v.cmd) console.log(`    get with: ${v.cmd}`);
-    if (v.note) console.log(`    note: ${v.note}`);
+    console.log(`    ${v.required ? '• provider-required' : '• auth-method scoped'} ${v.key}`);
+    if (v.url) console.log(`      create/manage: ${v.url}`);
+    if (v.navigation?.length) console.log(`      click: ${v.navigation.join(' → ')}`);
+    if (v.note) console.log(`      note: ${v.note}`);
   }
   console.log('');
 }
-
 
 // A provider list shaped for the arrow-key pickers, annotated with live state so the user
 // can see what needs attention without leaving the menu.
@@ -286,25 +304,47 @@ function providerItems(env = currentEnv()) {
 // Lenses over the same provider list. "needs attention" first is deliberate: it is the
 // reason you opened this menu almost every time.
 function providerItemsForUser(name) {
-  const env = P.loadEnvForProfile(name, { shellRcEnv: readShellRcEnv(), reason: `selected user ${name}` }).env;
-  return providerItems(env).map(item => ({ ...item, hint: `${item.hint} · user: ${name}`, preview: UC.previewForProvider(name, item.id) }));
-}
-
-function credentialItemsForUser(name, providerId) {
-  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
-  const own = P.readProfile(name);
-  return p.vars.map(v => {
-    const stored = own[v.key] !== undefined;
-    const valid = stored && (!VALIDATORS[v.key] || VALIDATORS[v.key](own[v.key]));
+  return PROVIDERS.map(p => {
+    const st = UC.providerStatus(name, p.id);
+    let mark = '⚪';
+    if (st.invalid) mark = '❗';
+    else if (st.missingRequired && (st.connectionCount || st.stored)) mark = '❌';
+    else if (st.connectionCount || st.stored) mark = '✅';
+    const suffix = st.connectionCount ? `×${st.connectionCount}` : st.stored ? 'legacy' : '—';
     return {
-      id: `credential:${v.key}`,
-      kind: 'branch',
-      pathLabel: v.key,
-      label: `${stored ? (valid ? '✅' : '❗') : (v.required ? '❌' : '⚪')} ${v.key}`,
-      hint: `${stored ? (valid ? 'stored' : 'stored but invalid') : (v.required ? 'missing required' : 'not set')} · belongs to ${name}`,
-      preview: UC.previewForCredential(name, providerId, v.key),
+      id: p.id,
+      label: `${mark} ${p.id.padEnd(14)} ${suffix}`,
+      hint: `${p.status === 'stub' ? '(stub) ' : ''}${p.blurb}${st.connection ? ` · default: ${st.connectionLabel}` : st.legacy && st.stored ? ' · legacy credentials' : ''}`,
+      needsAttention: Boolean(st.invalid || (st.missingRequired && (st.connectionCount || st.stored))),
+      stub: p.status === 'stub', hasAny: Boolean(st.connectionCount || st.stored),
+      preview: UC.previewForProvider(name, p.id),
     };
   });
+}
+
+function connectionItemsForUser(name, providerId) {
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  const rows = UC.connectionsStatus(name, providerId).sort((a,b) => Number(b.isDefault)-Number(a.isDefault) || a.label.localeCompare(b.label));
+  return rows.map(c => ({
+    id: `connection:${c.id}`, kind: 'branch', pathLabel: c.label,
+    label: `${c.isDefault ? '★' : ' '} ${c.label}`,
+    hint: `${c.scheme} · ${c.scope}${c.external ? ' · external auth' : ` · ${c.stored}/${c.total} field(s)`}`,
+    preview: UC.previewForConnection(name, providerId, c.id),
+  }));
+}
+
+function credentialItemsForUser(name, providerId, connectionId = null) {
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  const status = UC.providerStatus(name, providerId, connectionId);
+  if (connectionId && status.external) return [];
+  return status.credentials.map(c => ({
+    id: `credential:${c.key}`,
+    kind: 'branch',
+    pathLabel: c.key,
+    label: `${c.stored ? (c.valid ? '✅' : '❗') : (c.required ? '❌' : '⚪')} ${c.key}`,
+    hint: `${c.state} · belongs to ${name}${status.connectionLabel ? ` / ${status.connectionLabel}` : ' / legacy'}`,
+    preview: UC.previewForCredential(name, providerId, c.key, connectionId),
+  }));
 }
 
 const PROVIDER_TABS = [
@@ -325,10 +365,10 @@ async function pickProvider(title) {
 // ---------------------------------------------------------------------------
 // setup / set — collect values
 // ---------------------------------------------------------------------------
-async function promptForVar(v, { force = false } = {}) {
+async function promptForVar(v, { force = false, user, connection, store } = {}) {
   console.log('');
   console.log(`  ${v.key}${v.required ? '' : '  (optional — press Enter to skip)'}`);
-  printCredentialGuide(v.key, '    ');
+  printCredentialGuide(v.key, '    ', { user, connection, store });
   if (isSecret(v.key)) console.log('    ↳ input is hidden (not echoed)');
   while (true) {
     const value = isSecret(v.key) ? await askHidden('    value: ') : await askVisible('    value: ');
@@ -458,6 +498,7 @@ function customVarFromArgs(key, args) {
     secret: !Boolean(args.public),
     url: typeof args.url === 'string' ? args.url : undefined,
     note: typeof args.note === 'string' ? args.note : undefined,
+    navigation: typeof args.navigation === 'string' ? args.navigation : undefined,
     prefix: typeof args.prefix === 'string' ? args.prefix : undefined,
     minLength: typeof args['min-length'] === 'string' ? Number(args['min-length']) : undefined,
   };
@@ -470,14 +511,26 @@ function assertCustom(id) {
   return p;
 }
 
-function purgeKeysEverywhere(keys) {
+function purgeKeysEverywhere(keys, { providerId = null, dropProviderConnections = false } = {}) {
   const profiles = [];
+  const connections = [];
   for (const name of P.listProfiles()) {
     const removed = P.removeFromProfile(name, keys);
     if (removed.length) profiles.push({ profile: name, keys: removed });
+    if (providerId) {
+      for (const row of C.list(name, providerId)) {
+        if (dropProviderConnections) {
+          C.remove(name, providerId, row.id);
+          connections.push({ profile: name, provider: providerId, connection: row.id, removedKeys: row.keyNames });
+        } else {
+          const removedKeys = C.removeValues(name, providerId, row.id, keys);
+          if (removedKeys.length) connections.push({ profile: name, provider: providerId, connection: row.id, removedKeys });
+        }
+      }
+    }
   }
   const shell = removeExportsFromShellRc(keys);
-  return { profiles, shell };
+  return { profiles, connections, shell };
 }
 
 function cmdProviderCreate(id, args) {
@@ -513,8 +566,8 @@ async function cmdProviderDelete(id, args) {
     if (!await confirm(`Delete custom provider "${id}" AND purge its managed credentials from all si-coder profiles?`)) return console.log('aborted');
   }
   const removed = CP.deleteProvider(id, CUSTOM_OPTIONS);
-  const purge = purgeKeysEverywhere(removed.vars.map(v => v.key));
-  audit('provider.delete', { provider: id, keyNames: removed.vars.map(v => v.key), profilesTouched: purge.profiles.map(x => x.profile) });
+  const purge = purgeKeysEverywhere(removed.vars.map(v => v.key), { providerId: id, dropProviderConnections: true });
+  audit('provider.delete', { provider: id, keyNames: removed.vars.map(v => v.key), profilesTouched: purge.profiles.map(x => x.profile), connectionsRemoved: purge.connections.length });
   console.log(`✅ deleted custom provider ${id} and purged managed credential keys`);
   if (purge.shell.unmanaged.length) console.log(`⚠️ user-owned exports outside the si-coder block were left untouched: ${purge.shell.unmanaged.join(', ')}`);
   console.log('   Existing values already exported in THIS shell remain until that shell exits.');
@@ -537,8 +590,8 @@ async function cmdProviderKeyRm(id, key, args) {
     if (!await confirm(`Remove ${key} from ${id} AND purge its managed credential value everywhere?`)) return console.log('aborted');
   }
   const v = CP.removeProviderVar(id, key, CUSTOM_OPTIONS);
-  const purge = purgeKeysEverywhere([v.key]);
-  audit('provider.key-remove', { provider: id, keyName: v.key, profilesTouched: purge.profiles.map(x => x.profile) });
+  const purge = purgeKeysEverywhere([v.key], { providerId: id });
+  audit('provider.key-remove', { provider: id, keyName: v.key, profilesTouched: purge.profiles.map(x => x.profile), connectionsTouched: purge.connections.length });
   console.log(`✅ removed ${v.key} from ${id} and purged its managed credential value`);
   if (purge.shell.unmanaged.length) console.log(`⚠️ user-owned export outside the si-coder block was left untouched: ${purge.shell.unmanaged.join(', ')}`);
 }
@@ -733,7 +786,7 @@ function cmdUserList() {
     const marks = [];
     if (r.name === st.active) marks.push('active');
     if (r.name === profile) marks.push('current dir');
-    console.log(`  ${r.name === profile ? '❯' : ' '} ${r.name.padEnd(16)} ${String(r.keys).padStart(2)} credential(s)${marks.length ? '   [' + marks.join(', ') + ']' : ''}`);
+    console.log(`  ${r.name === profile ? '❯' : ' '} ${r.name.padEnd(16)} ${String(r.connections || 0).padStart(2)} connection(s) · ${String(r.keys).padStart(2)} field(s)${r.legacyKeys ? ` · ${r.legacyKeys} legacy` : ''}${marks.length ? '   [' + marks.join(', ') + ']' : ''}`);
   }
   console.log(`\n  current user: ${profile || 'none'}  (${reason})`);
   console.log(`  folder map : ${P.SC_MD}`);
@@ -763,19 +816,17 @@ function cmdUserWhich() {
 
 function cmdUserProfileInfo(name) {
   if (!name || !P.profileExists(name)) die(`no such profile "${name || ''}"`);
-  const st = ensureScMd();
-  const env = P.readProfile(name);
-  const keys = Object.keys(env).sort();
+  const u = UC.showUser(name);
   console.log(`\n👤 user: ${name}`);
-  console.log(`   display owner: ${P.profileOwner(name)}`);
-  console.log(`   credentials : ${keys.length} key(s), values hidden`);
-  console.log(`   store       : ${P.profilePath(name)}`);
-  console.log(`   active      : ${st.active === name ? 'yes' : 'no'}`);
-  const maps = st.mappings.filter(m => m.profile === name);
-  console.log(`   folders     : ${maps.length ? maps.map(m => m.path).join(', ') : '(none)'}`);
-  const summary = userProviderSummary(name).filter(p => p.stored > 0);
-  if (summary.length) console.log(`   providers   : ${summary.map(p => `${p.id} ${p.stored}/${p.total}${p.invalid ? ' !' : ''}`).join(' · ')}`);
-  if (keys.length) console.log(`   env keys    : ${keys.join(', ')}`);
+  console.log(`   display owner: ${u.owner}`);
+  console.log(`   connections   : ${u.connectionCount}`);
+  console.log(`   credential fields: ${u.credentialCount} total · ${u.legacyCredentialCount} legacy · values hidden`);
+  console.log(`   connection store : ${u.connectionStore}`);
+  console.log(`   legacy store     : ${u.store}`);
+  console.log(`   active/default   : ${u.isDefault ? 'yes' : 'no'}`);
+  console.log(`   folders          : ${u.folders.length ? u.folders.join(', ') : '(none)'}`);
+  if (u.providers.length) console.log(`   providers        : ${u.providers.map(p => `${p.id}${p.connectionCount ? ` ×${p.connectionCount}` : p.stored ? ' legacy' : ''}`).join(' · ')}`);
+  if (u.legacyCredentialCount) console.log(`   legacy env keys  : ${u.credentialKeys.join(', ')}`);
   console.log('');
 }
 
@@ -827,59 +878,219 @@ async function cmdUserAdd(name, args) {
 
 
 function userProviderSummary(name) {
-  const own = P.readProfile(name);
-  return PROVIDERS.map(p => {
-    const stored = p.vars.filter(v => own[v.key] !== undefined);
-    const invalid = stored.filter(v => VALIDATORS[v.key] && !VALIDATORS[v.key](own[v.key]));
-    return { id: p.id, stored: stored.length, total: p.vars.length, invalid: invalid.length };
-  });
+  return UC.userProviders(name).map(p => ({ id:p.id, stored:p.stored, total:p.total, invalid:p.invalid, connectionCount:p.connectionCount || 0, defaultConnection:p.defaultConnection }));
 }
 
-function cmdUserCredentials(name, providerId) {
+function cmdUserConnections(name, providerId) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
-  const own = P.readProfile(name);
-  const providers = providerId ? [byId.get(providerId) || die(`unknown provider "${providerId}"`)] : PROVIDERS;
-  console.log(`
-🔐 credentials for user: ${name} — values hidden
-`);
-  for (const p of providers) {
-    const rows = p.vars.map(v => {
-      const stored = own[v.key] !== undefined;
-      const valid = stored && (!VALIDATORS[v.key] || VALIDATORS[v.key](own[v.key]));
-      return { v, stored, valid };
-    });
-    const count = rows.filter(r => r.stored).length;
-    if (!providerId && count === 0) continue;
-    console.log(`  ${p.id}  ${count}/${p.vars.length}`);
-    for (const { v, stored, valid } of rows) {
-      const mark = stored ? (valid ? '✅' : '❗') : (v.required ? '❌' : '⚪');
-      console.log(`    ${mark} ${v.key.padEnd(34)} ${stored ? (valid ? 'stored' : 'invalid') : 'missing'} · owner ${name}`);
-    }
+  if (providerId && !byId.has(providerId)) die(`unknown provider "${providerId}"`);
+  const rows = UC.connectionsStatus(name, providerId || null);
+  console.log(`\n🔗 connections for user: ${name} — values hidden\n`);
+  if (!rows.length) {
+    console.log('  (no named connections yet)');
+    if (!providerId) console.log('  Existing legacy provider credentials can be migrated with: sc user connection-migrate ' + name);
+    console.log('');
+    return;
   }
-  if (!Object.keys(own).length) console.log('  (no credentials stored for this user)');
+  for (const row of rows) {
+    console.log(`  ${row.provider.padEnd(14)} ${row.id.padEnd(18)} ${row.label}${row.isDefault ? '   [default]' : ''}`);
+    console.log(`    auth ${row.scheme} · scope ${row.scope} · ${row.external ? 'external auth' : `${row.stored}/${row.total} credential field(s) · ${row.state}`}`);
+  }
   console.log('');
 }
 
-function cmdUserCredentialStatus(name, providerId, key) {
+async function cmdUserConnectionAdd(name, providerId, label, args = {}) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
-  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
-  const v = p.vars.find(x => x.key === key) || die(`${providerId} does not define ${key}`);
-  const own = P.readProfile(name);
-  const stored = own[key] !== undefined;
-  const valid = stored && (!VALIDATORS[key] || VALIDATORS[key](own[key]));
-  console.log(`${name} › ${providerId} › ${key}: ${stored ? (valid ? 'stored' : 'stored but invalid') : 'missing'} (plaintext read disabled)`);
-  if (!stored || !valid) printCredentialGuide(key, '  ', { user: name });
+  const p = byId.get(providerId) || die(`unknown provider "${providerId || ''}"`);
+  const options = C.authOptions(p);
+  let authMethod = typeof args.auth === 'string' ? args.auth : null;
+  if (!authMethod) {
+    if (!isInteractive()) die(`--auth is required on a non-TTY; choose: ${options.map(x=>x.id).join(' | ')}`);
+    authMethod = await selectOne(`Authentication method for ${providerId}`, options.map(o => ({ id:o.id, label:o.label, hint:`${o.scheme} · ${o.scope}${o.external ? ' · external/managed' : ''}` })));
+    if (!authMethod) return console.log('cancelled');
+  }
+  const method = C.authOption(p, authMethod);
+  if (!label) {
+    if (!isInteractive()) die('connection label is required on a non-TTY');
+    label = await askVisible(`Label for this ${providerId} connection: `);
+    if (!label) return console.log('cancelled');
+  }
+  const row = C.create(name, providerId, { label, authMethod, scope: method.scope, setDefault: Boolean(args.default) });
+  audit('connection.create', { profile:name, provider:providerId, connection:row.id, label:row.label, authMethod, scope:row.scope, external:Boolean(method.external) });
+  invalidateEnvCache();
+  console.log(`✅ connection "${row.label}" created for ${name}/${providerId}${row.isDefault ? ' and set as default' : ''}`);
+  if (method.external) {
+    console.log(`   auth: ${method.scheme} · external/managed connection`);
+    if (p.composio?.source) console.log(`   reference: ${p.composio.source}`);
+    console.log('   no provider secret was requested or stored locally.');
+  } else {
+    console.log(`   auth: ${method.scheme} · scope ${method.scope}`);
+    console.log(`   next: sc user credential-set ${name} ${providerId} <KEY> --connection ${row.id}`);
+  }
+  return row;
+}
+function cmdUserConnectionGuide(name, providerId, id = null) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const p = byId.get(providerId) || die(`unknown provider "${providerId || ''}"`);
+  const connection = id ? C.get(name, providerId, id) : C.selected(name, providerId);
+  if (!connection) {
+    console.log(`\n🔐 authentication options for ${name}/${providerId}\n`);
+    for (const method of C.authOptions(p)) {
+      console.log(`  ${method.id} — ${method.label}`);
+      console.log(`    ${method.scheme} · scope ${method.scope}${method.external ? ' · managed/external auth' : ''}`);
+    }
+    if (p.composio?.source) console.log(`\n  Composio reference: ${p.composio.source}`);
+    console.log('');
+    return;
+  }
+  const method = C.authOption(p, connection.authMethod);
+  console.log(`\n🔗 ${name} › ${providerId} › ${connection.label}`);
+  console.log(`   auth   : ${method.label} (${method.scheme})`);
+  console.log(`   scope  : ${connection.scope || method.scope}`);
+  console.log(`   default: ${connection.isDefault ? 'yes' : 'no'}`);
+  if (method.external) {
+    console.log('   local secret: none — this connection must be authorized by the managed/OAuth surface.');
+    if (p.composio?.toolkit) console.log(`   Composio toolkit: ${p.composio.toolkit}`);
+    if (p.composio?.source) console.log(`   reference: ${p.composio.source}`);
+    if (p.composio?.mcpToolkit) console.log(`   MCP toolkit: ${p.composio.mcpToolkit} · auth ${p.composio.mcpAuthScheme || method.scheme}`);
+  } else {
+    const fields=C.connectionFields(p,connection);
+    console.log(`   fields : ${fields.map(v=>v.key).join(', ') || '(none)'}`);
+    for (const v of fields) {
+      const g=credentialGuide(v.key,{user:name,connection:connection.id,store:`SI-Coder connection "${connection.label}" (${C.connectionPath(name,providerId,connection.id)}, mode 0600)`});
+      if (g.referenceUrl) console.log(`   ${v.key} → ${g.referenceUrl}`);
+      if (g.navigationText) console.log(`     click: ${g.navigationText}`);
+    }
+  }
+  console.log('');
+  return { connection, method };
+}
+
+function cmdUserConnectionUse(name, providerId, id) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const row = C.setDefault(name, providerId, id);
+  audit('connection.default', { profile:name, provider:providerId, connection:id });
+  invalidateEnvCache();
+  console.log(`✅ default ${providerId} connection for ${name}: ${row.label} (${row.id})`);
+  return row;
+}
+async function cmdUserConnectionLabel(name, providerId, id, label) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  if (!label) {
+    if (!isInteractive()) die('usage: sc user connection-label <user> <provider> <connection> <label>');
+    label = await askVisible(`New label for ${providerId}/${id}: `);
+    if (!label) return console.log('unchanged');
+  }
+  const row=C.setLabel(name,providerId,id,label);
+  audit('connection.label', { profile:name, provider:providerId, connection:id, label:row.label });
+  console.log(`✅ renamed connection label: ${row.label}`);
+  return row;
+}
+async function cmdUserConnectionRm(name, providerId, id, args = {}) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const before=C.get(name,providerId,id);
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing to delete a connection without --yes on a non-TTY');
+    const typed=await askVisible(`Type ${id} to delete connection "${before.label}": `);
+    if (typed!==id) return console.log('aborted');
+  }
+  const row=C.remove(name,providerId,id);
+  audit('connection.delete', { profile:name, provider:providerId, connection:id, label:row.label, keyCount:row.keyCount });
+  invalidateEnvCache();
+  console.log(`✅ deleted ${name}/${providerId}/${row.label}; ${row.keyCount} credential value(s) removed without displaying them`);
+}
+async function cmdUserConnectionMigrate(name, args = {}, providerId = null) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const legacy=P.readProfile(name);
+  if (!Object.keys(legacy).length) return console.log(`✅ ${name} has no legacy credential values to migrate`);
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing legacy connection migration without --yes on a non-TTY');
+    if (!await confirm(`Migrate ${Object.keys(legacy).length} legacy credential field(s) for user "${name}" into named provider connections? Values stay local and hidden.`)) return console.log('aborted');
+  }
+  const providerRows = providerId ? [byId.get(providerId) || die(`unknown provider \"${providerId}\"`)] : PROVIDERS;
+  const result=C.migrateLegacy(name, legacy, providerRows, { removeLegacy: keys => P.removeFromProfile(name, keys) });
+  invalidateEnvCache();
+  audit('connection.migrate-legacy', { profile:name, providers:result.created.map(x=>x.provider), keyNames:result.migratedKeys });
+  console.log(`✅ migrated ${result.migratedKeys.length} legacy credential value(s) into ${result.created.length} named connection(s); values hidden`);
+  for (const row of result.created) console.log(`   ${row.provider}/${row.connection} — ${row.label} · ${row.authMethod} · ${row.keyCount} field(s)`);
+  return result;
+}
+
+function cmdUserCredentials(name, providerId, args = {}) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const providers = providerId ? [byId.get(providerId) || die(`unknown provider "${providerId}"`)] : PROVIDERS;
+  console.log(`\n🔐 credentials for user: ${name} — values hidden\n`);
+  let shown=0;
+  for (const p of providers) {
+    const status=UC.providerStatus(name,p.id,typeof args.connection==='string'?args.connection:null);
+    if (!providerId && status.stored===0 && status.connectionCount===0) continue;
+    shown++;
+    console.log(`  ${p.id}  ${status.connection ? `${status.connectionLabel} (${status.connection})` : 'legacy'}  ${status.stored}/${status.total}${status.connectionCount>1?` · ${status.connectionCount} connections`:''}`);
+    for (const c of status.credentials) {
+      const mark=c.stored?(c.valid?'✅':'❗'):(c.required?'❌':'⚪');
+      console.log(`    ${mark} ${c.key.padEnd(34)} ${c.state} · owner ${name}${status.connection?` · connection ${status.connection}`:''}`);
+    }
+  }
+  if (!shown) console.log('  (no credentials stored for this user)');
+  console.log('');
+}
+
+function cmdUserCredentialStatus(name, providerId, key, args = {}) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const connection=typeof args.connection==='string'?args.connection:null;
+  const c=UC.credentialStatus(name,providerId,key,connection);
+  console.log(`${name} › ${providerId}${c.connectionLabel?` › ${c.connectionLabel}`:''} › ${key}: ${c.state} (plaintext read disabled)`);
+  if (!c.stored || !c.valid) printCredentialGuide(key,'  ',{ user:name, connection:c.connection || undefined, store:c.setup?.saveDestination });
 }
 
 async function cmdUserCredentialSet(name, providerId, key, args = {}) {
-  return withUserProfile(name, async () => {
-    if (key) return cmdSecretSet(providerId, key, args);
-    return cmdProvidersSet(providerId);
-  });
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const p=byId.get(providerId)||die(`unknown provider "${providerId || ''}"`);
+  const explicit=typeof args.connection==='string'?args.connection:null;
+  const conn=C.selected(name,providerId,explicit);
+  if (!conn) return withUserProfile(name, async () => key ? cmdSecretSet(providerId,key,args) : cmdProvidersSet(providerId));
+  const method=C.authOption(p,conn.authMethod);
+  if (method.external) die(`${providerId}/${conn.label} uses ${method.scheme} external auth; connect it through the managed/OAuth flow instead of entering a local key`);
+  const fields=C.connectionFields(p,conn);
+  const store=`SI-Coder connection "${conn.label}" (${C.connectionPath(name,providerId,conn.id)}, mode 0600)`;
+  if (key) {
+    const v=fields.find(x=>x.key===key)||die(`${providerId}/${conn.id} auth method ${conn.authMethod} does not use ${key}`);
+    printCredentialGuide(key,'  ',{user:name,connection:conn.id,store});
+    const {value,source}=await readSecretInput(v,args);
+    C.writeValues(name,providerId,conn.id,{[key]:value});
+    audit('connection.credential.set',{profile:name,provider:providerId,connection:conn.id,keyName:key,inputSource:source});
+    invalidateEnvCache();
+    console.log(`✅ stored ${providerId}/${conn.label}.${key}; value not displayed`);
+    return;
+  }
+  if (!isInteractive()) die('setting all connection fields requires a TTY; specify one KEY with --stdin/--from-env/--from-file');
+  const existing=C.readValues(name,providerId,conn.id), updates={};
+  for (const v of fields) {
+    const value=await promptForVar(v,{force:true,user:name,connection:conn.id,store});
+    if (value!==null) updates[v.key]=value;
+  }
+  if (Object.keys(updates).length) C.writeValues(name,providerId,conn.id,updates);
+  audit('connection.credentials.set',{profile:name,provider:providerId,connection:conn.id,keyNames:Object.keys(updates)});
+  invalidateEnvCache();
+  console.log(`✅ updated ${Object.keys(updates).length} field(s) in ${providerId}/${conn.label}; values hidden`);
 }
 
 async function cmdUserCredentialRm(name, providerId, key, args = {}) {
-  return withUserProfile(name, () => cmdSecretRm(providerId, key, args));
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  const explicit=typeof args.connection==='string'?args.connection:null;
+  const conn=C.selected(name,providerId,explicit);
+  if (!conn) return withUserProfile(name,()=>cmdSecretRm(providerId,key,args));
+  const p=byId.get(providerId)||die(`unknown provider "${providerId}"`);
+  const fields=C.connectionFields(p,conn);
+  const keys=key?[fields.find(v=>v.key===key)?.key||die(`${providerId}/${conn.id} does not define ${key}`)]:fields.map(v=>v.key);
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing to remove connection credentials without --yes on a non-TTY');
+    if (!await confirm(`Remove ${keys.join(', ')} from connection "${conn.label}"?`)) return console.log('aborted');
+  }
+  const removed=C.removeValues(name,providerId,conn.id,keys);
+  audit('connection.credential.remove',{profile:name,provider:providerId,connection:conn.id,keyNames:removed});
+  invalidateEnvCache();
+  console.log(removed.length?`✅ removed ${removed.join(', ')} from ${conn.label}`:'nothing to remove');
 }
 
 async function cmdUserImportCurrent(name, args = {}) {
@@ -919,8 +1130,8 @@ async function cmdUserDuplicate(source, target, args = {}) {
   const owner = typeof args.owner === 'string' ? args.owner : target;
   const result = P.duplicateProfile(source, target, { owner, replaceEmpty });
   invalidateEnvCache();
-  audit('profile.duplicate', { source, target, keyNames: result.keys });
-  console.log(`✅ duplicated user "${source}" → "${target}" with ${result.keys.length} credential(s); values hidden`);
+  audit('profile.duplicate', { source, target, keyNames: result.keys, connections: result.connections || 0 });
+  console.log(`✅ duplicated user "${source}" → "${target}" with ${result.connections || 0} connection(s) + ${result.keys.length} legacy field(s); values hidden`);
   console.log('   Each copied credential is now independently stored under the target user and can be rotated without changing the source user.');
   return target;
 }
@@ -1010,10 +1221,12 @@ async function cmdUserRm(name, args) {
   console.log(`✅ deleted user "${name}", its credential store, metadata, and folder rules`);
 }
 
-async function cmdUserVerify(name, providerId) {
+async function cmdUserVerify(name, providerId, args = {}) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
   if (providerId && !byId.has(providerId)) die(`unknown provider "${providerId}"`);
-  return withUserProfile(name, () => cmdDoctor(providerId ? { providers: providerId } : {}));
+  const connection = providerId && typeof args.connection === 'string' ? args.connection : null;
+  const overrides = connection ? { [providerId]: connection } : {};
+  return withUserProfile(name, () => cmdDoctor(providerId ? { providers: providerId } : {}), overrides);
 }
 
 // `sc env` used to print plaintext export lines for command substitution. That makes a
@@ -1025,20 +1238,45 @@ function cmdEnv() {
 
 
 // Run any command with the resolved profile injected. Keeps secrets out of the parent shell.
+function parseRunConnectionOverrides(spec, profile) {
+  if (!spec) return {};
+  if (!profile) die('--connection requires an SI-Coder user resolved for this directory');
+  const overrides = {};
+  for (const raw of String(spec).split(',').map(x => x.trim()).filter(Boolean)) {
+    const eq = raw.indexOf('=');
+    if (eq <= 0 || eq === raw.length - 1) die('--connection expects provider=connection[,provider=connection]');
+    const provider = raw.slice(0, eq), connection = raw.slice(eq + 1);
+    if (!byId.has(provider)) die(`unknown provider "${provider}" in --connection`);
+    try { C.get(profile, provider, connection); } catch (e) { die(e.message); }
+    overrides[provider] = connection;
+  }
+  return overrides;
+}
+
+// Run any command with the resolved user + selected provider connections injected. Keeps
+// secrets out of the parent shell. --connection mirrors Composio explicit account selection.
 function cmdRun(args) {
   const idx = process.argv.indexOf('--');
   const cmd = idx === -1 ? [] : process.argv.slice(idx + 1);
-  if (!cmd.length) die('usage: sc run -- <command> [args...]');
-  const { env, profile, owner, shadowed } = currentEnvFull();
-  if (profile) {
-    console.error(`👤 running as user "${owner || profile}" · profile "${profile}"`);
-    if (shadowed.length) console.error(`   unset for the child: ${shadowed.join(', ')}`);
+  if (!cmd.length) die('usage: sc run [--connection provider=alias] -- <command> [args...]');
+  const resolved = P.resolveProfile();
+  const previous = CONNECTION_OVERRIDES;
+  CONNECTION_OVERRIDES = parseRunConnectionOverrides(args.connection, resolved.profile);
+  invalidateEnvCache();
+  try {
+    const { env, profile, owner, shadowed, selectedConnections } = currentEnvFull();
+    if (profile) {
+      console.error(`👤 running as user "${owner || profile}" · profile "${profile}"`);
+      const selected = Object.entries(selectedConnections || {}).map(([provider, row]) => `${provider}=${row.label}`);
+      if (selected.length) console.error(`   connections: ${selected.join(', ')}`);
+      if (shadowed.length) console.error(`   unset for the child: ${shadowed.join(', ')}`);
+    }
+    const r = spawnSync(cmd[0], cmd.slice(1), { stdio: 'inherit', env });
+    process.exitCode = r.status === null ? 1 : r.status;
+  } finally {
+    CONNECTION_OVERRIDES = previous;
+    invalidateEnvCache();
   }
-  // Pass `env` AS the child's environment, never merged back over process.env — the merge is
-  // what re-introduced the very keys loadEnvFor had just removed. `env` already carries
-  // everything inherited (PATH, HOME, …) minus the credentials this profile does not own.
-  const r = spawnSync(cmd[0], cmd.slice(1), { stdio: 'inherit', env });
-  process.exit(r.status === null ? 1 : r.status);
 }
 
 async function cmdUser(sub, arg, arg2, args) {
@@ -1054,12 +1292,19 @@ async function cmdUser(sub, arg, arg2, args) {
     case 'rename': return cmdUserRename(arg, arg2);
     case 'import':
     case 'import-current': return cmdUserImportCurrent(arg, args);
-    case 'credentials': return cmdUserCredentials(arg, arg2);
-    case 'credential-status': return cmdUserCredentialStatus(arg, arg2, args._[4]);
+    case 'connections': return cmdUserConnections(arg, arg2);
+    case 'connection-add': return cmdUserConnectionAdd(arg, arg2, args._[4], args);
+    case 'connection-use': return cmdUserConnectionUse(arg, arg2, args._[4]);
+    case 'connection-label': return cmdUserConnectionLabel(arg, arg2, args._[4], args._[5]);
+    case 'connection-rm':
+    case 'connection-delete': return cmdUserConnectionRm(arg, arg2, args._[4], args);
+    case 'connection-migrate': return cmdUserConnectionMigrate(arg, args, arg2 || null);
+    case 'credentials': return cmdUserCredentials(arg, arg2, args);
+    case 'credential-status': return cmdUserCredentialStatus(arg, arg2, args._[4], args);
     case 'credential-set': return cmdUserCredentialSet(arg, arg2, args._[4], args);
     case 'credential-rm':
     case 'credential-delete': return cmdUserCredentialRm(arg, arg2, args._[4], args);
-    case 'verify': return cmdUserVerify(arg, arg2);
+    case 'verify': return cmdUserVerify(arg, arg2, args);
     case 'use': {
       if (!arg && isInteractive()) {
         const names = P.listProfiles();
@@ -1245,10 +1490,10 @@ function menuLayer(stack) {
   }
 
   if (ctx.user && here === `users/user:${ctx.user}`) {
-    const count = Object.keys(P.readProfile(ctx.user)).length;
+    const userInfo = UC.showUser(ctx.user);
     return [
-      { id: 'providers', kind: 'branch', label: 'Providers', hint: `provider credentials owned by ${ctx.user}` },
-      { id: 'credentials', kind: 'action', label: 'Credential overview', hint: `${count} stored credential(s), values hidden` },
+      { id: 'providers', kind: 'branch', label: 'Providers', hint: `provider connections owned by ${ctx.user}` },
+      { id: 'credentials', kind: 'action', label: 'Credential overview', hint: `${userInfo.connectionCount} connection(s) · ${userInfo.credentialCount} field(s), values hidden` },
       { id: 'default', kind: 'action', label: 'Set as default', hint: 'fallback user when no folder mapping matches' },
       { id: 'map', kind: 'action', label: 'Use for current folder', hint: 'map this folder tree to this user' },
       { id: 'duplicate', kind: 'action', label: 'Duplicate user', hint: 'copy all credentials into another independent user' },
@@ -1264,26 +1509,65 @@ function menuLayer(stack) {
   }
 
   if (ctx.user && ctx.provider && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}`) {
+    const p = byId.get(ctx.provider);
+    const connections = C.list(ctx.user, ctx.provider);
+    const legacy = P.readProfile(ctx.user);
+    const legacyCount = p.vars.filter(v => legacy[v.key] !== undefined).length;
     return [
-      { id: 'credentials', kind: 'branch', label: 'Credentials', hint: `individual keys owned by ${ctx.user}` },
-      { id: 'details', kind: 'action', label: 'Provider details', hint: `status for ${ctx.provider} as ${ctx.user}` },
-      { id: 'verify', kind: 'action', label: 'Verify as this user', hint: 'live API check using only this user credentials' },
-      { id: 'set-all', kind: 'action', label: 'Set / rotate provider', hint: `enter all ${ctx.provider} credentials for ${ctx.user}`, preview: UC.previewForProviderSetup(ctx.user, ctx.provider) },
+      { id: 'connections', kind: 'branch', label: 'Connections', hint: `${connections.length} named connection(s) · labels + scopes`, preview: UC.previewForProvider(ctx.user, ctx.provider) },
+      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: `OAuth / API key / bearer / project scope for ${ctx.provider}`, preview: [`user ${ctx.user} › ${ctx.provider}`, ...C.authOptions(p).slice(0,3).map(a => `${a.label} · ${a.scheme} · ${a.scope}`)] },
+      ...(legacyCount ? [{ id: 'migrate-legacy', kind: 'action', label: 'Migrate legacy credentials', hint: `${legacyCount} legacy field(s) → named default connection`, preview: [`user ${ctx.user} › ${ctx.provider}`, `${legacyCount} legacy field(s) are still stored in the old profile`, 'migration moves values locally without printing them'] }] : []),
+      { id: 'details', kind: 'action', label: 'Provider details', hint: `auth methods + integration metadata for ${ctx.provider}` },
+      ...(connections.length || legacyCount ? [{ id: 'verify', kind: 'action', label: 'Verify default connection', hint: `live API check using only ${ctx.user}'s selected ${ctx.provider} connection` }] : []),
     ];
   }
 
-  if (ctx.user && ctx.provider && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/credentials`) {
-    return credentialItemsForUser(ctx.user, ctx.provider);
+  if (ctx.user && ctx.provider && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections`) {
+    const rows = connectionItemsForUser(ctx.user, ctx.provider);
+    return [
+      ...rows,
+      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: 'choose auth method, then give the connection a label' },
+    ];
   }
 
-  if (ctx.user && ctx.provider && ctx.credential && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/credentials/credential:${ctx.credential}`) {
-    const own = P.readProfile(ctx.user);
-    const stored = own[ctx.credential] !== undefined;
-    const guidePreview = UC.previewForCredential(ctx.user, ctx.provider, ctx.credential);
+  if (ctx.user && ctx.provider && (here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/add-connection` || here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/add-connection`)) {
+    const p = byId.get(ctx.provider);
+    return C.authOptions(p).map(a => ({
+      id: `auth:${a.id}`, kind: 'action', pathLabel: a.label, label: a.label,
+      hint: `${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external' : ''}${a.recommended ? ` · ${a.recommended}` : ''}`,
+      preview: [
+        `${ctx.provider} › ${a.label}`,
+        `${a.scheme} · scope: ${a.scope}`,
+        a.external ? 'no local provider secret · authorization happens in managed/OAuth flow' : `fields: ${(a.fields || []).join(', ') || '(none)'}`,
+        ...(p.composio?.source ? [`reference: ${p.composio.source}`] : []),
+      ],
+    }));
+  }
+
+  if (ctx.user && ctx.provider && ctx.connection && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/connection:${ctx.connection}`) {
+    const c = UC.connectionStatus(ctx.user, ctx.provider, ctx.connection);
+    const items = [
+      ...(!c.external && c.total ? [{ id: 'credentials', kind: 'branch', label: 'Credentials', hint: `${c.total} field(s) in ${c.label}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
+      { id: 'auth-guide', kind: 'action', label: c.external ? 'Authorization guide' : 'Auth / setup guide', hint: `${c.scheme} · ${c.scope}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) },
+      ...(!c.isDefault ? [{ id: 'default-connection', kind: 'action', label: 'Set as default', hint: `use ${c.label} when ${ctx.provider} has no explicit connection override`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
+      { id: 'label-connection', kind: 'action', label: 'Rename label', hint: `current label: ${c.label}` },
+      ...(!c.external ? [{ id: 'verify-connection', kind: 'action', label: 'Verify this connection', hint: 'live API check with only this connection injected' }] : []),
+      { id: 'delete-connection', kind: 'action', label: 'Delete connection', hint: `remove ${c.label} and its ${c.stored} stored field(s)` },
+    ];
+    return items;
+  }
+
+  if (ctx.user && ctx.provider && ctx.connection && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/connection:${ctx.connection}/credentials`) {
+    return credentialItemsForUser(ctx.user, ctx.provider, ctx.connection);
+  }
+
+  if (ctx.user && ctx.provider && ctx.connection && ctx.credential && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/connection:${ctx.connection}/credentials/credential:${ctx.credential}`) {
+    const c = UC.credentialStatus(ctx.user, ctx.provider, ctx.credential, ctx.connection);
+    const guidePreview = UC.previewForCredential(ctx.user, ctx.provider, ctx.credential, ctx.connection);
     return [
-      { id: 'status', kind: 'action', label: 'Status', hint: `show state/source for ${ctx.user}; plaintext disabled`, preview: guidePreview },
-      { id: 'set', kind: 'action', label: stored ? 'Rotate credential' : 'Set credential', hint: `hidden input stored only under ${ctx.user}`, preview: guidePreview },
-      ...(stored ? [{ id: 'remove', kind: 'action', label: 'Remove credential', hint: `delete only ${ctx.credential} from ${ctx.user}`, preview: guidePreview }] : []),
+      { id: 'status', kind: 'action', label: 'Status', hint: `show ${c.connectionLabel}/${ctx.credential}; plaintext disabled`, preview: guidePreview },
+      { id: 'set', kind: 'action', label: c.stored ? 'Rotate credential' : 'Set credential', hint: `hidden input stored only under ${ctx.user} / ${c.connectionLabel}`, preview: guidePreview },
+      ...(c.stored ? [{ id: 'remove', kind: 'action', label: 'Remove credential', hint: `delete only ${ctx.credential} from ${c.connectionLabel}`, preview: guidePreview }] : []),
     ];
   }
 
@@ -1311,10 +1595,12 @@ function menuLayer(stack) {
 function menuContext(stack) {
   const userNode = [...stack].reverse().find(x => x.id.startsWith('user:'));
   const providerNode = [...stack].reverse().find(x => x.id.startsWith('provider:'));
+  const connectionNode = [...stack].reverse().find(x => x.id.startsWith('connection:'));
   const credentialNode = [...stack].reverse().find(x => x.id.startsWith('credential:'));
   return {
     user: userNode ? userNode.id.slice('user:'.length) : null,
     provider: providerNode ? providerNode.id.slice('provider:'.length) : null,
+    connection: connectionNode ? connectionNode.id.slice('connection:'.length) : null,
     credential: credentialNode ? credentialNode.id.slice('credential:'.length) : null,
   };
 }
@@ -1343,7 +1629,7 @@ const MENU_SECTIONS = [
 async function runMenuAction(stack, item) {
   const ids = stack.map(x => x.id);
   const here = ids.join('/');
-  const { user, provider, credential } = menuContext(stack);
+  const { user, provider, connection, credential } = menuContext(stack);
   try {
     if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
     if (here === '' && item.id === 'quit') return 'quit';
@@ -1372,15 +1658,28 @@ async function runMenuAction(stack, item) {
     }
 
     if (user && provider && here === `users/user:${user}/providers/provider:${provider}`) {
-      if (item.id === 'details') return withUserProfile(user, () => cmdProvidersShow(provider));
-      if (item.id === 'verify') return withUserProfile(user, () => cmdDoctor({ providers: provider }));
-      if (item.id === 'set-all') return cmdUserCredentialSet(user, provider, null, {});
+      if (item.id === 'migrate-legacy') return cmdUserConnectionMigrate(user, {}, provider);
+      if (item.id === 'details') return cmdProviderDefinition(provider);
+      if (item.id === 'verify') return cmdUserVerify(user, provider, {});
     }
 
-    if (user && provider && credential && here === `users/user:${user}/providers/provider:${provider}/credentials/credential:${credential}`) {
-      if (item.id === 'status') return cmdUserCredentialStatus(user, provider, credential);
-      if (item.id === 'set') return cmdUserCredentialSet(user, provider, credential, {});
-      if (item.id === 'remove') return cmdUserCredentialRm(user, provider, credential, {});
+
+    if (user && provider && (here === `users/user:${user}/providers/provider:${provider}/add-connection` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection`) && item.id.startsWith('auth:')) {
+      return cmdUserConnectionAdd(user, provider, undefined, { auth: item.id.slice('auth:'.length) });
+    }
+
+    if (user && provider && connection && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}`) {
+      if (item.id === 'auth-guide') return cmdUserConnectionGuide(user, provider, connection);
+      if (item.id === 'default-connection') return cmdUserConnectionUse(user, provider, connection);
+      if (item.id === 'label-connection') return cmdUserConnectionLabel(user, provider, connection);
+      if (item.id === 'verify-connection') return cmdUserVerify(user, provider, { connection });
+      if (item.id === 'delete-connection') return cmdUserConnectionRm(user, provider, connection, {});
+    }
+
+    if (user && provider && connection && credential && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}/credentials/credential:${credential}`) {
+      if (item.id === 'status') return cmdUserCredentialStatus(user, provider, credential, { connection });
+      if (item.id === 'set') return cmdUserCredentialSet(user, provider, credential, { connection });
+      if (item.id === 'remove') return cmdUserCredentialRm(user, provider, credential, { connection });
     }
 
     if (provider && here === `catalog/provider:${provider}` && item.id === 'details') {
@@ -1408,11 +1707,13 @@ async function runMenuAction(stack, item) {
 
 function menuActionNeedsTerminal(stack, item) {
   const here = stack.map(x => x.id).join('/');
-  const { user, provider, credential } = menuContext(stack);
+  const { user, provider, connection, credential } = menuContext(stack);
   if (here === 'users' && item.id === 'add') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
-  if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'set-all') return true;
-  if (user && provider && credential && here === `users/user:${user}/providers/provider:${provider}/credentials/credential:${credential}` && ['set', 'remove'].includes(item.id)) return true;
+  if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
+  if (user && provider && (here === `users/user:${user}/providers/provider:${provider}/add-connection` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection`) && item.id.startsWith('auth:')) return true;
+  if (user && provider && connection && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}` && ['label-connection', 'delete-connection'].includes(item.id)) return true;
+  if (user && provider && connection && credential && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}/credentials/credential:${credential}` && ['set', 'remove'].includes(item.id)) return true;
   if (here === 'system/readiness') return true;
   return false;
 }
@@ -1542,10 +1843,10 @@ sc — SI-Coder interactive console + secret control plane
 
   sc providers [--json]               list built-in + custom providers; never secret values
   sc providers show <id>              provider detail (secret values redacted)
-  sc providers create <id> --key KEY --url https://... [--title ...] [--blurb ...]
+  sc providers create <id> --key KEY --url https://... [--navigation "Settings > API Keys > Create"] [--title ...]
                                       create a custom provider definition (metadata only)
   sc providers update <id> [--title ...] [--blurb ...]
-  sc providers key-add <id> <KEY> [--required] [--public] [--prefix P] [--min-length N]
+  sc providers key-add <id> <KEY> [--required] [--public] [--navigation "A > B > C"] [--prefix P]
   sc providers key-rm <id> <KEY> [--yes]
   sc providers delete <id> [--yes]    custom only; also purges its managed credentials
 
@@ -1555,7 +1856,8 @@ sc — SI-Coder interactive console + secret control plane
       --stdin | --from-env NAME | --from-file PATH
                                       secret never belongs in argv/chat
   sc secret rm <provider> [KEY] [--yes]
-  sc run -- <cmd> ...                 consume resolved profile secrets in a child process
+  sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
+                                      consume one user's selected named connections without changing defaults
 
   sc setup [--providers a,b] [--target t] [--force]
                                       interactive setup wizard
@@ -1573,13 +1875,21 @@ sc — SI-Coder interactive console + secret control plane
   sc user duplicate <src> <dst> [--replace-empty]
                                       clone credentials into an independent user
   sc user rename <src> <dst>          rename user + migrate default/folder mappings
-  sc user credentials <name> [provider]
-                                      read credential status for one user; no plaintext
-  sc user credential-status <name> <provider> <KEY>
-  sc user credential-set <name> <provider> [KEY]
+  sc user connections <name> [provider]
+                                      list labeled connections + auth/scope; no plaintext
+  sc user connection-add <name> <provider> <label> --auth <method> [--default]
+  sc user connection-use <name> <provider> <connection>
+  sc user connection-label <name> <provider> <connection> <label>
+  sc user connection-rm <name> <provider> <connection> [--yes]
+  sc user connection-migrate <name> [provider] [--yes]
+                                      move legacy fields into named default connections
+  sc user credentials <name> [provider] [--connection alias]
+                                      read credential status for one user/connection; no plaintext
+  sc user credential-status <name> <provider> <KEY> [--connection alias]
+  sc user credential-set <name> <provider> [KEY] [--connection alias]
                                       create/update through hidden TTY or safe input source
-  sc user credential-rm <name> <provider> [KEY] [--yes]
-                                      delete only that user's credential(s)
+  sc user credential-rm <name> <provider> [KEY] [--connection alias] [--yes]
+                                      delete only that user's selected connection credential(s)
   sc user use <name>                  set default user
   sc user map <folder> <name>         bind folder tree to a user
   sc user unmap <folder>              drop mapping
@@ -1587,10 +1897,10 @@ sc — SI-Coder interactive console + secret control plane
   sc env                              disabled (plaintext export); use sc run
 
 Agent safety contract:
-  • agents may LIST/CREATE/UPDATE/DELETE provider metadata and credential status
+  • agents may LIST/CREATE/UPDATE/DELETE users, named connections, provider metadata, and credential status
   • agents must NEVER ask for or pass a plaintext API key in chat/tool JSON/argv
   • new/rotated secrets enter through hidden TTY, a trusted stdin/FD, env, or local file
-  • use sc run -- <cmd> so consumers receive secrets without printing them
+  • use sc run [--connection provider=alias] -- <cmd> so consumers receive the intended connection without printing secrets
 
   --no-profile                        ignore profiles for this one command
 

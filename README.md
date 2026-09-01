@@ -100,19 +100,22 @@ The user should not need to know the words Dokploy, Vercel, Convex, or DNS to an
 
 SI-Coder never asks the user to paste a password, API key, or token into chat or MCP tool JSON.
 
-When one local credential is genuinely required, the handoff is complete and explicit:
+When one direct/local credential is genuinely required, the handoff names the **user + provider + labeled connection**:
 
 ```text
+Connection  : Client A Production (deployment scope)
 Create at   : https://provider.example/settings/api-keys
-Instructions: create the required access with the minimum useful permissions
-Save with   : sc secret set <provider> <KEY>
-Stored in   : active SC profile, mode 0600
-Continue    : sc doctor --providers <provider>
+Instructions: create the minimum-permission credential for this connection
+Save with   : sc user credential-set <user> <provider> <KEY> --connection <alias>
+Stored in   : that named SI-Coder connection, mode 0600
+Continue    : verify the same connection
 ```
+
+For OAuth/external auth, SI-Coder stores only connection identity metadata and hands authorization to the secure connected-account flow instead of copying OAuth tokens into SC.
 
 For hosted agents, prefer a secure connected-account authorization link instead of asking for the underlying provider key.
 
-The machine-facing `sc.secret.request` surface also returns a simple `userAction` as the default presentation, while technical storage/verification details remain optional.
+Machine-facing agents use `sc.user.connection.request` to choose OAuth/API-key/Bearer/project scope and `sc.user.credential.request` for a specific direct field. No machine tool accepts the raw credential value.
 
 ## `[rekomendasi]` next-step contract
 
@@ -155,19 +158,19 @@ verified public app + domain
 The technical control plane contains:
 
 1. **Agent Skills** — behavior/orchestration in `skills/*/SKILL.md`.
-2. **SC** — local provider registry, credential-safe profiles, diagnostics, and local/VPS operations.
+2. **SC** — local provider registry, user + named-connection isolation, diagnostics, and local/VPS operations.
 3. **Connected provider tools** — secure hosted account connections and managed provider execution.
 4. **MCP/MSO function surface** — machine-readable, secret-safe operations for agents.
 
-Tool calling is user-scoped as well: agents should use `sc.user.*` functions so ownership is explicit instead of inferred from cwd. The same `.mso/functions.json` schemas are exposed through the bundled MCP server to MSO, Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients. See [Tool calling](docs/tool-calling.md).
+Tool calling is user/connection-scoped as well: agents use `sc.user.*` so ownership and account alias are explicit instead of inferred from cwd. The same `.mso/functions.json` schemas are exposed through the bundled MCP server to MSO, Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients. See [Tool calling](docs/tool-calling.md) and the [Composio auth model research](docs/research/composio-auth-matrix.md).
 
 ## Local CLI navigation and user ownership
 
 Run `sc` on a TTY to open a Finder-style alternate-screen console. Navigation repaints one stable frame instead of appending lines to scrollback. The top `SECTIONS` tabs and `PATH` breadcrumb stay visible while Finder-like columns show parent/current layers side by side. `Tab`/`→` enters a deeper branch, `Enter` opens or runs the selected item, and `←`/`Esc` goes back. Finishing an action returns to the same frame instead of terminating the CLI.
 
-The CLI is user-first: `Users → <user> → Providers → <provider> → Credentials`. Each user owns an isolated credential store in `~/.config/si-coder/profiles/<user>.env` (0600); non-secret metadata stays in `profile-meta.json`, while `sc.md` holds the default user and folder-to-user rules. Users can be duplicated or renamed, and credentials can be listed/set/rotated/removed only inside a selected user.
+The CLI is user-first and multi-account: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials`. One user can have several isolated connections for the same provider, each with an alias/label, auth method and scope. Direct values live in `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` (0600); `connections.json` contains only connection metadata. Legacy profile files remain a migration fallback.
 
-When a credential is missing, SI-Coder shows the official/reference URL (or a safe local generation command) plus a click-by-click navigation path before opening hidden input. The same acquisition metadata is returned to MSO/MCP agents; raw credential values still never enter tool JSON.
+When a credential is missing, SI-Coder first chooses the connection's auth method/scope, then shows the official/reference URL (or safe local generation command) plus click-by-click navigation before hidden input. OAuth/external connections show an authorization guide instead. The same metadata is returned to MSO/MCP agents; raw values never enter tool JSON.
 
 See [Finder CLI navigation, users, and credential ownership](docs/cli.md).
 
@@ -201,13 +204,13 @@ The policy hard-caps the first discovery phase at three questions and explicitly
 
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.10/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.10/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.11/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.11/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.10/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.11/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
 If an AI is given only this repository URL and asked to install SI-Coder, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the current surface automatically.
@@ -222,6 +225,7 @@ Detailed install/onboarding guides:
 - [ChatGPT workspace marketplace](docs/install/chatgpt-workspace-marketplace.md)
 - [Generic local Agent Skills](docs/install/generic-local.md)
 - [First-run account onboarding](docs/install/first-run-onboarding.md)
+- [Composio multi-account/auth research](docs/research/composio-auth-matrix.md)
 - [OpenAI Plugin Directory publication status](docs/publishing/openai-plugin-directory.md)
 
 ### Claude Code — repository/plugin install
@@ -258,7 +262,7 @@ Use the release `sc.zip`. Anthropic currently documents Claude Web custom-skill 
 
 Direct downloads from `main`:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip`
 
 Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
 
@@ -268,7 +272,7 @@ For a managed workspace, the closest match to “install this GitHub repo” is 
 
 For personal Skills, OpenAI documents a `SKILL.md`-based skill and an Upload from your computer flow, but does not currently require the `.skill` extension. SI-Coder recommends the complete `sc.zip` package.
 
-Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip`
+Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip`
 
 After installation, ChatGPT can use the skill automatically. OpenAI documents explicit Skill selection by **@ mention**; SI-Coder registers the OpenAI display name `sc`, so use `@sc`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 
@@ -304,15 +308,17 @@ sc deploy plan
 sc deploy plan --technical
 sc deploy plan --json
 
-# Local account/credential status
-sc providers
-sc secret list
-sc secret get resend RESEND_API_KEY
-sc secret set resend RESEND_API_KEY
-sc doctor
+# User + named provider connections
+sc user connections <user>
+sc user connection-add <user> convex-cloud "Client A Production" --auth deployment-key
+sc user credentials <user> convex-cloud --connection client-a-production
 
-# Consume stored credentials without printing them
-sc run -- <command>
+# Consume a selected account without printing it or changing defaults
+sc run --connection convex-cloud=client-a-production -- <command>
+
+# Legacy global secret commands remain CLI compatibility only
+sc secret list
+sc doctor
 ```
 
 Secret values are never returned by `sc secret get`. `sc env` remains disabled because plaintext export is unsafe for an agent-facing control plane.

@@ -1,6 +1,6 @@
 ---
 name: sc-provider
-description: "SI-Coder provider + secret control plane for humans and agents. CRUD custom provider metadata, inspect credential status without plaintext, hand secret creation/rotation to a hidden terminal, run consumers with injected profile env, audit lifecycle operations, and safely self-update sc. Use when an agent needs API/provider credentials without asking the user to paste secrets into chat."
+description: "SI-Coder provider + connection control plane for humans and agents. Manage user-scoped labeled provider connections, auth methods/scopes, custom provider metadata, secret-safe credential status/handoffs, injected execution, audits, and safe updates without putting provider secrets in chat/tool JSON."
 ---
 
 # /sc-provider — provider + secret control plane
@@ -46,10 +46,10 @@ Never hide a failure, but explain its user impact before its implementation deta
 
 **Never ask the user to paste an API key/token/password into chat or tool JSON. Never put a secret value in argv.**
 
-The agent may handle provider **metadata** and credential **status**, but not plaintext values. For a new or rotated secret, hand the user a terminal command such as:
+The agent may handle provider/connection **metadata** and credential **status**, but not plaintext values. First resolve the user + labeled connection. For a new or rotated direct secret, hand the user a connection-specific terminal command such as:
 
 ```bash
-sc secret set resend RESEND_API_KEY
+sc user credential-set personal resend RESEND_API_KEY --connection transactional-email
 ```
 
 `sc` reads secret keys in hidden TTY mode. Non-interactive trusted local flows may use `--stdin`, `--from-env NAME`, or `--from-file PATH`; the value is never echoed by `sc`.
@@ -88,7 +88,7 @@ sc providers key-rm openai OPENAI_ORG_ID --yes
 sc providers delete openai --yes
 ```
 
-Deleting a custom provider/key also purges the corresponding managed values from all si-coder profiles and the managed `~/.bashrc` block so an orphaned credential does not escape profile isolation. User-owned exports outside the managed block are reported and left untouched.
+Deleting a custom provider/key also purges corresponding managed values from legacy profiles, named connection stores, and the managed `~/.bashrc` block. User-owned exports outside the managed block are reported and left untouched.
 
 
 ## Credential source guidance — one SSOT
@@ -101,6 +101,43 @@ Every built-in credential field declares its acquisition metadata in `lib/provid
 - `note` — scope/permission caveats.
 
 `lib/credential-guidance.js` renders that same metadata in the Finder `PREVIEW`, hidden-input CLI flow, onboarding, and `sc.user.credential.request`. Agents should surface `referenceUrl` + `navigation` before asking the user to enter anything locally. Do not invent a dashboard path when the registry already provides one.
+
+## Named connections are the credential boundary
+
+The user-first hierarchy is now:
+
+```text
+User → Provider → Connection(alias) → Credential fields
+```
+
+One user may own several isolated connections for the same provider (work/personal GitHub, multiple Convex deployments, multiple Vercel teams, client accounts, etc.). Each connection has a unique label/alias within that user+provider, one auth method, one scope, and a private `0600` env file.
+
+```bash
+sc user connections <user> [provider]
+sc user connection-add <user> <provider> "<label>" --auth <method> [--default]
+sc user connection-use <user> <provider> <connection>
+sc user connection-label <user> <provider> <connection> "<new label>"
+sc user connection-rm <user> <provider> <connection>
+sc user connection-migrate <user> [provider]
+```
+
+The provider's `auth[]` metadata in `lib/providers.js` defines whether a connection uses OAuth, API key, Bearer token, or local/generated config and which fields are required for that method.
+
+OAuth/external connections must not copy provider access/refresh tokens into SI-Coder. Store only the local alias/scope metadata and authorize through the external connected-account flow.
+
+Direct credential values live under:
+
+```text
+~/.config/si-coder/connections/<user>/<provider>/<connection>.env
+```
+
+Legacy `profiles/<user>.env` remains a compatibility/migration source only. A selected named connection atomically overrides the legacy provider fields so credentials from two accounts cannot be merged accidentally.
+
+For one command, select a non-default connection without changing the user's stored default:
+
+```bash
+sc run --connection github=work,convex-cloud=client-a-production -- <command>
+```
 
 ## Credential CRUD
 
@@ -123,43 +160,46 @@ sc secret set <provider> <KEY> --from-file /local/secret/file
 
 Do not construct a command containing the secret itself.
 
-## Profiles are the vault boundary
+## Users, folders, and default connections
 
-Preferred storage is `~/.config/si-coder/profiles/<name>.env` mode 0600. Profiles override stale shell values and strip registry credentials that the profile does not own.
+A folder resolves to one SI-Coder user through `sc.md`. Inside that user, each provider resolves to one default named connection unless the caller explicitly selects another alias.
 
 ```bash
-sc user add personal --from-shell
+sc user add personal
 sc user map ~/projects/personal personal
 sc user which
+sc user connections personal
 ```
 
-For backward compatibility, machines with no profile still use the managed `~/.bashrc` block.
+This gives two independent isolation levels:
+
+1. **folder → user**, so another user's provider data is stripped;
+2. **user + provider → connection**, so work/personal/project credentials for the same provider are not merged.
+
+For backward compatibility, machines may still contain legacy profile or managed-shell values. Use `sc user connection-migrate <user>` to move recognized legacy values into named connections without printing them.
 
 ## Agent / MSO / MCP function surface
 
 `.mso/functions.json` is the machine-tool SSOT. MSO reads it directly and `scripts/sc-mcp.js` exposes the same functions to Claude Code, Codex, Hermes, OpenClaw, or another MCP client.
 
-Prefer the explicit user-scoped tools:
+Prefer explicit user/connection tools:
 
 - `sc.user.list`, `sc.user.show`, `sc.user.which`
 - `sc.user.create`, `sc.user.duplicate`, `sc.user.rename`, `sc.user.delete`
 - `sc.user.default`, `sc.user.map`, `sc.user.unmap`
 - `sc.user.providers.list`, `sc.user.provider.verify`
+- `sc.user.connections.list`
+- `sc.user.connection.manage`
+- `sc.user.connection.request`
 - `sc.user.credentials.status`, `sc.user.credential.status`
-- `sc.user.credential.request` — returns a user-specific hidden-terminal handoff, never a secret field
+- `sc.user.credential.request`
 - `sc.user.credential.delete`
 
-Global provider-definition tools remain available:
+The legacy cwd-dependent `sc secret ...` commands remain CLI compatibility paths, but they are intentionally not the primary MCP contract.
 
-- `sc.providers.list`
-- `sc.provider.create`, `sc.provider.update`, `sc.provider.delete`
-- `sc.provider.key-add`, `sc.provider.key-remove`
+There is no machine tool that accepts a raw provider key/token/password. Direct credential creation/rotation uses `sc.user.credential.request`, then hidden local terminal input. External/OAuth auth uses `sc.user.connection.request` and the secure external authorization flow.
 
-Legacy resolved-context `sc.secrets.status`, `sc.secret.request`, and `sc.secret.delete` remain for compatibility, but new agents should prefer `sc.user.*` so credential ownership never depends on cwd.
-
-There is intentionally **no** `sc.user.credential.set` or `sc.secret.set` MCP/function tool accepting a value. Creation/rotation is requested with `sc.user.credential.request`, then the human enters the value only in a hidden local terminal prompt or an explicitly connected secure credential action.
-
-See `docs/tool-calling.md` for registration examples across MSO, Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
+See `docs/tool-calling.md` and `docs/research/composio-auth-matrix.md`.
 
 ## Self-update
 
@@ -186,13 +226,14 @@ Whenever a credential/API key is missing, **never output only the variable name*
 ```text
 Buat di      : <authoritative provider URL / secure connector auth link>
 Petunjuk     : <minimum scope / exact menu when useful>
-Save with   : <sc secret set provider KEY, or provider connector>
-Stored in   : <SC profile 0600, or Composio connected account>
+Connection  : <user/provider/label + scope>
+Save with   : <sc user credential-set user provider KEY --connection alias, or secure provider connector>
+Stored in   : <named SC connection 0600, or external connected account>
 Lanjut       : <verification/resume action>
 ```
 
 Rules:
-- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
+- Local SC runtime: resolve/create a labeled connection first, then use the provider endpoint from the registry and `sc user credential-set <user> <provider> <KEY> --connection <alias>`; it lands only in that connection's 0600 file. Legacy profile/shell storage is compatibility-only.
 - Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
 - If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
 - Never put the credential value in chat, argv, logs, recommendations, or tool JSON.

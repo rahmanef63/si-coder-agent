@@ -396,8 +396,8 @@
       "timeoutMs": 10000
     },
     {
-      "name": "sc.user.provider.verify",
-      "description": "Run live provider verification using only one explicit user credential store. Values are never returned.",
+      "name": "sc.user.connections.list",
+      "description": "List named provider connections for one SI-Coder user, including labels, auth methods, scopes, defaults, and credential key names without values.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -418,13 +418,13 @@
       "command": [
         "node",
         "scripts/sc-agent.js",
-        "user.provider.verify"
+        "user.connections.list"
       ],
-      "timeoutMs": 30000
+      "timeoutMs": 10000
     },
     {
-      "name": "sc.user.credentials.status",
-      "description": "Read all or one provider credential status for one explicit SI-Coder user. Plaintext reads are impossible.",
+      "name": "sc.user.connection.manage",
+      "description": "Create, rename, select, delete, or migrate one named provider connection. Metadata/secret files remain local; no credential value is accepted or returned.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -433,6 +433,137 @@
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
           },
           "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "set-default",
+              "rename",
+              "delete",
+              "migrate-legacy"
+            ]
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "authMethod": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "setDefault": {
+            "type": "boolean"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "provider",
+          "action",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.connection.manage"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.connection.request",
+      "description": "Describe available auth methods or the next authorization/setup action for a named provider connection, including Composio/OAuth/API-key/deployment scope metadata without secrets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "authMethod": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "user",
+          "provider"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.connection.request"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.user.provider.verify",
+      "description": "Run live provider verification for one explicit user and optional named provider connection. Values are never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "user.provider.verify"
+      ],
+      "timeoutMs": 30000
+    },
+    {
+      "name": "sc.user.credentials.status",
+      "description": "Read provider credential status for one explicit user and optional named connection. Plaintext reads are impossible.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "connection": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
           }
@@ -466,6 +597,10 @@
           "key": {
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
           }
         },
         "required": [
@@ -483,7 +618,7 @@
     },
     {
       "name": "sc.user.credential.request",
-      "description": "Return a safe user-specific credential creation/rotation handoff. Never accepts a credential value; the user enters it only in hidden local terminal input or a connected secure action.",
+      "description": "Return a safe user/connection-specific credential creation or rotation handoff. Never accepts a credential value.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -498,6 +633,10 @@
           "key": {
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
           }
         },
         "required": [
@@ -534,6 +673,10 @@
           "confirm": {
             "type": "boolean",
             "const": true
+          },
+          "connection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
           }
         },
         "required": [
@@ -604,6 +747,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000
+          },
+          "navigation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": [
@@ -706,6 +854,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000
+          },
+          "navigation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": [
@@ -749,80 +902,6 @@
         "node",
         "scripts/sc-agent.js",
         "provider.key-remove"
-      ],
-      "timeoutMs": 10000
-    },
-    {
-      "name": "sc.secrets.status",
-      "description": "Read credential status/source for all or one provider. Plaintext credential reads are deliberately impossible.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "command": [
-        "node",
-        "scripts/sc-agent.js",
-        "secrets.status"
-      ],
-      "timeoutMs": 10000
-    },
-    {
-      "name": "sc.secret.request",
-      "description": "Return one simple user action for safely connecting a needed service, including the official link, where access is stored, what happens next, optional technical details, and [rekomendasi]. Never accepts a secret value.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider"
-        ],
-        "additionalProperties": false
-      },
-      "command": [
-        "node",
-        "scripts/sc-agent.js",
-        "secret.request"
-      ],
-      "timeoutMs": 10000
-    },
-    {
-      "name": "sc.secret.delete",
-      "description": "Delete one or all managed credential keys for a provider in the active si-coder store. Never returns secret values and requires explicit confirmation.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "confirm": {
-            "type": "boolean",
-            "const": true
-          }
-        },
-        "required": [
-          "provider",
-          "confirm"
-        ],
-        "additionalProperties": false
-      },
-      "command": [
-        "node",
-        "scripts/sc-agent.js",
-        "secret.delete"
       ],
       "timeoutMs": 10000
     },

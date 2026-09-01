@@ -37,7 +37,7 @@ If a credential is missing, SI-Coder must show:
 ```text
 Create at    : official provider URL
 Instructions : minimum useful access/scopes
-Save with    : sc secret set <provider> <KEY>
+Save with    : sc user credential-set <user> <provider> <KEY> --connection <alias>
 Stored in    : protected SC profile/local store
 Continue     : sc doctor --providers <provider>
 ```
@@ -50,7 +50,7 @@ SI-Coder resolves local credentials in this order:
 2. Current process environment.
 3. Managed local shell block when no profile owns the key.
 
-Local credential stores are user-scoped. The interactive hierarchy is `Users → <user> → Providers → <provider> → Credentials`, so credential ownership is always explicit before create/update/delete operations. Existing profile files remain the backward-compatible storage format, while `profile-meta.json` contains non-secret metadata only. Use `sc user import <user>` to migrate legacy shell credentials, and `sc user duplicate <source> <target>` when a second user should start with the same provider credentials but rotate only selected keys.
+Local credential stores are user + connection scoped. The interactive hierarchy is `Users → <user> → Providers → <provider> → Connections → <label> → Credentials`. One user can keep multiple work/personal/project/deployment connections for the same provider without merging values. Connection metadata is stored in `connections.json`; direct values are stored in `connections/<user>/<provider>/<alias>.env` (0600). Legacy profile files remain a migration fallback. Use `sc user connection-migrate <user>` to move old profile values and `sc user duplicate <source> <target>` to copy the full independent user+connection structure.
 
 For the full terminal navigation model, see [`../cli.md`](../cli.md).
 

@@ -9,7 +9,7 @@ description: "Onboard SI-Coder provider credentials safely. Scans what is config
 
 Keep durable instructions in English. **Reply in the user's language** unless they request another language.
 
-> **Agent secret boundary:** never ask the user to paste an API key/token/password into chat, an MCP/function argument, or argv. For a new or rotated secret, route to `/sc-provider` and hand the user `sc secret set <provider> <KEY>` so entry happens in the hidden terminal. Agents inspect status with `sc secret list/get` and consume stored credentials with `sc run -- <cmd>`.
+> **Agent secret boundary:** never ask the user to paste an API key/token/password into chat, an MCP/function argument, or argv. Resolve `user → provider → connection` first. OAuth stays in the external connected-account flow; a direct new/rotated secret is entered with `sc user credential-set <user> <provider> <KEY> --connection <alias>` in the hidden terminal. Consume with `sc run [--connection provider=alias] -- <cmd>`.
 
 Use this skill when the user is setting up `si-coder-agent` for the first time, or after they install a new `/sc-*` domain skill that needs new credentials.
 
@@ -71,54 +71,44 @@ already on screen, and no silent typos:
 Values themselves are still typed — a token has to be pasted — but secrets are read hidden
 and never reach argv.
 
-### More than one identity: profiles + `sc.md`
+### More than one identity and more than one account
 
-One `~/.bashrc` holds one set of credentials. That breaks the moment two machines, two
-Cloudflare accounts, or two clients are in play — and the failure is silent: a stale `export`
-from a login shell is enough to deploy with the wrong account's token.
+SI-Coder has two levels of identity:
 
-```
-sc user                           profiles + which one governs this directory
-sc user which                     the resolution, and why
-sc user add <name> [--from-shell] create one (--from-shell imports what is exported now)
-sc user use <name>                set the fallback profile
-sc user map <folder> <name>       bind a folder AND its children to a profile
-sc user unmap <folder>            drop that rule
-sc user rm <name> [--yes]         delete a profile and its credentials
-sc env                            disabled — plaintext export would break the agent secret boundary
-sc run -- <cmd> ...               consume the resolved profile without printing it
-sc run -- <cmd> ...               run one command under the resolved profile
---no-profile                      ignore profiles for this one command
+```text
+folder/project → user → provider → named connection
 ```
 
-Credentials live in `~/.config/si-coder/profiles/<name>.env` (0600). The folder map lives in
-`~/.config/si-coder/sc.md` — plain markdown, meant to be edited by hand:
+A user may have multiple labeled connections for the same provider. Example:
 
-```markdown
-Active profile: `antinrml`
-
-| Path | Profile |
-| --- | --- |
-| `~/projects/antinrml` | `antinrml` |
-| `~/projects/client-x` | `client-x` |
+```text
+rahmanfakhr
+└─ convex-cloud
+   ├─ Convex Admin        (Bearer token · account)
+   ├─ Client A Production (API key · deployment)
+   └─ Client B Preview    (API key · deployment)
 ```
 
-**Longest matching path wins**, so a subdirectory can override its parent, and `/srv/app`
-never matches `/srv/application` — matching is path-segment aware.
+Commands:
 
-**Two rules that make this actually safe, both deliberate:**
+```bash
+sc user add <name>
+sc user map <folder> <name>
+sc user which
+sc user connections <name> [provider]
+sc user connection-add <name> <provider> "<label>" --auth <method>
+sc user connection-use <name> <provider> <connection>
+sc user connection-migrate <name> [provider]
+```
 
-1. **A profile OUTRANKS the shell.** The usual instinct is "the exported variable wins", but
-   the failure modes are not symmetric: a profile losing to a stale export means deploying
-   with someone else's credentials, while a profile winning means an intentional one-off is
-   ignored — and `--no-profile` undoes that.
-2. **Credentials the profile does not own are REMOVED, not merged.** Standing in a folder
-   mapped to `client-x` with another account's `DOKPLOY_API_KEY` still exported, a merge
-   would happily use it. Only registry keys are stripped; `PATH`, `HOME` and the rest survive.
-   `sc run` removes those shadowed keys from the child environment and reports only their key names, never values.
+Connection metadata is private but non-secret (`~/.config/si-coder/connections.json`, mode 0600). Direct credential values live in one file per connection under `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` (0600). Legacy user profile files remain readable only for compatibility/migration.
 
-Preferred path: use profiles so credentials live in `~/.config/si-coder/profiles/<name>.env` (0600). Backwards compatible: with no profiles, writes keep going to the `~/.bashrc` managed block
-exactly as before. `sc user add <name> --from-shell` is the migration path.
+**Isolation rules:**
+
+1. A resolved user outranks stale shell credentials.
+2. Registry credentials not owned by that user are removed.
+3. Within one provider, only one selected/default named connection is injected; fields from two connections are never merged.
+4. A one-shot `sc run --connection provider=alias -- ...` override does not change the stored default.
 
 `providers` answers "is it configured" (presence + format). `doctor` answers "does it
 actually work" — a real call to the real API. A token can be perfectly well-formed and still
@@ -153,7 +143,7 @@ The AI MUST:
    - `[ ] resend` (credential storage + live doctor) · `composio` (project API key + live doctor)
    - `[ ] cf` (Cloudflare) · `stripe` · `clerk` · `supabase` (remaining stub skills where noted)
 2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
-3. **For each missing var, use the shared credential guidance** from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus the click-by-click `navigation[]` path. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
+3. **For each missing provider connection, inspect `auth[]` first.** If several auth methods exist, choose the least-privilege method that matches the task (OAuth/managed, account Bearer/API key, or project/deployment key). For each required direct field, use the shared credential guidance from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus `navigation[]`. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
 4. **Write only the new values** to `~/.bashrc` by piping the pairs via **stdin** so the raw secret never lands in argv (`ps aux` / `/proc/<pid>/cmdline` / shell history):
 
    ```bash
@@ -204,7 +194,7 @@ node bin/onboard.js --domains convex,dokploy,github   # non-interactive checklis
 clone goes from install to configured in one flow. It auto-skips when stdin/stdout
 is not a TTY (piped installs), or with `--no-onboard`, so `curl … | bash` never hangs.
 
-The wizard, for each missing var:
+The legacy one-shot wizard remains field-oriented for compatibility. The Finder/agent path is connection-oriented. For each missing legacy field the wizard:
 
 1. **Prints where to get it** — the dashboard URL (or a local command, e.g. `tailscale status`)
    plus a one-line hint (required scope, path within the dashboard, "leave blank"). These come
@@ -260,13 +250,14 @@ Whenever a credential/API key is missing, **never output only the variable name*
 ```text
 Buat di      : <authoritative provider URL / secure connector auth link>
 Petunjuk     : <minimum scope / exact menu when useful>
-Save with   : <sc secret set provider KEY, or provider connector>
-Stored in   : <SC profile 0600, or Composio connected account>
+Connection  : <user/provider/label + scope>
+Save with   : <sc user credential-set user provider KEY --connection alias, or secure provider connector>
+Stored in   : <named SC connection 0600, or external connected account>
 Lanjut       : <verification/resume action>
 ```
 
 Rules:
-- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
+- Local SC runtime: choose/create a labeled connection and use `sc user credential-set <user> <provider> <KEY> --connection <alias>` for direct credentials. Store values only in that connection's 0600 file; legacy profile/shell storage is migration-only.
 - Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
 - If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
 - Never put the credential value in chat, argv, logs, recommendations, or tool JSON.

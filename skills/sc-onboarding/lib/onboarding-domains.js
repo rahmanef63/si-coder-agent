@@ -26,9 +26,8 @@ function sourceLine(key) {
   const s = SECRET_SOURCES[key];
   if (!s) return '';
   const where = s.url ? `get it at: ${s.url}` : (s.cmd ? `find it with: ${s.cmd}` : '');
-  if (where && s.note) return `${where}  (${s.note})`;
-  if (where) return where;
-  return s.note || '';
+  const nav = Array.isArray(s.navigation) && s.navigation.length ? `click: ${s.navigation.join(' → ')}` : '';
+  return [where, nav, s.note || ''].filter(Boolean).join('  ·  ');
 }
 
 // Parse ~/.bashrc into a plain KEY->value map, stripping the leading `export `

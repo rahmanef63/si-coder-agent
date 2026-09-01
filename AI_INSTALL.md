@@ -37,7 +37,7 @@ The installer can accept GitHub repo paths and install them into the Codex skill
 
 Anthropic currently documents **ZIP upload** for custom Skills. Use:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip`
 
 Do not default to the `.skill` filename on Claude Web; the official web instructions say to upload a ZIP containing the skill folder.
 
@@ -47,7 +47,7 @@ Do not default to the `.skill` filename on Claude Web; the official web instruct
 
 **Personal Skill:** OpenAI defines the skill around `SKILL.md` and documents **Upload from your computer**, but does not currently require a `.skill` extension. Use the complete ZIP package:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.10/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.11/sc.zip`
 
 The optional `.skill` archive is only for clients that explicitly accept that extension.
 
@@ -59,4 +59,4 @@ Prefer the canonical `skills/sc/` directory containing `SKILL.md`. Use an archiv
 
 ## Security
 
-Never copy provider secrets out of their secure stores just to complete installation. Installing SI-Coder installs workflow instructions and local tooling only; provider authorization remains a separate secure connection step.
+Never copy provider secrets out of their secure stores just to complete installation. Installing SI-Coder installs workflow instructions and local tooling only; provider authorization remains a separate secure connection step. Local agents should model access as `user → provider → named connection`; OAuth/external connections remain external, while direct keys are entered only into the selected connection's hidden local store.

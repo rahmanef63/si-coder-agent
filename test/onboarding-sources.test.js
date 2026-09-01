@@ -126,3 +126,34 @@ test('SRC-13: credential guide returns reference URL plus navigation, or a local
   assert.match(webhook.navigationText, /GitHub webhook Secret field/);
   assert.match(webhook.userCard.message, /locally/i);
 });
+
+test('SRC-14: Convex Cloud exposes separate account PAT and deployment-key connection methods', () => {
+  const { PROVIDERS } = require('../lib/providers');
+  const convex = PROVIDERS.find(p => p.id === 'convex-cloud');
+  assert.ok(convex);
+  assert.deepStrictEqual(convex.composio.authSchemes, ['BEARER_TOKEN', 'API_KEY']);
+  const pat = convex.auth.find(a => a.id === 'personal-access-token');
+  const deployment = convex.auth.find(a => a.id === 'deployment-key');
+  assert.strictEqual(pat.scheme, 'BEARER_TOKEN');
+  assert.strictEqual(pat.scope, 'account');
+  assert.deepStrictEqual(pat.requiredFields, ['CONVEX_PERSONAL_ACCESS_TOKEN']);
+  assert.strictEqual(deployment.scheme, 'API_KEY');
+  assert.strictEqual(deployment.scope, 'deployment');
+  assert.deepStrictEqual(deployment.requiredFields, ['CONVEX_DEPLOYMENT_NAME', 'CONVEX_DEPLOY_KEY']);
+  assert.strictEqual(SECRET_SOURCES.CONVEX_PERSONAL_ACCESS_TOKEN.url, 'https://dashboard.convex.dev/profile#personal-access-tokens');
+  assert.ok(SECRET_SOURCES.CONVEX_DEPLOY_KEY.navigation.some(step => /Deploy keys/i.test(step)));
+  assert.ok(require('../lib/providers').VALIDATORS.CONVEX_DEPLOY_KEY('dev:acoustic-panther-728|' + 'x'.repeat(40)));
+});
+
+test('SRC-15: Composio-inspired provider auth metadata distinguishes OAuth, API key, and MCP OAuth', () => {
+  const { PROVIDERS } = require('../lib/providers');
+  const row = id => PROVIDERS.find(p => p.id === id);
+  assert.ok(row('github').auth.some(a => a.scheme === 'OAUTH2' && a.external));
+  assert.ok(row('supabase').auth.some(a => a.scheme === 'OAUTH2' && a.external));
+  assert.ok(row('stripe').auth.some(a => a.scheme === 'OAUTH2' && a.external));
+  assert.ok(row('cloudflare') || row('cf'));
+  assert.ok(row('cf').auth.some(a => a.scheme === 'API_KEY'));
+  assert.ok(row('resend').auth.some(a => a.scheme === 'API_KEY'));
+  assert.ok(row('vercel').auth.some(a => a.scheme === 'DCR_OAUTH' && a.external));
+  assert.strictEqual(row('vercel').composio.mcpToolkit, 'vercel_mcp');
+});

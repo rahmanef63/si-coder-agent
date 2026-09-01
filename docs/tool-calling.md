@@ -1,33 +1,44 @@
 # SI-Coder tool calling
 
-SI-Coder exposes one secret-safe machine surface for local AI agents. MSO and MCP clients use the same schemas from `.mso/functions.json`; `scripts/sc-agent.js` is the execution adapter and `scripts/sc-mcp.js` exposes those functions over MCP stdio.
+SI-Coder exposes one secret-safe machine surface for local AI agents. MSO and MCP clients use the same schemas from `.mso/functions.json`; `scripts/sc-agent.js` executes them and `scripts/sc-mcp.js` exposes them over MCP stdio.
 
 ## Identity model
 
-Agent operations are user-first, matching the Finder CLI:
+The machine model matches the Finder:
 
 ```text
-Users
-└─ <user>
-   └─ Providers
-      └─ <provider>
-         └─ Credentials
-            └─ <KEY>
+User
+└─ Provider
+   └─ Connection (unique alias/label)
+      └─ Credential fields
 ```
 
-Prefer explicit user-scoped tools instead of relying on the caller's current directory.
+One user may own several connections for the same provider. Agents must keep the connection identity explicit whenever more than one account/project/deployment exists.
 
-Core read tools:
+## Core tools
+
+Read/routing:
 
 - `sc.user.list`
 - `sc.user.show`
 - `sc.user.which`
 - `sc.user.providers.list`
+- `sc.user.connections.list`
 - `sc.user.credentials.status`
 - `sc.user.credential.status`
 - `sc.user.provider.verify`
 
-User mutations require explicit confirmation where they can change identity/routing or copy/delete credentials:
+Connection lifecycle:
+
+- `sc.user.connection.manage`
+  - `create`
+  - `set-default`
+  - `rename`
+  - `delete`
+  - `migrate-legacy`
+- `sc.user.connection.request`
+
+User lifecycle:
 
 - `sc.user.create`
 - `sc.user.duplicate`
@@ -36,9 +47,57 @@ User mutations require explicit confirmation where they can change identity/rout
 - `sc.user.map`
 - `sc.user.unmap`
 - `sc.user.delete`
+
+Credential deletion:
+
 - `sc.user.credential.delete`
 
-## Creating or rotating a credential
+Mutations that can change ownership/routing/copy/delete require explicit `confirm: true` where the schema requires it.
+
+## Creating a connection
+
+First inspect the provider's current auth choices:
+
+```text
+sc.user.connection.request
+{
+  user: "rahmanfakhr",
+  provider: "convex-cloud"
+}
+```
+
+For Convex Cloud this returns separate methods such as:
+
+```text
+personal-access-token  BEARER_TOKEN  account
+  → CONVEX_PERSONAL_ACCESS_TOKEN
+
+deployment-key        API_KEY       deployment
+  → CONVEX_DEPLOYMENT_NAME
+  → CONVEX_DEPLOY_KEY
+```
+
+Then create a named connection with `sc.user.connection.manage`.
+
+## OAuth / externally managed authorization
+
+If an auth method is marked `external`, SI-Coder stores only local connection identity metadata. It must **not** request/copy OAuth access or refresh tokens into SC.
+
+For a Composio-backed toolkit, `sc.user.connection.request` returns a `managedConnectionAction` describing the toolkit and alias. The intended pattern is:
+
+```text
+user + toolkit + unique connection alias
+→ session.authorize(toolkit, alias=...)
+→ show the returned authorization URL to the human
+→ wait for ACTIVE
+→ explicitly select that alias/account when multiple accounts exist
+```
+
+`COMPOSIO_MANAGE_CONNECTIONS` can check/initiate missing Tool Router connections. Multi-account execution should still select an alias/account explicitly instead of relying on a fuzzy account name.
+
+References: `research/composio-auth-matrix.md`.
+
+## Creating or rotating a direct credential
 
 There is deliberately no MCP tool that accepts an API key/token/password value.
 
@@ -46,23 +105,46 @@ Use:
 
 ```text
 sc.user.credential.request
+{
+  user: "rahmanfakhr",
+  provider: "convex-cloud",
+  connection: "client-a-production",
+  key: "CONVEX_DEPLOY_KEY"
+}
 ```
 
-It returns the explicit user/provider/key status, official provider URL when known, and a user-specific hidden-terminal command such as:
+The response contains only safe metadata:
+
+- connection identity/label/scope,
+- current state,
+- official `referenceUrl` or local `createCommand`,
+- `navigation[]` and `navigationText`,
+- the hidden-terminal command.
+
+Example handoff:
 
 ```bash
-sc user credential-set rahmanfakh github GITHUB_TOKEN
+sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY \
+  --connection client-a-production
 ```
 
-The secret must be entered only into the hidden local terminal prompt or an explicitly connected secure credential action. Never put it in chat, MCP JSON, CLI argv, logs, or generated documentation.
+The value is entered only in the hidden local terminal prompt or an explicitly connected secure credential action.
+
+## Explicit account selection during execution
+
+For local child processes SI-Coder supports one-shot account selection without changing stored defaults:
+
+```bash
+sc run --connection github=work,convex-cloud=client-a-production -- <command>
+```
+
+This is the local equivalent of pinning/selecting a connected-account alias in a multi-account session.
 
 ## MSO
 
-MSO reads `.mso/functions.json` directly. No second manifest is maintained.
+MSO reads `.mso/functions.json` directly. No second function manifest is maintained.
 
 ## MCP server
-
-Run the bundled stdio server:
 
 ```bash
 node /path/to/si-coder-agent/scripts/sc-mcp.js
@@ -82,11 +164,9 @@ Generic MCP configuration:
 }
 ```
 
-`tools/list` is generated from `.mso/functions.json`, so MCP and MSO cannot drift on tool names or input schemas.
+`tools/list` is generated from `.mso/functions.json`, so MCP and MSO share tool names/input schemas.
 
 ## Claude Code
-
-Plugin mode loads the repository `.mcp.json`. For standalone installation:
 
 ```bash
 claude mcp add --scope user si-coder -- node /path/to/si-coder-agent/scripts/sc-mcp.js
@@ -98,7 +178,7 @@ claude mcp add --scope user si-coder -- node /path/to/si-coder-agent/scripts/sc-
 codex mcp add si-coder -- node /path/to/si-coder-agent/scripts/sc-mcp.js
 ```
 
-Or install Skills + MCP together:
+or:
 
 ```bash
 bash install.sh --agent codex --with-mcp
@@ -106,23 +186,19 @@ bash install.sh --agent codex --with-mcp
 
 ## Hermes
 
-Hermes provides native MCP management:
-
 ```bash
 hermes mcp add si-coder \
   --command node \
   --args /path/to/si-coder-agent/scripts/sc-mcp.js
 ```
 
-Or:
+or:
 
 ```bash
 bash install.sh --agent hermes --with-mcp
 ```
 
 ## OpenClaw
-
-OpenClaw provides native `mcp.servers` management:
 
 ```bash
 openclaw mcp add si-coder \
@@ -131,7 +207,7 @@ openclaw mcp add si-coder \
   --arg /path/to/si-coder-agent/scripts/sc-mcp.js
 ```
 
-Or:
+or:
 
 ```bash
 bash install.sh --agent openclaw --with-mcp
@@ -139,13 +215,10 @@ bash install.sh --agent openclaw --with-mcp
 
 ## Safety contract
 
-- Machine schemas do not contain plaintext-secret input fields.
-- Secret-shaped field names are rejected recursively by the adapter as defense in depth.
-- Reads return status, provider/key names, ownership, routing, and setup guidance only.
-- Credential duplication happens locally between private stores and never returns copied values.
-- Credential creation/rotation is a secure handoff, not a JSON write operation.
-- Delete/default/map/rename/duplicate operations require explicit confirmation on the machine surface.
-
-## Credential acquisition metadata
-
-`sc.user.credential.request` returns `referenceUrl`, `createCommand`, `navigation[]`, and `navigationText` before the hidden-terminal handoff. These fields come from `lib/providers.js`; agents should present them instead of inventing provider dashboard directions.
+- Machine schemas contain no plaintext-secret input field.
+- The adapter rejects secret-shaped nested inputs as defense in depth.
+- Reads return identities, aliases, scopes, auth methods, states and setup guidance only.
+- Duplicating a user copies private connection stores locally and never returns values.
+- Credential creation/rotation is a secure handoff, not a JSON write.
+- OAuth/external authorization stays in the external connected-account system.
+- Connection aliases are unique per user+provider to prevent ambiguous selection.
