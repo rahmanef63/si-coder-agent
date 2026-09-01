@@ -18,7 +18,7 @@ At Home, `Esc` does not close SI-Coder. Use **Quit** or `Ctrl-D`.
 
 ### Stable Finder grid
 
-On wide terminals SI-Coder reserves **four fixed-width column slots**. Before a fourth layer exists, the unused slot stays blank instead of stretching the existing columns. Opening a deeper layer fills that slot; after four layers, the oldest visible column slides out and the newest layer slides in. Medium terminals use the same model with three slots, and narrow terminals use two.
+On wide terminals SI-Coder reserves **four fixed-width column slots**. Before a fourth layer exists, the unused slot stays blank instead of stretching the existing columns. Opening a deeper layer fills that slot. Outside provider management, the oldest visible column slides out after four layers. Inside a provider subtree, the `Providers` list and the selected provider stay anchored; the two right-hand slots rotate through the selected connection and deepest active layer. This keeps provider context visible even at `Connection → Credentials → KEY`. Medium terminals use the same model with three slots, and narrow terminals use two.
 
 The footer is fixed-height as well: `PREVIEW` shows the highlighted item, while `RESULT` temporarily replaces it after an action. This keeps the body height stable and prevents provider navigation from jumping or pushing the header out of the terminal viewport.
 

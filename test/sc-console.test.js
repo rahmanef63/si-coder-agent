@@ -354,6 +354,37 @@ test('SCC-7c: Finder slides the oldest column out after the fourth layer', () =>
   assert.strictEqual([...columnHeader.matchAll(/│/g)].length, 3);
 });
 
+test('SCC-7d: deep provider navigation keeps Providers + selected provider anchored in four-column view', () => {
+  const { chooseVisibleColumns } = require(path.join(ROOT, 'lib/finder-tui'));
+  const col = (nodeId, title) => ({ nodeId, title, items: [], selectedId: null });
+  const columns = [
+    col('root', 'SI-Coder'),
+    col('users', 'Users'),
+    col('user:rahmanfakhr', 'rahmanfakhr'),
+    col('providers', 'Providers'),
+    col('provider:convex-cloud', 'convex-cloud'),
+    col('connections', 'Connections'),
+    col('connection:play-together-dev', 'Play Together Dev'),
+    col('credentials', 'Credentials'),
+  ];
+  assert.deepStrictEqual(
+    chooseVisibleColumns(columns, 4).map(c => c.nodeId),
+    ['providers', 'provider:convex-cloud', 'connection:play-together-dev', 'credentials'],
+    'deep credentials view must not drop the Providers column',
+  );
+  const credentialAction = [...columns, col('credential:CONVEX_DEPLOY_KEY', 'CONVEX_DEPLOY_KEY')];
+  assert.deepStrictEqual(
+    chooseVisibleColumns(credentialAction, 4).map(c => c.nodeId),
+    ['providers', 'provider:convex-cloud', 'connection:play-together-dev', 'credential:CONVEX_DEPLOY_KEY'],
+    'credential action should keep provider + connection context and skip structural bridge columns',
+  );
+  assert.deepStrictEqual(
+    chooseVisibleColumns(columns.slice(0, 5), 4).map(c => c.nodeId),
+    ['users', 'user:rahmanfakhr', 'providers', 'provider:convex-cloud'],
+    'provider entry must preserve the familiar v0.8.9 last-four layout',
+  );
+});
+
 test('SCC-8: profile ownership is configurable from the CLI without exposing credentials', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-owner-cli-'));
   const env = { ...process.env, SC_CONFIG_DIR: dir };

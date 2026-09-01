@@ -1616,6 +1616,7 @@ function menuColumns(stack) {
     const items = menuLayer(prefix);
     columns.push({
       title: depth === 0 ? 'SI-Coder' : stack[depth - 1].label,
+      nodeId: depth === 0 ? 'root' : stack[depth - 1].id,
       items,
       selectedId: depth < stack.length ? stack[depth].id : null,
     });

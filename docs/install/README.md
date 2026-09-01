@@ -7,13 +7,13 @@ Choose the guide that matches the surface where SI-Coder will run. The Agent Ski
 <!-- INSTALL_MATRIX_SSOT:BEGIN -->
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.12/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.12/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.12/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.12/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.13/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.13/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.13/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.13/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.12/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.12/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.13/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.13/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_SSOT:END -->
 
 ### Important distinction
@@ -26,10 +26,10 @@ Choose the guide that matches the surface where SI-Coder will run. The Agent Ski
 
 ## Direct source links
 
-- [Canonical `sc` skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.12/skills/sc)
-- [View raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.12/skills/sc/SKILL.md)
-- [Download upload-ready `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.12/sc.zip)
-- [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.12/sc.skill)
+- [Canonical `sc` skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.8.13/skills/sc)
+- [View raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.13/skills/sc/SKILL.md)
+- [Download upload-ready `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.13/sc.zip)
+- [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.13/sc.skill)
 
 ## Guides
 
