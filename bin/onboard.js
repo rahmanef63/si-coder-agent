@@ -34,7 +34,8 @@ const DOMAIN_BLURBS = {
   hostinger: 'DNS automation, optional',
   cf: 'Cloudflare DNS',
   stripe: 'Stripe payments (stub)',
-  resend: 'Resend email (stub)',
+  resend: 'Resend transactional email credentials',
+  composio: 'Composio agent tools/integrations API',
   clerk: 'Clerk auth (stub)',
   vercel: 'Vercel online frontend',
   'convex-cloud': 'Convex Cloud backend',
@@ -52,6 +53,8 @@ const VERIFY_HINTS = {
   cf: 'node skills/sc-cf/scripts/dns.js zones                    # verify Cloudflare token',
   hostinger: '# Hostinger token ready — used automatically for DNS records',
   sync: 'node skills/sc-sync/scripts/sync.js <vps-local|local-vps>  # dry-run first',
+  resend: 'sc doctor --providers resend                            # validate API key + sender domain',
+  composio: 'sc doctor --providers composio                         # validate project API key',
 };
 
 // Control-character codes, named — the raw-mode reader compares char codes so the

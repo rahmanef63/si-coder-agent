@@ -77,6 +77,64 @@ test('SCP-7: validators accept the documented real shapes and reject junk', () =
   assert.ok(!VALIDATORS.DOKPLOY_PUBLIC_IP('panel.example.com'));
   assert.ok(VALIDATORS.CLOUDFLARE_ZONE_ID('3cf2da42288b236db31d5b568121887f'));
   assert.ok(!VALIDATORS.CLOUDFLARE_ZONE_ID('not-a-zone-id'));
+  assert.ok(VALIDATORS.RESEND_API_KEY('re_1234567890abcdef'));
+  assert.ok(!VALIDATORS.RESEND_API_KEY('convex-key'));
+  assert.ok(VALIDATORS.COMPOSIO_API_KEY('ak_1234567890abcdef'));
+  assert.ok(!VALIDATORS.COMPOSIO_API_KEY('ck_consumer_key_is_not_a_project_key'));
+});
+
+test('SCP-8: Resend and Composio are credential-ready providers, not setup stubs', () => {
+  const resend = PROVIDERS.find(p => p.id === 'resend');
+  const composio = PROVIDERS.find(p => p.id === 'composio');
+  assert.strictEqual(resend?.status, 'implemented');
+  assert.strictEqual(composio?.status, 'implemented');
+  assert.deepStrictEqual(composio?.vars.map(v => v.key), ['COMPOSIO_API_KEY']);
+});
+
+
+test('SCP-9: Resend doctor accepts a valid Sending-access key without requiring domain-list permission', async () => {
+  const resend = PROVIDERS.find(p => p.id === 'resend');
+  const originalFetch = global.fetch;
+  let seen;
+  global.fetch = async (url, options = {}) => {
+    seen = { url: String(url), options };
+    return new Response(JSON.stringify({ name: 'restricted_api_key', message: 'restricted' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const result = await resend.check({ RESEND_API_KEY: 're_1234567890abcdef' });
+    assert.strictEqual(result.ok, true);
+    assert.match(result.detail, /Sending access/);
+    assert.strictEqual(seen.url, 'https://api.resend.com/domains');
+    assert.match(seen.options.headers.Authorization, /^Bearer re_/);
+    assert.ok(seen.options.headers['User-Agent']);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('SCP-10: Composio doctor sends the project key only in x-api-key to the v3 tools endpoint', async () => {
+  const composio = PROVIDERS.find(p => p.id === 'composio');
+  const originalFetch = global.fetch;
+  let seen;
+  global.fetch = async (url, options = {}) => {
+    seen = { url: String(url), options };
+    return new Response(JSON.stringify({ items: [] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const result = await composio.check({ COMPOSIO_API_KEY: 'ak_1234567890abcdef' });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(seen.url, 'https://backend.composio.dev/api/v3.1/tools?limit=1');
+    assert.strictEqual(seen.options.headers['x-api-key'], 'ak_1234567890abcdef');
+    assert.ok(!('Authorization' in seen.options.headers));
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test('SCE-1: removeExportsFromShellRc strips managed keys and leaves the block', () => {
@@ -164,9 +222,16 @@ test('SCC-6: the pickers are exported and take the documented shape', () => {
   assert.strictEqual(typeof selectOne, 'function');
   assert.strictEqual(typeof selectMany, 'function');
   // Do NOT call them here: with no TTY they would wait on stdin forever and hang the run.
-  // What matters is that selectMany still takes a preselect list — without it `sc setup`
-  // silently loses the "pre-tick whatever is broken" behaviour that makes it useful.
-  // (A defaulted param does not count toward Function.length, so check the signature text.)
+  // Keep the API shape stable, but generic `sc setup` deliberately passes an empty default
+  // selection so Enter cannot accidentally confirm unrelated Needs-fix providers.
   assert.match(selectMany.toString(), /^function selectMany\(\s*title,\s*items,\s*preselected/,
     'selectMany must accept (title, items, preselected)');
+  const sc = fs.readFileSync(path.join(ROOT, 'bin/sc.js'), 'utf8');
+  assert.match(sc, /selectMany\('Which providers do you want to set up\?', items, \[\], PROVIDER_TABS\)/,
+    'generic setup must start with no implicit provider selection');
+  const prompt = fs.readFileSync(path.join(ROOT, 'lib/prompt.js'), 'utf8');
+  assert.match(prompt, /multi && selected\.size === 0 && cur\[cursor\].*selected\.add/,
+    'Enter with no toggled boxes must choose the highlighted provider');
+  assert.match(sc, /!env\[v\.key\] \|\| varState\(v, env\) === 'INVALID'/,
+    'setup must re-prompt malformed values instead of treating their mere presence as complete');
 });

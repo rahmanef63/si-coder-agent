@@ -40,7 +40,7 @@ flowchart TD
     SY["/sc-sync<br/>aux · rsync gitignored files<br/>between VPS and local (out-of-band)"]
 ```
 
-**Stubs (5, exit code 2 until implemented):** `/sc-cf` (Cloudflare), `/sc-stripe` (payments), `/sc-resend` (email), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt).
+**Provider-specific skill stubs:** `/sc-stripe` (payments), `/sc-resend` (full email/domain automation), `/sc-clerk` (auth alt), `/sc-supabase` (backend alt). Cloudflare is implemented. Resend credentials and Composio project API keys are already managed/verified by the `sc` provider console.
 
 The **legacy `/use-si-coder`** continues to work in parallel — it runs the monolithic `scripts/deploy.js` which still bundles GitHub + Dokploy + Convex + Hostinger DNS.
 

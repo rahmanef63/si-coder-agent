@@ -203,13 +203,12 @@ async function collect(ids, { force = false } = {}) {
   for (const id of ids) {
     const p = byId.get(id);
     if (!p) { console.log(`⚠️ unknown provider "${id}", skip`); continue; }
-    const todo = p.vars.filter(v => force || !env[v.key]);
+    const todo = p.vars.filter(v => force || !env[v.key] || varState(v, env) === 'INVALID');
     if (todo.length === 0) { console.log(`  ✅ ${p.id}: already complete`); continue; }
     console.log(`\n── ${p.id.toUpperCase()} — ${p.title} ──`);
     console.log(`   ${p.blurb}`);
     if (p.status === 'stub') console.log('   ⚠️ this /sc-* script is not implemented yet; values are stored for later.');
     for (const v of todo) {
-      if (!force && env[v.key]) continue;
       const val = await promptForVar(v, { force });
       if (val !== null) updates[v.key] = val;
     }
@@ -251,10 +250,11 @@ async function cmdSetup(args) {
   let ids = resolveIds(args);
   if (!ids) {
     const items = providerItems();
-    // Pre-tick whatever is actually incomplete: the common case is "fix what is broken",
-    // and starting from an empty list would make the user re-derive that by hand.
-    const pre = items.filter(i => i.needsAttention).map(i => i.id);
-    ids = await selectMany('Which providers do you want to set up?', items, pre, PROVIDER_TABS);
+    // Do not pre-check unrelated providers. A highlighted row must never look like the
+    // provider the user is about to configure while hidden defaults point somewhere else.
+    // With no boxes checked, Enter selects the highlighted provider; Space remains the
+    // explicit multi-select control.
+    ids = await selectMany('Which providers do you want to set up?', items, [], PROVIDER_TABS);
     if (ids === null) { console.log('cancelled'); return; }
     if (ids.length === 0) { console.log('Nothing selected.'); return; }
   }

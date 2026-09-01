@@ -214,10 +214,10 @@ si-coder-agent/
 │   │   ├── SKILL.md
 │   │   ├── lib/onboarding-domains.js   single source: domain registry + validators
 │   │   ├── scripts/scan-env.js
-│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,clerk,vercel,supabase,sync}.md
+│   │   └── steps/{github,dokploy,convex,convex-cloud,hostinger,cf,stripe,resend,composio,clerk,vercel,supabase,sync}.md
 │   ├── sc-sync/SKILL.md + scripts/   Tailscale rsync of gitignored files (vps <-> local)
 │   ├── use-si-coder/SKILL.md   vendored legacy-monolith doc (@convex-dev/auth lessons)
-│   └── sc-{cf,stripe,resend,clerk,supabase}/   STUBS — boilerplate only
+│   └── sc-{cf,stripe,resend,clerk,supabase}/   provider-specific skills (some still stub; `sc` credential console is independent)
 ├── scripts/
 │   └── deploy.js      legacy monolith (still functional)
 ├── test/

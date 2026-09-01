@@ -1,4 +1,4 @@
-# Resend credentials (STUB — for future /sc-resend)
+# Resend credentials
 
 ## `RESEND_API_KEY` (optional)
 
@@ -33,3 +33,11 @@ possible (`EMAIL_FROM_ADDRESS`, `EMAIL_PROJECT_NAME`, `EMAIL_PROJECT_TAG`,
 optional `EMAIL_REPLY_TO`) and build the visible header at send time. A
 framework-specific combined variable such as Baton's `AUTH_EMAIL_FROM` may be
 used as an adapter, not as a second source of truth.
+
+## Verify the stored credential
+
+```bash
+sc doctor --providers resend
+```
+
+`sc` validates the API key with a read-only domain-list request. A Resend **Sending access** key is accepted even though it cannot list domains; a **Full access** key additionally lets the doctor verify `RESEND_FROM_DOMAIN`. Full `/sc-resend` send/domain automation is a separate skill and may still be incomplete.

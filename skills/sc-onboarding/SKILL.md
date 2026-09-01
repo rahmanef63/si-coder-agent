@@ -24,9 +24,11 @@ already on screen, and no silent typos:
 
 - **`sc`** with no arguments opens the console menu (on a pipe it still prints usage, so
   scripts are unaffected).
-- **`sc setup`** shows a checkbox list of all providers with whatever is incomplete
-  **pre-ticked**. `↑/↓` move · `Space` toggle · `a` all/none · `Enter` confirm · `Esc` cancel.
-  (`j`/`k` work too.)
+- **`sc setup`** shows a checkbox list of all providers with **no implicit selection**.
+  `↑/↓` move · `Enter` chooses the highlighted provider when nothing is checked / confirms
+  when boxes are checked · `Space` multi-select · `Ctrl-A` all/none · `←/→` tabs · type to
+  search · `Esc` clear/cancel. This prevents an unrelated Needs-fix provider from being
+  configured just because it was preselected behind the cursor.
 - **`sc providers show|set|rm`** with no id opens a single-select list.
 
 Values themselves are still typed — a token has to be pasted — but secrets are read hidden
@@ -108,7 +110,8 @@ The AI MUST:
    - `[ ] vercel` (Vercel online frontend)
    - `[ ] convex-cloud` (Convex Cloud backend)
    - `[ ] sync` (Tailscale rsync of gitignored files between VPS and local)
-   - `[ ] cf` (Cloudflare, future) · `stripe` · `clerk` · `supabase` · `resend` (stubs)
+   - `[ ] resend` (credential storage + live doctor) · `composio` (project API key + live doctor)
+   - `[ ] cf` (Cloudflare) · `stripe` · `clerk` · `supabase` (remaining stub skills where noted)
 2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
 3. **For each missing var, prompt the user via `AskUserQuestion`** with the per-var description from `steps/<domain>.md`. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
 4. **Write only the new values** to `~/.bashrc` by piping the pairs via **stdin** so the raw secret never lands in argv (`ps aux` / `/proc/<pid>/cmdline` / shell history):
@@ -194,10 +197,10 @@ Mirrors `skills/sc-onboarding/lib/onboarding-domains.js` `DOMAIN_VARS` (the sing
 | stripe (stub) | — | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | clerk (stub) | — | `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` |
 | supabase (stub) | — | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_ORG_ID` |
-| resend (stub) | — | `RESEND_API_KEY`, `RESEND_FROM_DOMAIN` |
+| resend | — | `RESEND_API_KEY`, `RESEND_FROM_DOMAIN` |
+| composio | — | `COMPOSIO_API_KEY` |
 
-Stub domains pre-register vars so `/sc-onboarding` can collect them; their `/sc-*`
-skills are not implemented yet. See `steps/*.md` for how to obtain each one.
+Stub domains pre-register vars so `/sc-onboarding` can collect them; their `/sc-*` skills are not implemented yet. Resend and Composio credential setup/doctor are implemented directly in the `sc` provider console even though full provider-specific automation may remain separate. See `steps/*.md` for how to obtain each value.
 
 ## Safety
 
