@@ -259,6 +259,16 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
 
+function finderCupRows(raw) {
+  const re = /\x1b\[(\d+);1H/g;
+  const matches = [...String(raw).matchAll(re)];
+  return matches.map((m, i) => {
+    const start = m.index + m[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index : raw.length;
+    return { row: Number(m[1]), text: String(raw).slice(start, end) };
+  });
+}
+
 test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer panel', () => {
   const { renderFinderFrame, stripAnsi } = require(path.join(ROOT, 'lib/finder-tui'));
   const root = [
@@ -277,7 +287,8 @@ test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer pan
       columns, activeItems, cursor, query: '',
       sections: [{ id: 'users', label: 'Users' }, { id: 'catalog', label: 'Providers' }], activity, output,
     });
-    return { raw: out, clean: stripAnsi(out) };
+    const rows = finderCupRows(out).map(r => stripAnsi(r.text));
+    return { raw: out, clean: rows.join('\n'), rows };
   };
 
   const beforeProvider = paint({
@@ -299,12 +310,14 @@ test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer pan
   });
 
   assert.ok(beforeProvider.raw.startsWith('\x1b[H\x1b[2J'), 'each render must home+clear the same frame');
-  assert.ok(!beforeProvider.raw.endsWith('\n'), 'final terminal row must not emit a scrolling newline');
-  assert.strictEqual(beforeProvider.clean.split('\n').length, 28, 'renderer must own exactly the terminal row count');
-  assert.strictEqual(inProvider.clean.split('\n').length, 28, 'provider view must keep the same frame height');
+  assert.doesNotMatch(beforeProvider.raw, /\n/, 'renderer must not stream newline-delimited rows that can scroll the alternate screen');
+  assert.strictEqual(beforeProvider.rows.length, 28, 'renderer must address exactly the terminal row count');
+  assert.strictEqual(inProvider.rows.length, 28, 'provider view must keep the same addressed frame height');
+  assert.match(beforeProvider.raw, /\x1b\[1;1H/);
+  assert.match(beforeProvider.raw, /\x1b\[28;1H/);
 
-  const beforeHeader = beforeProvider.clean.split('\n').find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef'));
-  const providerHeader = inProvider.clean.split('\n').find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef') && line.includes('Providers'));
+  const beforeHeader = beforeProvider.rows.find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef'));
+  const providerHeader = inProvider.rows.find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef') && line.includes('Providers'));
   assert.ok(beforeHeader && providerHeader);
   assert.deepStrictEqual(
     [...beforeHeader.matchAll(/│/g)].map(m => m.index),
@@ -327,7 +340,7 @@ test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer pan
   assert.match(withResult.clean, /RESULT/);
   assert.match(withResult.clean, /owner : rahmanef/);
   assert.doesNotMatch(withResult.clean, /PREVIEW/, 'RESULT replaces PREVIEW instead of changing footer height');
-  assert.strictEqual(withResult.clean.split('\n').length, 28);
+  assert.strictEqual(withResult.rows.length, 28);
   assert.doesNotMatch(withResult.raw, /\x1b\[\d+A/, 'render must never cursor-walk into previous lines');
 });
 
@@ -348,10 +361,30 @@ test('SCC-7c: Finder slides the oldest column out after the fourth layer', () =>
     stack: [{ id: 'users', label: 'Users' }], columns, activeItems: one('credentials'), cursor: 0, query: '',
     sections: [{ id: 'users', label: 'Users' }], activity: [], output,
   });
-  const clean = stripAnsi(out);
-  const columnHeader = clean.split('\n').find(line => line.includes('… / Users') && line.includes('rahmanfakh') && line.includes('Providers') && line.includes('github'));
+  const rows = finderCupRows(out).map(r => stripAnsi(r.text));
+  const columnHeader = rows.find(line => line.includes('… / Users') && line.includes('rahmanfakh') && line.includes('Providers') && line.includes('github'));
   assert.ok(columnHeader, 'fifth layer should slide SI-Coder out and keep the newest four columns');
   assert.strictEqual([...columnHeader.matchAll(/│/g)].length, 3);
+});
+
+test('SCC-7c2: Finder paints rows with cursor addressing and leaves a safe right margin', () => {
+  const { renderFinderFrame, stripAnsi } = require(path.join(ROOT, 'lib/finder-tui'));
+  let out = '';
+  const output = { isTTY: true, columns: 160, rows: 24, write(chunk) { out += String(chunk); } };
+  const items = [{ id: 'users', kind: 'branch', label: 'Users' }];
+  renderFinderFrame({
+    title: 'SI-Coder', breadcrumb: ['SI-Coder'], stack: [],
+    columns: [{ title: 'SI-Coder', items, selectedId: null }], activeItems: items, cursor: 0, query: '',
+    sections: [{ id: 'users', label: 'Users' }], activity: [], output,
+  });
+  const rows = finderCupRows(out);
+  assert.strictEqual(rows.length, 24, 'one absolute cursor-addressed paint per terminal row');
+  assert.doesNotMatch(out, /\n/, 'no streamed newlines: terminal cannot scroll the frame during redraw');
+  assert.strictEqual(rows[0].row, 1);
+  assert.strictEqual(rows.at(-1).row, 24);
+  const separator = rows.map(r => stripAnsi(r.text)).find(line => /^─+$/.test(line));
+  assert.ok(separator);
+  assert.strictEqual([...separator].length, 159, '160-column terminal keeps one physical cell unused to prevent auto-wrap');
 });
 
 test('SCC-7d: deep provider navigation keeps Providers + selected provider anchored in four-column view', () => {

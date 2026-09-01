@@ -22,6 +22,8 @@ On wide terminals SI-Coder reserves **four fixed-width column slots**. Before a 
 
 The footer is fixed-height as well: `PREVIEW` shows the highlighted item, while `RESULT` temporarily replaces it after an action. This keeps the body height stable and prevents provider navigation from jumping or pushing the header out of the terminal viewport.
 
+The frame is painted with **absolute terminal row addressing**, not newline-delimited output, and keeps one physical cell unused at the right edge. This prevents Windows Terminal/SSH PTYs from auto-wrapping a full-width row and scrolling the Finder header out of view.
+
 ## Finder hierarchy
 
 ```text
