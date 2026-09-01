@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Skills](https://img.shields.io/badge/skills-8%20implemented%20%2B%205%20stubs-8A2BE2)](#skill-catalog)
+[![Skills](https://img.shields.io/badge/skills-9%20implemented%20%2B%204%20stubs-8A2BE2)](#skill-catalog)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-skill%20bundle-D97757)](https://claude.com/claude-code)
 
 **SI Coder Agent** is a modular set of `/sc-*` slash commands for Claude Code (and any agent that loads Skills) that take a local Next.js + Convex app from source to a live, verified URL with **zero human steps**. It creates the GitHub repo, pushes code, provisions the backend and frontend, wires up DNS, triggers the build, and polls until the site responds. Built for solo developers and agents who want to ship full stacks without clicking through dashboards. No runtime dependencies — just Node 18+ and your API tokens.
@@ -23,7 +23,7 @@ All paths share the **same flow shape** — `GitHub → backend → frontend →
 
 ```mermaid
 flowchart LR
-    A["Local app<br/>Next.js + Convex"] --> B["/sc-onboarding<br/>credentials → ~/.bashrc"]
+    A["Local app<br/>Next.js + Convex"] --> B["/sc-provider<br/>profiles + secret-safe credentials"]
     B --> C["GitHub repo<br/>create + push (SSH)"]
     C --> D{"/sc-all --target"}
     D -->|"dokploy<br/>(self-hosted)"| E1["Dokploy app<br/>your VPS"]
@@ -53,7 +53,8 @@ After `bash install.sh`, these slash commands are available. **Implemented** com
 | `/sc-convex-cloud` | ✅ | Convex **Cloud** (managed) deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probe `*.convex.cloud` | `CONVEX_DEPLOY_KEY` |
 | `/sc-vercel` | ✅ | Vercel online frontend: GitHub-bound project, Convex-coupled build, custom domain/subdomain, Hostinger DNS | `VERCEL_TOKEN` (+`VERCEL_TEAM_ID` opt), `CONVEX_DEPLOY_KEY`, `HOSTINGER_API_TOKEN` (opt) |
 | `/sc-git` | ✅ | GitHub repo CRUD + Actions cost reduction: audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron | `GITHUB_TOKEN` |
-| `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing, writes `~/.bashrc` (merge-in-place). Non-AI: `node bin/onboard.js` | — |
+| `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing; profile-aware with managed `~/.bashrc` fallback | — |
+| `/sc-provider` | ✅ | Provider CRUD + secret-safe control plane for agents; hidden secret entry, profiles, audit, `sc update`, MSO functions | — |
 | `/sc-sync` | ✅ | Tailscale rsync of gitignored files between VPS and local machine (same repo, shared via git, some docs kept out of `.gitignore`) | `SYNC_ROLE`, `SYNC_VPS_TS_ADDR`, `SYNC_LOCAL_TS_ADDR` |
 | `/sc-cf` | 🚧 stub | Cloudflare — DNS A/AAAA/CNAME (Hostinger alt), Workers/Pages, R2, Zero Trust tunnel | — |
 | `/sc-stripe` | 🚧 stub | Payments — products/prices, webhooks, customer portal, restricted keys | — |
@@ -69,14 +70,32 @@ cd si-coder-agent
 bash install.sh        # symlinks skills/* (sc-*, use-si-coder, stubs) into ~/.claude/skills/
 npm link               # puts the `sc` console on PATH (or just use `node bin/sc.js`)
 sc setup               # interactive credential setup (non-AI)
-source ~/.bashrc
+sc update --check      # check for a safe fast-forward update
+# source ~/.bashrc only when using the legacy no-profile fallback
 ```
 
 > `sc` here is **this repo's console**, installed by `npm link` from the clone.
 > Do **not** `apt install sc` — that is an unrelated Debian package (a terminal
 > spreadsheet calculator). If you already did: `sudo apt remove sc`.
 
-Driving via an AI agent instead? Just run `/sc-onboarding` — it scans your env, asks only for what's missing, and writes `~/.bashrc`.
+Driving via an AI agent instead? Use `/sc-provider` for provider/secret lifecycle and `/sc-onboarding` for guided first-time setup. **Do not paste API keys into chat.** The agent should request a hidden-terminal handoff (`sc secret set <provider> <KEY>`) or consume an already-stored profile through `sc run -- <cmd>`.
+
+### `sc` as an agent-safe provider control plane
+
+```bash
+sc providers --json
+sc providers create openai --key OPENAI_API_KEY --prefix sk-
+sc secret set openai OPENAI_API_KEY
+sc secret get openai OPENAI_API_KEY --json
+sc run -- node my-agent.js
+sc audit --limit 25
+sc update --check
+sc update
+```
+
+Custom provider definitions contain **no secret values** and live in `~/.config/si-coder/providers.json` (0600). Preferred credential storage is `~/.config/si-coder/profiles/<name>.env` (0600); the managed `~/.bashrc` block remains for backward compatibility when no profiles exist. `sc secret get` intentionally cannot reveal plaintext.
+
+For MSO, this repo exposes `.mso/functions.json` with provider CRUD, secret status/delete/handoff, doctor, update/version, and verify functions. There is intentionally no function whose input accepts an API-key value: new or rotated secrets cross the boundary only through a hidden terminal or trusted local stdin/env/file source.
 
 **Deploy — self-hosted (Dokploy + Convex self-hosted):**
 
@@ -134,7 +153,7 @@ node ~/path/to/si-coder-agent/scripts/deploy.js --project "<PROJECT>" --app "<AP
 
 ## Architecture
 
-Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. All scripts share thin REST clients in `lib/`. CommonJS, Node 18+ native `fetch`, no runtime deps.
+Each `/sc-*` skill is a `SKILL.md` + `scripts/` folder. `sc` is also a provider/secret control plane: built-ins come from `lib/providers.js`, custom provider metadata from `~/.config/si-coder/providers.json`, credentials from profile files/managed shell state, and `.mso/functions.json` exposes the safe subset to MSO. CommonJS, Node 18+ native `fetch`, no runtime deps.
 
 ```mermaid
 flowchart TB
@@ -211,6 +230,7 @@ si-coder-agent/
 │   │   └── scripts/{_shared,deploy}.js
 │   ├── sc-git/SKILL.md + scripts/
 │   ├── sc-onboarding/
+│   ├── sc-provider/SKILL.md     provider + secret control plane contract
 │   │   ├── SKILL.md
 │   │   ├── lib/onboarding-domains.js   single source: domain registry + validators
 │   │   ├── scripts/scan-env.js

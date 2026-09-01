@@ -152,7 +152,7 @@ async function main() {
   let lastDomain = null;
   for (const { key, required, domain } of allKeys) {
     if (fromProc[key] || rcEnv[key]) {
-      console.log(`  ✅ ${key} already set (${redactValue(fromProc[key] || rcEnv[key])}), skipping`);
+      console.log(isSecret(key) ? `  ✅ ${key} already set (hidden), skipping` : `  ✅ ${key} already set (${redactValue(fromProc[key] || rcEnv[key])}), skipping`);
       continue;
     }
     if (domain !== lastDomain) {
@@ -177,7 +177,7 @@ async function main() {
       const validator = VALIDATORS[key];
       if (validator && !validator(value)) { console.log(`    ❌ ${key} failed validation, try again`); continue; }
       updates[key] = value;
-      console.log(`    ✅ got ${key} (${redactValue(value)})`);
+      console.log(isSecret(key) ? `    ✅ got ${key} (hidden, len=${value.length})` : `    ✅ got ${key} (${redactValue(value)})`);
       break;
     }
   }

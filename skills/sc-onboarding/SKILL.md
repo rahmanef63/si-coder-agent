@@ -1,9 +1,11 @@
 ---
 name: sc-onboarding
-description: "Onboard new SI-Coder users. Scans env for credentials each sc-* domain needs, lists what is set and what is missing, asks the user only for the missing pieces, then writes them to ~/.bashrc. One-shot CLI fallback: bin/onboard.js for non-AI flows."
+description: "Onboard SI-Coder provider credentials safely. Scans what is configured, asks only for missing pieces, prefers profile-scoped 0600 storage with managed ~/.bashrc fallback, and routes agents through /sc-provider so plaintext secrets never need to enter chat/tool JSON. One-shot CLI fallback: bin/onboard.js."
 ---
 
 # /sc-onboarding — Guided credential setup
+
+> **Agent secret boundary:** never ask the user to paste an API key/token/password into chat, an MCP/function argument, or argv. For a new or rotated secret, route to `/sc-provider` and hand the user `sc secret set <provider> <KEY>` so entry happens in the hidden terminal. Agents inspect status with `sc secret list/get` and consume stored credentials with `sc run -- <cmd>`.
 
 Use this skill when the user is setting up `si-coder-agent` for the first time, or after they install a new `/sc-*` domain skill that needs new credentials.
 
@@ -48,7 +50,8 @@ sc user use <name>                set the fallback profile
 sc user map <folder> <name>       bind a folder AND its children to a profile
 sc user unmap <folder>            drop that rule
 sc user rm <name> [--yes]         delete a profile and its credentials
-sc env                            eval "$(sc env)"  — apply it to the current shell
+sc env                            disabled — plaintext export would break the agent secret boundary
+sc run -- <cmd> ...               consume the resolved profile without printing it
 sc run -- <cmd> ...               run one command under the resolved profile
 --no-profile                      ignore profiles for this one command
 ```
@@ -77,9 +80,9 @@ never matches `/srv/application` — matching is path-segment aware.
 2. **Credentials the profile does not own are REMOVED, not merged.** Standing in a folder
    mapped to `client-x` with another account's `DOKPLOY_API_KEY` still exported, a merge
    would happily use it. Only registry keys are stripped; `PATH`, `HOME` and the rest survive.
-   `sc env` emits `unset` lines for them, and every command prints what it ignored.
+   `sc run` removes those shadowed keys from the child environment and reports only their key names, never values.
 
-Backwards compatible: with no profiles, writes keep going to the `~/.bashrc` managed block
+Preferred path: use profiles so credentials live in `~/.config/si-coder/profiles/<name>.env` (0600). Backwards compatible: with no profiles, writes keep going to the `~/.bashrc` managed block
 exactly as before. `sc user add <name> --from-shell` is the migration path.
 
 `providers` answers "is it configured" (presence + format). `doctor` answers "does it

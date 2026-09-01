@@ -1,13 +1,13 @@
 ---
 name: si-coder
-description: "Zero human involvement full-stack deployment. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-convex-cloud, sc-vercel, sc-git, sc-onboarding) plus the legacy monolithic deploy.js. Two deploy paths share one flow shape: self-hosted (Dokploy app + self-hosted Convex) and online (Vercel frontend + Convex Cloud). The user can invoke /sc-all for end-to-end (--target dokploy|vercel), /sc-convex/-cloud, /sc-vercel, or /sc-dokploy for narrower domain ops, /sc-git for GitHub repo/Actions ops, or /sc-onboarding to set up credentials."
+description: "Zero human involvement full-stack deployment. Umbrella skill that points to modular sc-* sub-skills (sc-all, sc-dokploy, sc-convex, sc-convex-cloud, sc-vercel, sc-git, sc-onboarding, sc-provider) plus the legacy monolithic deploy.js. Two deploy paths share one flow shape: self-hosted (Dokploy app + self-hosted Convex) and online (Vercel frontend + Convex Cloud). The user can invoke /sc-all for end-to-end (--target dokploy|vercel), /sc-convex/-cloud, /sc-vercel, or /sc-dokploy for narrower domain ops, /sc-git for GitHub repo/Actions ops, or /sc-onboarding to set up credentials."
 ---
 
 # si-coder-agent — Umbrella
 
 This is the parent skill for the SI Coder family. After installing (see `install.sh`), the following slash commands are available:
 
-**Implemented (8):**
+**Implemented (9):**
 
 | Command | Domain | Purpose |
 |---|---|---|
@@ -17,7 +17,8 @@ This is the parent skill for the SI Coder family. After installing (see `install
 | `/sc-convex-cloud` | Convex Cloud | Managed Convex deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`, probes `*.convex.cloud` |
 | `/sc-vercel` | Vercel | Online frontend bound to a GitHub repo; build couples Convex Cloud deploy, custom domain/subdomain, Hostinger DNS (CNAME sub / A apex) |
 | `/sc-git` | GitHub | Repo CRUD + Actions cost reduction (audit burn, disable YAML, local CI, pre-push hook, self-hosted runner, commit status, VPS cron) |
-| `/sc-onboarding` | Setup | Scan env, prompt only for missing credentials, write to `~/.bashrc` (merge-in-place, single-quote escaped) |
+| `/sc-onboarding` | Setup | Guided credential setup; profile-aware with managed `~/.bashrc` fallback |
+| `/sc-provider` | Provider/Secrets | Agent-safe provider CRUD, hidden secret entry, status-only reads, profiles, audit, self-update, MSO function surface |
 | `/sc-sync` | Sync | rsync gitignored files between a VPS and local machine over Tailscale (same repo, mirrored checkout); dry-run first, `--apply` to copy |
 
 ### Two deploy paths (same flow shape)
@@ -49,6 +50,7 @@ The **legacy `/use-si-coder`** continues to work in parallel — it runs the mon
 - **Surgical ops** — change a Convex admin key without re-deploying the world
 - **Discoverable** — `/sc-dokploy` makes Dokploy CRUD a first-class skill, not buried inside deploy.js
 - **Composable** — `/sc-all` is the only consumer that pulls everything together
+- **Provider control plane** — `/sc-provider` lets agents CRUD provider metadata/status without receiving plaintext credentials; secret entry stays in hidden terminal/local trusted channels
 - **Onboarding-aware** — `/sc-onboarding` knows which `/sc-*` you ticked and asks for only what's missing
 
 ## CORE MANDATES (shared)
@@ -105,6 +107,7 @@ si-coder-agent/
 │   ├── sc-vercel/{SKILL.md, scripts/}
 │   ├── sc-git/{SKILL.md, scripts/}
 │   ├── sc-onboarding/{SKILL.md, scripts/, steps/}
+│   ├── sc-provider/SKILL.md
 │   └── sc-sync/{SKILL.md, scripts/}
 ├── scripts/
 │   └── deploy.js      ← legacy monolith, still functional

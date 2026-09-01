@@ -5,14 +5,19 @@ description: "Quick-reference card for the whole SI-Coder /sc-* skill bundle —
 
 # /sc-help — SI-Coder quick reference
 
-## `sc` — the provider console (new)
+## `sc` — provider + secret control plane
 
 | Command | What it answers |
 |---|---|
-| `sc providers` | which providers are configured, and what is missing |
-| `sc providers show <id>` | every var for one provider + where to get it |
-| `sc providers set <id>` | re-enter / rotate one provider's credentials |
-| `sc providers rm <id> --yes` | drop its vars from the `~/.bashrc` managed block |
+| `sc update [--check]` | safe self-update; fast-forward only, refuses dirty/ahead/diverged |
+| `sc providers [--json]` | built-in + custom provider metadata and credential state, never plaintext |
+| `sc providers create/update/delete …` | CRUD custom provider definitions (metadata only) |
+| `sc providers key-add/key-rm …` | CRUD env-key schemas for custom providers |
+| `sc secret list/get …` | credential status/source; plaintext read is disabled |
+| `sc secret set <provider> [KEY]` | hidden TTY entry; trusted `--stdin/--from-env/--from-file` also supported |
+| `sc secret rm <provider> [KEY] --yes` | remove managed credential value(s) |
+| `sc run -- <cmd>` | consume the resolved profile without printing secrets |
+| `sc audit` | metadata-only provider/credential lifecycle log |
 | `sc setup [--target t]` | interactive wizard for whatever is missing |
 | `sc doctor [--target t]` | **live** — calls each real API and names what it reached |
 | `sc preflight --target t` | the gate `/sc-all` runs before touching anything |
@@ -23,7 +28,7 @@ description: "Quick-reference card for the whole SI-Coder /sc-* skill bundle —
 | `sc user which` | why this directory resolves to that profile |
 | `sc user add <n> [--from-shell]` | create a profile (optionally import current env) |
 | `sc user map <folder> <n>` | bind a folder + children to a profile |
-| `sc env` / `sc run -- <cmd>` | apply the resolved profile to a shell / one command |
+| `sc run -- <cmd>` | consume the resolved profile in one child process without printing secrets |
 
 Multiple identities on one machine: credentials in `~/.config/si-coder/profiles/<n>.env`,
 the folder map in `~/.config/si-coder/sc.md`. Longest matching path wins. A profile
@@ -66,7 +71,8 @@ frontend domain gets DNS. For a preview/project Convex key, also export `NEXT_PU
 | `/sc-convex-cloud` | ✅ | Convex **Cloud** (managed) deploy; coupled build injects `NEXT_PUBLIC_CONVEX_URL`; probe `*.convex.cloud` |
 | `/sc-vercel` | ✅ | Vercel online frontend: GitHub-bound project, Convex-coupled build, custom domain, Hostinger DNS |
 | `/sc-git` | ✅ | GitHub repo CRUD + Actions cost reduction: audit burn, disable YAML, local CI, pre-push hook, VPS runner/cron |
-| `/sc-onboarding` | ✅ | Credential wizard — scans env, asks only for missing, writes `~/.bashrc`. Non-AI: `node bin/onboard.js` |
+| `/sc-onboarding` | ✅ | Guided credential setup; profile-aware with managed `~/.bashrc` fallback |
+| `/sc-provider` | ✅ | Provider CRUD + secret-safe agent control plane + `sc update` |
 | `/sc-sync` | ✅ | Tailscale rsync of gitignored files between VPS and local (same repo shared via git) |
 | `/sc-n8n` | ✅ | Drive the self-hosted n8n instance via `@n8n/cli` (workflows, executions, credentials) |
 | `/sc-cf` | 🚧 stub | Cloudflare — DNS (Hostinger alt), Workers/Pages, R2, Zero Trust tunnel |
@@ -80,7 +86,8 @@ Stubs exit code `2` until implemented.
 
 ## Common entry points
 
-- **Never deployed here before?** → `/sc-onboarding` (writes `~/.bashrc`), then `/sc-all --target <…>`.
+- **Agent needs an API/provider key?** → `/sc-provider`; never paste the key into chat. Use `sc secret set …` in a hidden terminal.
+- **Never deployed here before?** → `/sc-onboarding`, then `/sc-all --target <…>`.
 - **Fresh full-stack ship, one command** → `/sc-all --target dokploy|hybrid|vercel`.
 - **Just the backend** → `/sc-convex` (self-hosted) or `/sc-convex-cloud` (managed).
 - **Existing self-hosted project, want push-to-deploy** → `/sc-all` installs the sc-git pre-push hook; after that `git push` auto-deploys Convex. Never run `npx convex deploy` by hand.

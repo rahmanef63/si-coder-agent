@@ -10,18 +10,26 @@
 // `doctor` reports what actually WORKS (a real call to the real API). A token can be
 // perfectly well-formed and still be revoked, expired, or belong to the wrong account —
 // only the second question catches that, and it is the one that used to go unasked.
+const fs = require('fs');
 const path = require('path');
 const {
-  PROVIDERS, TARGET_PROVIDERS, VALIDATORS, DOMAIN_VARS,
+  PROVIDERS, BUILTIN_PROVIDERS, BUILTIN_PROVIDER_IDS, BUILTIN_PROVIDER_KEYS, TARGET_PROVIDERS, VALIDATORS, DOMAIN_VARS,
 } = require(path.resolve(__dirname, '../lib/providers'));
 const { isSecret, sourceLine, readShellRcEnv } =
   require(path.resolve(__dirname, '../skills/sc-onboarding/lib/onboarding-domains'));
-const { appendExportToShellRc, removeExportsFromShellRc, scanProcessEnv, shSingleQuote } =
+const { appendExportToShellRc, removeExportsFromShellRc } =
   require(path.resolve(__dirname, '../lib/env'));
 const { spawnSync } = require('child_process');
 const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany } =
   require(path.resolve(__dirname, '../lib/prompt'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
+const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
+const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
+const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
+const PKG = require(path.resolve(__dirname, '../package.json'));
+
+const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
+const BUILTIN_IDS = new Set(BUILTIN_PROVIDER_IDS);
 
 const byId = new Map(PROVIDERS.map(p => [p.id, p]));
 
@@ -61,7 +69,11 @@ function profileBanner() {
 
 function sourceOf(key) {
   const { profile } = currentEnvFull();
-  if (profile && P.readProfile(profile)[key]) return `profile:${profile}`;
+  if (profile) {
+    if (P.readProfile(profile)[key]) return `profile:${profile}`;
+    if (process.env[key] || readShellRcEnv()[key]) return 'shadowed-by-profile';
+    return '—';
+  }
   if (process.env[key]) return 'shell';
   if (readShellRcEnv()[key]) return '.bashrc';
   return '—';
@@ -94,9 +106,32 @@ function varState(v, env) {
   return 'set';
 }
 
+function safeProviderRow(p, env) {
+  return {
+    id: p.id,
+    title: p.title,
+    blurb: p.blurb,
+    status: p.status,
+    builtIn: BUILTIN_IDS.has(p.id),
+    vars: p.vars.map(v => ({
+      key: v.key,
+      required: Boolean(v.required),
+      secret: isSecret(v.key),
+      state: varState(v, env),
+      source: sourceOf(v.key),
+      url: v.url || undefined,
+      note: v.note || undefined,
+    })),
+  };
+}
+
 function cmdProvidersList(args) {
   const env = currentEnv();
   const ids = resolveIds(args) || PROVIDERS.map(p => p.id);
+  if (args.json) {
+    console.log(JSON.stringify({ providers: ids.map(id => safeProviderRow(byId.get(id), env)) }, null, 2));
+    return;
+  }
   console.log('\n🔌 providers\n');
   profileBanner();
   for (const id of ids) {
@@ -128,7 +163,7 @@ async function cmdProvidersShow(id) {
     const st = varState(v, env);
     const icon = { set: '✅', MISSING: '❌', INVALID: '❗', unset: '⚪' }[st];
     console.log(`  ${icon} ${v.key}${v.required ? ' (required)' : ''}`);
-    if (env[v.key]) console.log(`       value : ${isSecret(v.key) ? redactValue(env[v.key]) : env[v.key]}   [from ${sourceOf(v.key)}]`);
+    if (env[v.key]) console.log(`       value : ${isSecret(v.key) ? `[hidden len=${String(env[v.key]).length}]` : env[v.key]}   [from ${sourceOf(v.key)}]`);
     const src = sourceLine(v.key);
     if (src) console.log(`       ↳ ${src}`);
   }
@@ -192,7 +227,7 @@ async function promptForVar(v, { force = false } = {}) {
     if (!value && v.required) { console.log(`    ❌ ${v.key} is required`); continue; }
     const validator = VALIDATORS[v.key];
     if (validator && !validator(value)) { console.log(`    ❌ ${v.key} failed validation, try again`); continue; }
-    console.log(`    ✅ got ${v.key} (${redactValue(value)})`);
+    console.log(isSecret(v.key) ? `    ✅ got ${v.key} (hidden, len=${value.length})` : `    ✅ got ${v.key} (${redactValue(value)})`);
     return value;
   }
 }
@@ -233,8 +268,8 @@ function persist(updates) {
   if (t.kind === 'profile') {
     P.writeProfile(t.name, updates);
     console.log(`\n✅ Wrote ${Object.keys(updates).length} value(s) to profile "${t.name}" (${P.profilePath(t.name)})`);
-    console.log('   Run `sc env` (or `sc run -- <cmd>`) to use them outside sc.');
-    return;
+    console.log('   Use `sc run -- <cmd>` to consume them without revealing plaintext.');
+    return t;
   }
   if (t.kind === 'profile-unset') {
     die('profiles exist but none governs this directory — pick one with `sc user use <name>` or map it with `sc user map . <name>`');
@@ -242,6 +277,7 @@ function persist(updates) {
   appendExportToShellRc(updates);
   console.log(`\n✅ Wrote ${Object.keys(updates).length} export(s) to ~/.bashrc`);
   console.log('   Next: source ~/.bashrc');
+  return t;
 }
 
 async function cmdSetup(args) {
@@ -296,6 +332,260 @@ async function cmdProvidersRm(id, args) {
   }
   console.log('Run: source ~/.bashrc   (a removed var stays in THIS shell until you start a new one)');
 }
+
+
+// ---------------------------------------------------------------------------
+// provider-definition CRUD + secret-safe credential CRUD
+// ---------------------------------------------------------------------------
+function customVarFromArgs(key, args) {
+  return {
+    key,
+    required: Boolean(args.required),
+    secret: !Boolean(args.public),
+    url: typeof args.url === 'string' ? args.url : undefined,
+    note: typeof args.note === 'string' ? args.note : undefined,
+    prefix: typeof args.prefix === 'string' ? args.prefix : undefined,
+    minLength: typeof args['min-length'] === 'string' ? Number(args['min-length']) : undefined,
+  };
+}
+
+function assertCustom(id) {
+  if (BUILTIN_IDS.has(id)) die(`provider "${id}" is built-in and its definition is immutable; CRUD only applies to custom providers`);
+  const p = byId.get(id);
+  if (!p) die(`unknown custom provider "${id}"`);
+  return p;
+}
+
+function purgeKeysEverywhere(keys) {
+  const profiles = [];
+  for (const name of P.listProfiles()) {
+    const removed = P.removeFromProfile(name, keys);
+    if (removed.length) profiles.push({ profile: name, keys: removed });
+  }
+  const shell = removeExportsFromShellRc(keys);
+  return { profiles, shell };
+}
+
+function cmdProviderCreate(id, args) {
+  if (!id) die('usage: sc providers create <id> --key ENV_KEY [--title ...] [--blurb ...]');
+  if (!args.key || typeof args.key !== 'string') die('sc providers create requires --key ENV_KEY');
+  const p = CP.createProvider({
+    id,
+    title: typeof args.title === 'string' ? args.title : id,
+    blurb: typeof args.blurb === 'string' ? args.blurb : 'custom credential provider',
+    vars: [customVarFromArgs(args.key, args)],
+  }, CUSTOM_OPTIONS);
+  audit('provider.create', { provider: p.id, keyName: args.key });
+  console.log(`✅ created custom provider ${p.id} with ${args.key}`);
+  console.log('   credential value was not requested; use `sc secret set` from a terminal.');
+}
+
+function cmdProviderUpdate(id, args) {
+  assertCustom(id);
+  const patch = {};
+  if (typeof args.title === 'string') patch.title = args.title;
+  if (typeof args.blurb === 'string') patch.blurb = args.blurb;
+  if (!Object.keys(patch).length) die('nothing to update — use --title and/or --blurb');
+  const p = CP.updateProvider(id, patch, CUSTOM_OPTIONS);
+  audit('provider.update', { provider: p.id, fields: Object.keys(patch) });
+  console.log(`✅ updated custom provider ${p.id}: ${Object.keys(patch).join(', ')}`);
+}
+
+async function cmdProviderDelete(id, args) {
+  const p = assertCustom(id);
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing to delete a provider without --yes on a non-TTY');
+    if (!await confirm(`Delete custom provider "${id}" AND purge its managed credentials from all si-coder profiles?`)) return console.log('aborted');
+  }
+  const removed = CP.deleteProvider(id, CUSTOM_OPTIONS);
+  const purge = purgeKeysEverywhere(removed.vars.map(v => v.key));
+  audit('provider.delete', { provider: id, keyNames: removed.vars.map(v => v.key), profilesTouched: purge.profiles.map(x => x.profile) });
+  console.log(`✅ deleted custom provider ${id} and purged managed credential keys`);
+  if (purge.shell.unmanaged.length) console.log(`⚠️ user-owned exports outside the si-coder block were left untouched: ${purge.shell.unmanaged.join(', ')}`);
+  console.log('   Existing values already exported in THIS shell remain until that shell exits.');
+}
+
+function cmdProviderKeyAdd(id, key, args) {
+  assertCustom(id);
+  if (!key) die('usage: sc providers key-add <id> <ENV_KEY> [--required] [--public]');
+  const v = CP.addProviderVar(id, customVarFromArgs(key, args), CUSTOM_OPTIONS);
+  audit('provider.key-add', { provider: id, keyName: v.key });
+  console.log(`✅ added ${v.key} to custom provider ${id}`);
+}
+
+async function cmdProviderKeyRm(id, key, args) {
+  assertCustom(id);
+  if (!key) die('usage: sc providers key-rm <id> <ENV_KEY> [--yes]');
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing to remove a provider key without --yes on a non-TTY');
+    if (!await confirm(`Remove ${key} from ${id} AND purge its managed credential value everywhere?`)) return console.log('aborted');
+  }
+  const v = CP.removeProviderVar(id, key, CUSTOM_OPTIONS);
+  const purge = purgeKeysEverywhere([v.key]);
+  audit('provider.key-remove', { provider: id, keyName: v.key, profilesTouched: purge.profiles.map(x => x.profile) });
+  console.log(`✅ removed ${v.key} from ${id} and purged its managed credential value`);
+  if (purge.shell.unmanaged.length) console.log(`⚠️ user-owned export outside the si-coder block was left untouched: ${purge.shell.unmanaged.join(', ')}`);
+}
+
+function secretRows(providerId) {
+  const env = currentEnv();
+  const providers = providerId ? [byId.get(providerId) || die(`unknown provider "${providerId}"`)] : PROVIDERS;
+  return providers.map(p => ({
+    provider: p.id,
+    keys: p.vars.map(v => ({
+      key: v.key,
+      secret: isSecret(v.key),
+      required: Boolean(v.required),
+      state: varState(v, env),
+      source: sourceOf(v.key),
+    })),
+  }));
+}
+
+function cmdSecretList(providerId, args) {
+  const rows = secretRows(providerId);
+  if (args.json) return console.log(JSON.stringify({ credentials: rows }, null, 2));
+  console.log('\n🔐 credential status — values are never printed\n');
+  for (const row of rows) {
+    console.log(`  ${row.provider}`);
+    for (const k of row.keys) console.log(`    ${k.state === 'set' ? '✅' : k.state === 'INVALID' ? '❗' : k.state === 'MISSING' ? '❌' : '⚪'} ${k.key.padEnd(34)} ${k.state.padEnd(7)} from ${k.source}`);
+  }
+  console.log('\n  Use `sc run -- <cmd>` to consume credentials without revealing them.\n');
+}
+
+function cmdSecretShow(providerId, key, args) {
+  if (!providerId) die('usage: sc secret get <provider> [ENV_KEY]');
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  const vars = key ? [p.vars.find(v => v.key === key) || die(`${providerId} does not define ${key}`)] : p.vars;
+  const env = currentEnv();
+  const out = vars.map(v => ({
+    provider: providerId,
+    key: v.key,
+    secret: isSecret(v.key),
+    required: Boolean(v.required),
+    state: varState(v, env),
+    source: sourceOf(v.key),
+    readable: false,
+  }));
+  if (args.json) return console.log(JSON.stringify({ credentials: out }, null, 2));
+  for (const row of out) console.log(`${row.provider}.${row.key}: ${row.state} from ${row.source} (plaintext read disabled)`);
+}
+
+function readAllStdin() {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => { data += chunk; if (data.length > 1024 * 1024) reject(new Error('stdin secret exceeds 1 MiB')); });
+    process.stdin.on('end', () => resolve(data.replace(/[\r\n]+$/, '')));
+    process.stdin.on('error', reject);
+    process.stdin.resume();
+  });
+}
+
+async function readSecretInput(v, args) {
+  const sources = ['stdin', 'from-env', 'from-file'].filter(k => args[k] !== undefined && args[k] !== false);
+  if (sources.length > 1) die('choose exactly one secret input source: --stdin | --from-env NAME | --from-file PATH');
+  if (args.value !== undefined) die('refusing --value: secret values must never be passed in argv; use hidden TTY, --stdin, --from-env, or --from-file');
+
+  let value;
+  let source = 'tty';
+  if (args.stdin) {
+    if (process.stdin.isTTY) die('--stdin expects a pipe/FD; omit it to use the hidden terminal prompt');
+    value = await readAllStdin();
+    source = 'stdin';
+  } else if (typeof args['from-env'] === 'string') {
+    const name = args['from-env'];
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) die('invalid --from-env variable name');
+    value = process.env[name];
+    if (!value) die(`environment variable ${name} is not set`);
+    source = `env:${name}`;
+  } else if (typeof args['from-file'] === 'string') {
+    value = fs.readFileSync(path.resolve(args['from-file']), 'utf8').replace(/[\r\n]+$/, '');
+    source = 'file';
+  } else {
+    if (!isInteractive()) die('no secret input source on a non-TTY; use --stdin, --from-env NAME, or --from-file PATH');
+    value = isSecret(v.key) ? await askHidden(`  ${v.key} (hidden): `) : await askVisible(`  ${v.key}: `);
+  }
+  if (!value) die(`${v.key} cannot be empty`);
+  const validator = VALIDATORS[v.key];
+  if (validator && !validator(value)) die(`${v.key} failed validation`);
+  return { value, source };
+}
+
+async function cmdSecretSet(providerId, key, args) {
+  if (!providerId) die('usage: sc secret set <provider> [ENV_KEY] [--stdin|--from-env NAME|--from-file PATH]');
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  if (!key) {
+    if (args.stdin || args['from-env'] || args['from-file']) die('a non-interactive input source requires one ENV_KEY');
+    return cmdProvidersSet(providerId);
+  }
+  const v = p.vars.find(x => x.key === key) || die(`${providerId} does not define ${key}`);
+  const { value, source } = await readSecretInput(v, args);
+  const target = persist({ [key]: value });
+  audit('credential.set', { provider: providerId, keyName: key, inputSource: source, store: target.kind, profile: target.name || undefined });
+  console.log(`✅ stored ${providerId}.${key}; value not displayed`);
+}
+
+async function cmdSecretRm(providerId, key, args) {
+  if (!providerId) die('usage: sc secret rm <provider> [ENV_KEY] [--yes]');
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  const keys = key ? [p.vars.find(v => v.key === key)?.key || die(`${providerId} does not define ${key}`)] : p.vars.map(v => v.key);
+  if (!args.yes) {
+    if (!isInteractive()) die('refusing to remove credentials without --yes on a non-TTY');
+    if (!await confirm(`Remove ${keys.join(', ')} from the current si-coder credential store?`)) return console.log('aborted');
+  }
+  const t = writeTarget();
+  let removed = [], unmanaged = [];
+  if (t.kind === 'profile') removed = P.removeFromProfile(t.name, keys);
+  else if (t.kind === 'profile-unset') die('profiles exist but none governs this directory — use `sc user which`');
+  else ({ removed, unmanaged } = removeExportsFromShellRc(keys));
+  audit('credential.remove', { provider: providerId, keyNames: keys, store: t.kind, profile: t.name || undefined });
+  console.log(removed.length ? `✅ removed ${removed.join(', ')}` : 'nothing to remove');
+  if (unmanaged.length) console.log(`⚠️ left user-owned exports outside the si-coder block untouched: ${unmanaged.join(', ')}`);
+}
+
+function cmdAudit(args) {
+  const rows = readAudit({ limit: args.limit });
+  if (args.json) return console.log(JSON.stringify({ audit: rows }, null, 2));
+  console.log('\n🧾 si-coder audit (metadata only; no secret values)\n');
+  for (const row of rows) {
+    const rest = Object.entries(row).filter(([k]) => !['ts', 'action'].includes(k)).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(',') : v}`).join(' ');
+    console.log(`  ${row.ts || '—'}  ${row.action}${rest ? `  ${rest}` : ''}`);
+  }
+  if (!rows.length) console.log('  (empty)');
+  console.log('');
+}
+
+function cmdVersion(args = {}) {
+  const st = checkUpdate({ fetch: false });
+  const out = { version: PKG.version, source: path.resolve(__dirname, '..'), git: st.gitCheckout ? { branch: st.branch, head: st.head, dirty: st.dirty } : null };
+  if (args.json) return console.log(JSON.stringify(out, null, 2));
+  console.log(`sc ${out.version}${out.git?.head ? ` (${out.git.head.slice(0, 8)} ${out.git.branch}${out.git.dirty ? ', dirty' : ''})` : ''}`);
+  console.log(`source: ${out.source}`);
+}
+
+function cmdUpdate(args) {
+  const status = args.check ? checkUpdate() : performUpdate();
+  const out = {
+    state: status.state || status.reason || 'unknown',
+    branch: status.branch || null,
+    head: status.head || null,
+    remoteHead: status.remoteHead || null,
+    ahead: status.ahead || 0,
+    behind: status.behind || 0,
+    dirty: Boolean(status.dirty),
+    changed: Boolean(status.changed),
+  };
+  if (!args.check) audit('sc.update', { state: out.state, changed: out.changed, branch: out.branch });
+  if (args.json) return console.log(JSON.stringify(out, null, 2));
+  if (args.check) {
+    console.log(`sc update: ${out.state}${out.behind ? ` — ${out.behind} commit(s) available` : ''}${out.ahead ? ` — ${out.ahead} local commit(s)` : ''}${out.dirty ? ' — dirty checkout' : ''}`);
+  } else if (out.changed) {
+    console.log(`✅ sc updated by fast-forward to ${status.newHead.slice(0, 8)}`);
+    console.log('   linked CLI/skills use this checkout, so the next `sc` invocation uses the update.');
+  } else console.log('✅ sc is already up to date');
+}
+
 
 
 // ---------------------------------------------------------------------------
@@ -419,19 +709,13 @@ async function cmdUserRm(name, args) {
   console.log(`✅ deleted profile "${name}" and any sc.md rules pointing at it`);
 }
 
-// `eval "$(sc env)"` — the bridge for anything that reads process.env and is not launched
-// through `sc run`.
-function cmdEnv(args) {
-  const { own, profile, shadowed } = currentEnvFull();
-  if (!profile) { console.error('# no profile governs this directory — nothing to export'); process.exit(1); }
-  const keys = Object.keys(own).sort();
-  console.error(`# profile: ${profile} — ${keys.length} value(s)`);
-  for (const k of keys) console.log(`export ${k}=${shSingleQuote(own[k])}`);
-  // Anything the shell still carries from another identity is actively unset, not just
-  // left unexported — otherwise `eval "$(sc env)"` would leave it in place and in effect.
-  for (const k of shadowed) console.log(`unset ${k}`);
-  if (shadowed.length) console.error(`# unset ${shadowed.length} var(s) not owned by this profile: ${shadowed.join(', ')}`);
+// `sc env` used to print plaintext export lines for command substitution. That makes a
+// credential-readable API surface and is incompatible with agent-safe storage. Keep the
+// command name only as a fail-closed migration message; `sc run` is the non-exfiltrating path.
+function cmdEnv() {
+  die('plaintext credential export is disabled — use `sc run -- <command>` so the child receives the resolved profile without printing it');
 }
+
 
 // Run any command with the resolved profile injected. Keeps secrets out of the parent shell.
 function cmdRun(args) {
@@ -549,13 +833,13 @@ async function cmdPreflight(args) {
 // Bare `sc` on a terminal opens the console rather than printing a wall of usage. On a pipe
 // it still prints usage, so `sc | head` and scripts behave the way anyone would expect.
 async function cmdMenu() {
-  const action = await selectOne('sc — si-coder provider console', [
-    { id: 'providers', label: 'providers', hint: 'see what is configured' },
-    { id: 'setup',     label: 'setup    ', hint: 'fill in what is missing' },
+  const action = await selectOne('sc — provider + secret control plane', [
+    { id: 'providers', label: 'providers', hint: 'registry + safe credential status' },
+    { id: 'secrets',   label: 'secrets  ', hint: 'credential status; values never printed' },
+    { id: 'setup',     label: 'setup    ', hint: 'hidden credential entry' },
     { id: 'doctor',    label: 'doctor   ', hint: 'live check against each real API' },
-    { id: 'show',      label: 'show     ', hint: 'detail for one provider' },
-    { id: 'set',       label: 'set      ', hint: 'rotate one provider\'s credentials' },
-    { id: 'rm',        label: 'rm       ', hint: "remove one provider's vars from ~/.bashrc" },
+    { id: 'update',    label: 'update   ', hint: 'safe git fast-forward self-update' },
+    { id: 'audit',     label: 'audit    ', hint: 'metadata-only lifecycle log' },
     { id: 'preflight', label: 'preflight', hint: 'check a /sc-all deploy target' },
     { id: 'users',     label: 'users    ', hint: 'profiles, and which folder uses which' },
     { id: 'which',     label: 'which    ', hint: 'why this directory resolves to that profile' },
@@ -563,11 +847,11 @@ async function cmdMenu() {
   ]);
   switch (action) {
     case 'providers': return cmdProvidersList({});
+    case 'secrets':   return cmdSecretList(undefined, {});
     case 'setup':     return cmdSetup({});
     case 'doctor':    return cmdDoctor({});
-    case 'show':      return cmdProvidersShow(undefined);
-    case 'set':       return cmdProvidersSet(undefined);
-    case 'rm':        return cmdProvidersRm(undefined, {});
+    case 'update':    return cmdUpdate({});
+    case 'audit':     return cmdAudit({});
     case 'users':     return cmdUserList();
     case 'which':     return cmdUserWhich();
     case 'preflight': {
@@ -583,31 +867,52 @@ async function cmdMenu() {
 // ---------------------------------------------------------------------------
 function usage() {
   console.log(`
-sc — si-coder provider console
+sc — si-coder provider console + secret control plane
 
-  sc providers                      list every provider and what is configured
-  sc providers show <id>            per-var detail for one provider
-  sc providers set  <id>            re-enter (rotate) every var for one provider
-  sc providers rm   <id> [--yes]    remove its vars from the ~/.bashrc managed block
+  sc update [--check] [--json]        safe self-update: fetch + fast-forward only
+  sc version [--json]                 version, source checkout and git state
+
+  sc providers [--json]               list built-in + custom providers; never secret values
+  sc providers show <id>              provider detail (secret values redacted)
+  sc providers create <id> --key KEY [--title ...] [--blurb ...]
+                                      create a custom provider definition (metadata only)
+  sc providers update <id> [--title ...] [--blurb ...]
+  sc providers key-add <id> <KEY> [--required] [--public] [--prefix P] [--min-length N]
+  sc providers key-rm <id> <KEY> [--yes]
+  sc providers delete <id> [--yes]    custom only; also purges its managed credentials
+
+  sc secret list [provider] [--json]  credential state/source only; NO plaintext
+  sc secret get <provider> [KEY]      safe read: state/source; plaintext read is disabled
+  sc secret set <provider> [KEY]      hidden TTY entry; with KEY also supports:
+      --stdin | --from-env NAME | --from-file PATH
+                                      secret never belongs in argv/chat
+  sc secret rm <provider> [KEY] [--yes]
+  sc run -- <cmd> ...                 consume resolved profile secrets in a child process
+
   sc setup [--providers a,b] [--target t] [--force]
-                                    interactive wizard for whatever is missing
+                                      interactive setup wizard
   sc doctor [--providers a,b] [--target t]
-                                    LIVE check: call each real API, report what works
+                                      LIVE provider verification
   sc preflight --target <dokploy|hybrid|vercel>
-                                    gate used by /sc-all
+                                      gate used by /sc-all
+  sc audit [--limit N] [--json]       metadata-only lifecycle audit trail
 
-  sc user                           list profiles + which one governs this directory
-  sc user which                     why this directory resolves to that profile
-  sc user add <name> [--from-shell] create a profile (optionally import the current env)
-  sc user use <name>                set the fallback (active) profile
-  sc user map <folder> <name>       bind a folder (and its children) to a profile
-  sc user unmap <folder>            drop that rule
-  sc user rm <name> [--yes]         delete a profile and its stored credentials
-  sc user edit                      print the path to sc.md
-  sc env                            print export lines: eval "$(sc env)"
-  sc run -- <cmd> ...               run a command with the resolved profile injected
+  sc user                             list profiles + current resolution
+  sc user which                       why this directory resolves to that profile
+  sc user add <name> [--from-shell]   create a profile
+  sc user use <name>                  set fallback profile
+  sc user map <folder> <name>         bind folder tree to a profile
+  sc user unmap <folder>              drop mapping
+  sc user rm <name> [--yes]           delete profile + its credentials
+  sc env                              disabled (plaintext export); use sc run
 
-  --no-profile                      ignore profiles for this one command
+Agent safety contract:
+  • agents may LIST/CREATE/UPDATE/DELETE provider metadata and credential status
+  • agents must NEVER ask for or pass a plaintext API key in chat/tool JSON/argv
+  • new/rotated secrets enter through hidden TTY, a trusted stdin/FD, env, or local file
+  • use sc run -- <cmd> so consumers receive secrets without printing them
+
+  --no-profile                        ignore profiles for this one command
 
   providers: ${PROVIDERS.map(p => p.id).join(', ')}
   targets  : ${Object.keys(TARGET_PROVIDERS).join(', ')}
@@ -622,9 +927,24 @@ async function main() {
     case 'providers':
       if (!sub) return cmdProvidersList(args);
       if (sub === 'show') return cmdProvidersShow(arg);
-      if (sub === 'set') return cmdProvidersSet(arg);
-      if (sub === 'rm') return cmdProvidersRm(arg, args);
+      if (sub === 'set') return cmdProvidersSet(arg);              // compatibility alias
+      if (sub === 'rm') return cmdProvidersRm(arg, args);          // compatibility alias
+      if (sub === 'create' || sub === 'add') return cmdProviderCreate(arg, args);
+      if (sub === 'update' || sub === 'edit') return cmdProviderUpdate(arg, args);
+      if (sub === 'delete') return cmdProviderDelete(arg, args);
+      if (sub === 'key-add') return cmdProviderKeyAdd(arg, args._[3], args);
+      if (sub === 'key-rm' || sub === 'key-delete') return cmdProviderKeyRm(arg, args._[3], args);
       return die(`unknown: providers ${sub}`);
+    case 'secret':
+    case 'secrets':
+      if (!sub || sub === 'list' || sub === 'status') return cmdSecretList(arg, args);
+      if (sub === 'get' || sub === 'show') return cmdSecretShow(arg, args._[3], args);
+      if (sub === 'set' || sub === 'put' || sub === 'rotate') return cmdSecretSet(arg, args._[3], args);
+      if (sub === 'rm' || sub === 'delete') return cmdSecretRm(arg, args._[3], args);
+      return die(`unknown: secret ${sub}`);
+    case 'update':    return cmdUpdate(args);
+    case 'version':   return cmdVersion(args);
+    case 'audit':     return cmdAudit(args);
     case 'user':      return cmdUser(sub, arg, args._[3], args);
     case 'env':       return cmdEnv(args);
     case 'run':       return cmdRun(args);
