@@ -2,36 +2,27 @@
 
 > Build and publish web apps from plain-language goals, without requiring the user to understand hosting, databases, DNS, deployment pipelines, or API-key plumbing.
 
-SI-Coder is designed for non-technical users first. A request can be as simple as:
+SI-Coder is designed for non-technical users first. The canonical skill identity is `sc`; the host product decides how that skill is invoked.
 
 ```text
-/sc Create a booking app for my salon.
-Customers should be able to request a time slot, and staff should manage bookings.
-Put it on booking.example.com.
+ChatGPT Web : @sc Create a booking app for my salon.
+Claude Code : /sc Create a booking app for my salon.
+Natural use : Create a booking app for my salon.
 ```
 
-SI-Coder should then understand the product, ask only the minimum business questions, choose sensible technical defaults, build the first working version, connect required accounts safely, publish the app, connect the domain, verify the result, and recommend one useful next improvement.
+Customers should be able to request a time slot, staff should manage bookings, and SI-Coder should handle the technical defaults, publishing, domain setup, verification, and one useful next recommendation.
 
-## Use `/sc` first
+## Use the `sc` skill first
 
-The main user-facing entry point is:
-
-```text
-/sc <what you want to build or change>
-```
-
-Important slash skills:
-
-| Slash skill | Use it for |
+| Surface | Main invocation |
 |---|---|
-| `/sc` | Default entry point. Routes the request automatically. |
-| `/sc-build` | New or vague app idea → short product interview → first working version → publish. |
-| `/sc-all` | Existing app/project → publish it end to end. |
-| `/sc-provider` | Connect or manage a service/account safely. |
-| `/sc-install` | Install SI-Coder in another supported agent runtime. |
-| `/sc-help` | Quick usage guidance. |
+| ChatGPT Web | automatic skill selection or `@sc` |
+| Claude Code | `/sc` |
+| Codex / other Agent Skills clients | use that client's current skill-selection/invocation UX |
 
-Provider-specific skills such as `/sc-vercel`, `/sc-dokploy`, `/sc-convex`, and `/sc-git` remain available for advanced users, but normal users should not need to choose them.
+Internal skill identities are `sc-build`, `sc-all`, `sc-provider`, `sc-install`, and `sc-help`. The main `sc` skill routes to them automatically; normal users should not need to select a sub-skill or provider-specific skill themselves.
+
+A `.skill` file is the install/import package. It does **not** reserve a custom `/slash` command in ChatGPT Web; slash registration is a capability of the host UI.
 
 ## Source format vs install package
 
@@ -231,7 +222,7 @@ Install SI-Coder from https://github.com/rahmanef63/si-coder-agent
 Follow AI_INSTALL.md and install the core SI-Coder skills.
 ```
 
-The core paths are `skills/sc`, `skills/sc-build`, `skills/sc-all`, `skills/sc-provider`, and `skills/sc-install`. Codex explicit skill syntax is `$sc`, not Claude's `/sc`.
+The core paths are `skills/sc`, `skills/sc-build`, `skills/sc-all`, `skills/sc-provider`, and `skills/sc-install`. Codex uses its own current skill-selection/invocation UX; do not assume Claude's `/sc` syntax there.
 
 ### Claude.ai / Claude Web — one-file upload
 
@@ -252,7 +243,7 @@ For personal Skills, OpenAI currently documents ChatGPT Skills for eligible work
 
 Direct download: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/main/dist/sc.skill`
 
-After installation, ChatGPT can use the skill automatically. OpenAI Help Center documents explicit plugin selection by **@ mention**, for example `@SI-Coder`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
+After installation, ChatGPT can use the skill automatically. OpenAI documents explicit Skill selection by **@ mention**; SI-Coder registers the OpenAI display name `sc`, so use `@sc`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
 
 ### Other local Agent Skills runtimes
 
@@ -276,7 +267,7 @@ This regenerates `dist/sc.skill`, `dist/sc.zip`, `dist/sc-build.skill`, and `dis
 
 ## Advanced CLI
 
-The CLI exists for local operators and agents. Non-technical users normally interact through `/sc`.
+The CLI exists for local operators and agents. Non-technical users normally interact through the main `sc` skill using the invocation supported by their current surface.
 
 ```bash
 # User-oriented publish plan

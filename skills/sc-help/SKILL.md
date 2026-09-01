@@ -3,7 +3,7 @@ name: sc-help
 description: "Quick reference for SI-Coder route selection, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which deploy route', or 'list si-coder commands'."
 ---
 
-# /sc-help
+# sc-help
 
 ## Language
 
@@ -43,14 +43,16 @@ Never hide a failure, but explain its user impact before its implementation deta
 
 ## Pick the entry point
 
-| Goal | Use |
+| Goal | Internal skill identity |
 |---|---|
-| Describe anything you want SI-Coder to build/change | `/sc` |
-| New/vague app idea | `/sc-build` |
-| Existing app: publish from repo to production | `/sc-all` |
-| API/provider credential or account connection | `/sc-provider` |
-| Install in Claude Code/Codex/Hermes/OpenClaw | `/sc-install` |
-| Provider-specific operation | matching `/sc-*` skill |
+| Describe anything you want SI-Coder to build/change | `sc` |
+| New/vague app idea | `sc-build` |
+| Existing app: publish from repo to production | `sc-all` |
+| API/provider credential or account connection | `sc-provider` |
+| Install in Claude Code/Codex/Hermes/OpenClaw | `sc-install` |
+| Provider-specific operation | matching `sc-*` skill |
+
+Invocation is a host concern: ChatGPT Web uses automatic selection or `@sc` for the personal Skill; Claude Code exposes the main skill as `/sc`.
 
 ## Deploy routing
 

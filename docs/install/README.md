@@ -8,7 +8,7 @@ Choose the guide that matches the surface where SI-Coder will run. Do not make a
 | Claude Web / claude.ai | Upload `sc.zip` / packaged skill | Automatic when relevant | No |
 | Codex CLI / app | GitHub skill installer or `install.sh` | `$sc` when supported | Usually yes |
 | ChatGPT personal Skills | Upload packaged skill | Automatic when relevant | No |
-| ChatGPT managed workspace | Import GitHub plugin marketplace | `@SI-Coder` or `+ → More` when available | No |
+| ChatGPT managed workspace | Import GitHub plugin marketplace | `@SI-Coder` / `+ → More` or automatic selection | No |
 | Hermes / OpenClaw / generic Agent Skills | `install.sh` or skill directory | Runtime-specific | Yes |
 
 ## Guides
@@ -33,7 +33,7 @@ GitHub repository:
 
 Release page:
 
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.1`
+`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
 
 The release contains:
 

@@ -18,7 +18,7 @@ Anthropic's current help documentation explicitly describes custom-skill upload 
 
 Release:
 
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.1`
+`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
 
 Direct package fallback:
 

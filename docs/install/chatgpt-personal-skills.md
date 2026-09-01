@@ -4,7 +4,7 @@ Use this path when the account exposes **Plugins → Skills** and skill uploadin
 
 ## Direct download
 
-[Download SI-Coder Skill v0.8.1 (.zip)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.1/sc.zip)
+[Download SI-Coder Skill v0.8.2 (.zip)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.2/sc.zip)
 
 This link downloads the stable release ZIP directly. You do not need to open the GitHub Release page first.
 
@@ -19,17 +19,19 @@ This link downloads the stable release ZIP directly. You do not need to open the
 
 Release:
 
-`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.1`
+`https://github.com/rahmanef63/si-coder-agent/releases/tag/v0.8.2`
 
 ## Use it
 
-Installed Skills can be activated automatically when relevant. Start with a normal request:
+Installed Skills can be activated automatically when relevant. SI-Coder registers the ChatGPT display name `sc`, so explicit selection is `@sc`.
 
 ```text
-Build a booking app for my salon and publish it.
+@sc Build a booking app for my salon and publish it.
 ```
 
-Do not rely on `/sc` in ChatGPT Web. `/sc` is a Claude Code contract, not a universal Agent Skills invocation syntax.
+Or simply ask naturally and let ChatGPT select the skill automatically.
+
+The `.skill`/ZIP file is the install package only. It does **not** register `sc` in ChatGPT's `/` command palette. Do not rely on `/sc` in ChatGPT Web; `/sc` is the Claude Code invocation for the same canonical `sc` skill.
 
 ## Personal Skill vs plugin marketplace
 

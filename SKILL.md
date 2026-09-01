@@ -1,11 +1,11 @@
 ---
 name: si-coder
-description: "SI-Coder umbrella skill. Build and publish web apps from plain-language goals for non-technical users. Route through /sc, /sc-build, /sc-all, /sc-provider, or provider-specific skills while keeping technical choices and secrets behind a safe abstraction layer."
+description: "SI-Coder umbrella skill. Build and publish web apps from plain-language goals for non-technical users. Route through the sc, sc-build, sc-all, sc-provider, or provider-specific skills while keeping technical choices and secrets behind a safe abstraction layer."
 ---
 
 # SI-Coder umbrella
 
-The default user-facing entry point is **`/sc`**.
+The canonical user-facing skill is **`sc`**. Invocation syntax is surface-specific: ChatGPT Web uses automatic selection or `@sc`, while Claude Code exposes the same skill as `/sc`.
 
 ## Language
 
@@ -15,13 +15,13 @@ Keep durable skill instructions and documentation in English. **Reply in the use
 
 | User intent | Internal skill |
 |---|---|
-| New app, business idea, or vague website request | `/sc-build` |
-| Existing app that needs to be published or connected to a domain | `/sc-all` |
-| Account, permission, API-key, or credential lifecycle | `/sc-provider` |
-| Install SI-Coder into another agent runtime | `/sc-install` |
-| Explicit advanced provider operation | matching `/sc-*` provider skill |
+| New app, business idea, or vague website request | `sc-build` |
+| Existing app that needs to be published or connected to a domain | `sc-all` |
+| Account, permission, API-key, or credential lifecycle | `sc-provider` |
+| Install SI-Coder into another agent runtime | `sc-install` |
+| Explicit advanced provider operation | matching `sc-*` provider skill |
 
-Do not make a non-technical user choose a sub-skill, framework, database, hosting provider, or deployment method. `/sc` owns that routing decision.
+Do not make a non-technical user choose a sub-skill, framework, database, hosting provider, or deployment method. The main `sc` skill owns that routing decision.
 
 ## Non-technical default UX
 
@@ -29,7 +29,7 @@ Lead with the outcome and hide the plumbing.
 
 A valid request can be:
 
-> `/sc Create a booking app for my salon and put it on my domain.`
+> `Create a booking app for my salon and put it on my domain.`
 
 Normally SI-Coder should choose the stack, data service, hosting route, repository strategy, deployment method, and domain mechanics automatically.
 
@@ -52,7 +52,7 @@ When the tool says `readyToBuild: true`, start building instead of asking for ad
 
 ## Publishing
 
-Use `/sc-all` for the runtime-first publish flow.
+Use the `sc-all` skill for the runtime-first publish flow.
 
 - Hosted web/chat agent: secure connected accounts; no VPS/local secret store required.
 - Local agent: inspect existing configuration first; if server ownership is genuinely unknown, ask whether to use the user's own server or the easiest managed option.
@@ -97,10 +97,10 @@ The `skills/` directory is the Agent Skills SSOT. A portable skill's canonical s
 
 Important skill identities:
 
-- `skills/sc/SKILL.md` → `/sc`
-- `skills/sc-build/SKILL.md` → `/sc-build`
-- `skills/sc-all/SKILL.md` → `/sc-all`
-- `skills/sc-provider/SKILL.md` → `/sc-provider`
-- `skills/sc-install/SKILL.md` → `/sc-install`
+- `skills/sc/SKILL.md` → skill identity `sc`
+- `skills/sc-build/SKILL.md` → skill identity `sc-build`
+- `skills/sc-all/SKILL.md` → skill identity `sc-all`
+- `skills/sc-provider/SKILL.md` → skill identity `sc-provider`
+- `skills/sc-install/SKILL.md` → skill identity `sc-install`
 
-Invocation is surface-specific: Claude Code supports `/sc`; Codex commonly uses `$sc`; ChatGPT currently documents automatic skill use and explicit @-mention selection.
+Invocation is surface-specific: Claude Code supports `/sc`; ChatGPT Web currently documents automatic skill use and explicit `@sc` selection; Codex uses its current skill-selection/invocation UX. Packaging as `.skill` does not create a custom ChatGPT Web slash command.
