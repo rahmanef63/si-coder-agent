@@ -2,6 +2,50 @@
   "version": 1,
   "functions": [
     {
+      "name": "sc.product.interview",
+      "description": "Decide whether a non-technical web-app idea is ready for a first build or return exactly one plain-language product question. Asks at most three questions before building and never asks for infrastructure choices.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "primaryUser": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "primaryAction": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "mustHave": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "domain": {
+            "type": "string",
+            "maxLength": 253
+          },
+          "existingProject": {
+            "type": "boolean"
+          },
+          "questionsAsked": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "product.interview"
+      ],
+      "timeoutMs": 10000
+    },
+    {
       "name": "sc.deploy.plan",
       "description": "Turn a plain-language web-app goal into a simple user plan while internally choosing hosted, managed, or own-server execution. Includes optional technical diagnostics and never returns secret values.",
       "inputSchema": {

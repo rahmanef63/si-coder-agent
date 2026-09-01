@@ -1,145 +1,104 @@
 ---
 name: si-coder
-description: "Create and publish web apps from plain-language goals for non-technical users. SI-Coder chooses the technical route, connects services safely, configures data/hosting/domain, verifies the live app, and only exposes technical details when needed or requested."
+description: "SI-Coder umbrella skill. Build and publish web apps from plain-language goals for non-technical users. Route through /sc, /sc-build, /sc-all, /sc-provider, or provider-specific skills while keeping technical choices and secrets behind a safe abstraction layer."
 ---
 
 # SI-Coder umbrella
 
-Use the narrowest SI-Coder skill that satisfies the task:
+The default user-facing entry point is **`/sc`**.
 
-| Intent | Skill |
+## Language
+
+Keep durable skill instructions and documentation in English. **Reply in the user's language** unless the user asks for another language.
+
+## Route by user goal
+
+| User intent | Internal skill |
 |---|---|
-| "buat/bikin/online-kan web app" | `/sc-all` |
-| provider/API key/secret lifecycle | `/sc-provider` |
-| install skills/plugin/MCP in another agent | `/sc-install` |
-| GitHub operations | `/sc-git` |
-| Dokploy-only operations | `/sc-dokploy` |
-| Convex self-hosted | `/sc-convex` |
-| Convex Cloud | `/sc-convex-cloud` |
-| Vercel-only operations | `/sc-vercel` |
-| first-time local SC credential setup | `/sc-onboarding` |
+| New app, business idea, or vague website request | `/sc-build` |
+| Existing app that needs to be published or connected to a domain | `/sc-all` |
+| Account, permission, API-key, or credential lifecycle | `/sc-provider` |
+| Install SI-Coder into another agent runtime | `/sc-install` |
+| Explicit advanced provider operation | matching `/sc-*` provider skill |
 
+Do not make a non-technical user choose a sub-skill, framework, database, hosting provider, or deployment method. `/sc` owns that routing decision.
 
-## Non-technical default UX — mandatory
+## Non-technical default UX
 
-SI-Coder is primarily for people who want a working web app, not an infrastructure lesson. **Lead with the outcome, hide the plumbing.**
+Lead with the outcome and hide the plumbing.
 
-A valid user request can be as simple as:
+A valid request can be:
 
-> "Buatkan web app booking salon dan online-kan di domain saya."
+> `/sc Create a booking app for my salon and put it on my domain.`
 
-From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, and verification approach itself.
+Normally SI-Coder should choose the stack, data service, hosting route, repository strategy, deployment method, and domain mechanics automatically.
 
 Rules:
 
-1. **Speak in goals:** "online-kan aplikasi", "hubungkan akun", "pasang domain", "simpan data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
-2. **One user action at a time.** Never dump a setup checklist when only one permission/account connection blocks progress.
-3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep the technology name in optional technical details.
-4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
-5. **Credentials are framed as permissions, not secrets.** Say "Saya perlu izin untuk mengakses layanan email" first. Then show `Buat di`/`Hubungkan di`, `Simpan di`, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
-6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
-7. **Progress is product-oriented:** `Membuat aplikasi → Menyiapkan data → Online-kan → Memasang domain → Mengecek hasil`, not internal provider phases.
-8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
-9. Technical users can ask for "detail teknis", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
-10. When a planner/tool returns `userPlan`, **that is the default user-facing response**. Fields such as route, providerRouting, executionEngine, credential key names, and raw flow ids are internal/advanced unless they are necessary to recover from an error.
+1. Ask only for product/business decisions that cannot be inferred.
+2. Ask one question at a time.
+3. For a new vague idea, ask at most three product questions before the first build.
+4. Never ask normal users to choose technology by default.
+5. Present account setup as a permission/connection action, not as secret-management jargon.
+6. Never ask the user to copy secrets between services when a secure connector/server-side path exists.
+7. Report progress in product terms: build the app → prepare data → publish → connect domain → verify.
+8. Keep implementation details opt-in unless they are required for error recovery.
 
-When a technical failure occurs, translate it first:
+## Product discovery
 
-- preferred: "Domain belum terhubung. Saya sedang memperbaiki arah domain ke website."
-- optional detail: "CNAME belum sesuai dengan target hosting."
+Use `sc.product.interview` when available to enforce the discovery limit. Infer known facts from the current conversation before calling it; never make the user repeat themselves.
 
-Never hide a failure, but explain its user impact before its implementation detail.
+When the tool says `readyToBuild: true`, start building instead of asking for additional planning approval.
 
+## Publishing
 
-## Default deploy behavior
+Use `/sc-all` for the runtime-first publish flow.
 
-Do not require the user to choose infrastructure terminology first.
+- Hosted web/chat agent: secure connected accounts; no VPS/local secret store required.
+- Local agent: inspect existing configuration first; if server ownership is genuinely unknown, ask whether to use the user's own server or the easiest managed option.
 
-1. Detect runtime **before** credentials.
-2. Hosted web/chat runtime → full Composio: GitHub → Convex Cloud → Vercel → Hostinger; no VPS question and no local SC requirement.
-3. Local runtime → determine whether the user has a VPS. If unknown and not inferable, ask exactly once.
-4. Local + VPS → SC GitHub/Dokploy/self-hosted Convex route.
-5. Local + no VPS → SC GitHub + managed Convex/Vercel/Hostinger, preferring Composio when connected.
-6. Configure the requested canonical domain and verify production end-to-end.
+The user-facing response should prefer the tool's `userPlan` field. Route/provider diagnostics are advanced details.
 
-Read `skills/sc-all/SKILL.md` for the full orchestration contract.
+## Safe access handoff
 
-## Secret boundary
+Never ask for a raw password, API key, token, or deploy key in chat or tool JSON.
 
-Never ask the user to paste a secret into chat or MCP JSON.
-
-- Agent reads provider/credential **status**, not plaintext.
-- New/rotated local secret → `sc secret set <provider> <KEY>` hidden-terminal handoff.
-- Connected provider → initiate the provider's secure connection/auth flow.
-- Consumer command → `sc run -- <command>`.
-- `sc env` is intentionally disabled.
-- Hosted runtime: GitHub is a Composio connected account. Local runtime: GitHub remains SC-direct by default. Never mix these policies across runtimes.
-
-Read `skills/sc-provider/SKILL.md` and `references/provider-routing.md`.
-
-## Portability
-
-The repository's `skills/` directory is the Agent Skills SSOT. Do not maintain Claude/Codex/Hermes-specific copies.
-
-- Claude Code plugin: `.claude-plugin/plugin.json` + `.mcp.json` + `skills/`.
-- Codex/global Agent Skills: installer links to `~/.agents/skills`.
-- Claude standalone: `~/.claude/skills`.
-- Hermes/OpenClaw/custom directories are installer targets over the same skill folders.
-
-Read `skills/sc-install/SKILL.md`.
-
-## Proactive next action
-
-After completing a meaningful milestone, offer exactly **one** relevant next action.
-
-The offer should contain:
-
-1. why it matters,
-2. prerequisites,
-3. a simple opt-in question.
-
-If accepted, provide the secure connection link or terminal handoff and continue. Do not dump a generic upsell list, repeatedly suggest configured services, or imply the user must accept.
-
-Typical progression when relevant:
-
-`deploy → email → auth/account flows → observability → backups → CI/release hardening`
-
-## Core engineering mandates
-
-- Preserve existing project architecture unless a migration was requested.
-- Prefer idempotent create-or-reuse behavior.
-- Never overwrite a working canonical domain with an invented one.
-- Never persist PATs in Git URLs.
-- Never expose secrets in logs/build args/tool schemas.
-- For Convex projects, preserve the project's intended auth/backend model rather than silently replacing it.
-- Verify the final public result, not just the API side effects.
-
-## Mandatory credential + next-step response contract
-
-Whenever a credential/API key is missing, **never output only the variable name**. Always make the handoff explicit:
+When local access is required, always provide:
 
 ```text
-Buat di      : <authoritative provider URL / secure connector auth link>
-Petunjuk     : <minimum scope / exact menu when useful>
-Simpan via   : <sc secret set provider KEY, or provider connector>
-Simpan di    : <SC profile 0600, or Composio connected account>
-Lanjut       : <verification/resume action>
+Create at   : <official provider URL>
+Instructions: <minimum useful permission guidance>
+Save with   : <safe SI-Coder handoff>
+Stored in   : <protected local store>
+Continue    : <verification/continuation action>
 ```
 
-Rules:
-- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
-- Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
-- If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
-- Never put the credential value in chat, argv, logs, recommendations, or tool JSON.
+Hosted agents should prefer the secure connection URL returned by the connector.
 
-After every meaningful completed milestone, emit exactly one next-step block:
+## Completion
+
+A publish is not complete until the public app, domain, HTTPS, and core user flow are verified.
+
+After a meaningful milestone, provide exactly one stable next-step block:
 
 ```text
 [rekomendasi]
-Berikutnya   : <one highest-value next step>
-Kenapa       : <one sentence>
-Butuh        : <prerequisites, or "tidak ada">
-Kalau setuju : <what SI-Coder will do next / secure auth handoff>
+Next        : <one highest-value next step>
+Why         : <one sentence>
+Needs       : <prerequisites or "nothing from you yet">
+If you want : <what SI-Coder will do next>
 ```
 
-Do not dump multiple recommendations. Do not recommend something already configured and healthy.
+Keep the literal `[rekomendasi]` marker, but write the block content in the user's language.
+
+## Portability
+
+The `skills/` directory is the Agent Skills SSOT. A portable skill is a directory containing `SKILL.md`; do not create divergent `.skill` copies.
+
+Important skill identities:
+
+- `skills/sc/SKILL.md` → `/sc`
+- `skills/sc-build/SKILL.md` → `/sc-build`
+- `skills/sc-all/SKILL.md` → `/sc-all`
+- `skills/sc-provider/SKILL.md` → `/sc-provider`
+- `skills/sc-install/SKILL.md` → `/sc-install`

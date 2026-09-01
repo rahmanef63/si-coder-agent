@@ -82,10 +82,10 @@ test('SRC-10: full credential guide says where to create, store, and continue', 
   assert.match(g.saveDestination, /SC profile/);
   assert.strictEqual(g.continueWith, 'sc doctor --providers vercel');
   const text = humanGuideLines('VERCEL_TOKEN').join('\n');
-  assert.match(text, /Buat di/);
-  assert.match(text, /Simpan via/);
-  assert.match(text, /Simpan di/);
-  assert.match(text, /Lanjut/);
+  assert.match(text, /Create at/);
+  assert.match(text, /Save with/);
+  assert.match(text, /Stored in/);
+  assert.match(text, /Continue/);
 });
 
 
@@ -93,7 +93,7 @@ test('SRC-11: credential guide includes a non-technical user card', () => {
   const { credentialGuide } = require('../lib/credential-guidance');
   const g = credentialGuide('RESEND_API_KEY');
   assert.ok(g.userCard);
-  assert.match(g.userCard.title, /akses|email/i);
+  assert.match(g.userCard.title, /access|email/i);
   assert.strictEqual(g.userCard.technicalDetailsOptional, true);
   assert.ok(g.userCard.primaryAction.url.startsWith('https://'));
 });

@@ -10,11 +10,25 @@ SI-Coder uses one `skills/` tree as the source of truth. Do not fork/copy skill 
 
 ## Hosted Claude Web / ChatGPT chat
 
-Hosted execution does not require a VPS or local SC vault. When the skill is loaded into a hosted chat surface, `/sc-all` uses the orchestration policy directly and executes through Composio connected accounts:
+Hosted execution does not require a VPS or local SC vault. When the skill is loaded into a hosted chat surface, `/sc` routes the request and `/sc-all` uses the publishing policy directly through secure connected accounts:
 
 `GitHub → Convex Cloud → Vercel → Hostinger DNS → verify`
 
 If Composio is not enabled/connected, guide the user through the secure connector setup. Do not ask for raw API keys. A local installation is only required if the user explicitly wants local/VPS execution.
+
+
+## Slash skill identities
+
+SI-Coder uses the standard Agent Skills layout: each portable skill is a directory containing `SKILL.md`. Do not create a parallel `.skill` file.
+
+The important identities are:
+
+- `skills/sc/SKILL.md` → `/sc`
+- `skills/sc-build/SKILL.md` → `/sc-build`
+- `skills/sc-all/SKILL.md` → `/sc-all`
+- `skills/sc-provider/SKILL.md` → `/sc-provider`
+
+Claude-style clients can expose installed skill names as slash invocations. Other Agent Skills runtimes may use a different invocation syntax, but the same `SKILL.md` source remains portable.
 
 ## Claude Code
 
@@ -69,6 +83,6 @@ bash install.sh --skills-dir /path/to/agent/skills
 
 Installing skills/MCP must not migrate or copy credential files. SC state remains outside the plugin/repository under `~/.config/si-coder/`.
 
-For hosted surfaces without local filesystem/SC access, use the workflow instructions plus connected Composio toolkits for Vercel/Convex/Hostinger. Do not silently replace the required SC GitHub bootstrap identity with another account.
+For hosted surfaces without local filesystem/SC access, use the workflow instructions plus connected accounts for GitHub, Convex, Vercel, and Hostinger. Do not ask the user to bootstrap a local SC GitHub identity in hosted mode.
 
 See `../../references/portable-skills.md` for runtime-specific notes.

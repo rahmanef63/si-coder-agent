@@ -88,7 +88,7 @@ test('SCPORT-8: Claude plugin manifest and MCP config stay portable', () => {
   const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
   const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'));
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.6.0');
+  assert.strictEqual(plugin.version, '0.7.0');
   const cfg = mcp.mcpServers['si-coder'];
   assert.ok(cfg.args.join(' ').includes('${CLAUDE_PLUGIN_ROOT}/scripts/sc-mcp.js'));
   assert.doesNotMatch(JSON.stringify(mcp), /(TOKEN|API_KEY|SECRET|PASSWORD)/i);
@@ -126,7 +126,7 @@ test('SCPORT-10: portable installer targets local Agent Skills runtimes from one
       cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, SC_SKIP_NPM_LINK: '1' },
     });
     for (const d of ['.claude/skills', '.agents/skills', '.hermes/skills', '.openclaw/workspace/skills']) {
-      for (const skill of ['sc-all', 'sc-provider', 'sc-install']) {
+      for (const skill of ['sc', 'sc-build', 'sc-all', 'sc-provider', 'sc-install']) {
         const target = path.join(home, d, skill);
         assert.ok(fs.lstatSync(target).isSymbolicLink(), `${target} should be a symlink`);
         assert.ok(fs.existsSync(path.join(target, 'SKILL.md')));
@@ -157,5 +157,5 @@ test('SCPORT-13: ambiguous local route asks a plain-language server choice', () 
   const p = planDeploy({ runtime: 'local', env: {} });
   assert.strictEqual(p.userPlan.status, 'needs-answer');
   assert.match(p.userPlan.question, /server|hosting/i);
-  assert.ok(p.userPlan.choices.some(x => /paling mudah/i.test(x.label)));
+  assert.ok(p.userPlan.choices.some(x => /easiest/i.test(x.label)));
 });

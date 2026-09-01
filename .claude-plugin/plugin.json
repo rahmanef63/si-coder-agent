@@ -1,6 +1,6 @@
 {
   "name": "si-coder",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Create and publish web apps from plain-language goals. SI-Coder handles hosting, connected accounts, domains, data, and verification behind a non-technical UX.",
   "author": {
     "name": "Rahman EF"

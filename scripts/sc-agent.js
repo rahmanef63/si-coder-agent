@@ -63,6 +63,11 @@ async function main() {
   }
 
   switch (ACTION) {
+    case 'product.interview': {
+      const { productInterview } = require('../lib/product-interview');
+      process.stdout.write(`${JSON.stringify(productInterview(input), null, 2)}\n`);
+      return;
+    }
     case 'providers.list':
       return runSc(['providers', '--json']);
     case 'provider.create': {
@@ -131,10 +136,10 @@ async function main() {
         policy: 'Create the access only at the official page shown above, then paste it only into the hidden terminal prompt; never send it in chat or tool JSON.',
         recommendation: {
           label: '[rekomendasi]',
-          title: 'Cek akses lalu lanjutkan',
-          reason: 'Supaya SI-Coder tahu koneksi sudah siap sebelum melanjutkan web app.',
-          beforeWeStart: ['akses sudah disimpan'],
-          offer: 'Saya akan mengecek koneksi dan melanjutkan langkah sebelumnya.',
+          title: 'Verify access and continue',
+          reason: 'This confirms the connection is ready before SI-Coder continues the web app.',
+          beforeWeStart: ['the access has been stored'],
+          offer: 'I will verify the connection and continue the previous step.',
           technicalCommand: setup?.continueWith || `sc doctor --providers ${provider}`,
         },
       }, null, 2)}\n`);

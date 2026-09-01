@@ -125,16 +125,16 @@ function printRecommendation(rec) {
   const c = rec.userCard;
   console.log(`\n${rec.label}`);
   if (c) {
-    console.log(`Berikutnya   : ${c.title}`);
-    console.log(`Kenapa       : ${c.reason}`);
+    console.log(`Next         : ${c.title}`);
+    console.log(`Why          : ${c.reason}`);
     if (c.beforeWeStart?.length) console.log(`Yang dibutuhkan: ${c.beforeWeStart.join(', ')}`);
-    console.log(`Kalau setuju : ${c.offer}`);
+    console.log(`If you want  : ${c.offer}`);
     return;
   }
-  console.log(`Berikutnya   : ${rec.next}`);
-  console.log(`Kenapa       : ${rec.why}`);
+  console.log(`Next         : ${rec.next}`);
+  console.log(`Why          : ${rec.why}`);
   if (rec.prerequisites?.length) console.log(`Yang dibutuhkan: ${rec.prerequisites.join(', ')}`);
-  if (rec.action) console.log(`Kalau setuju : ${rec.action}`);
+  if (rec.action) console.log(`If you want  : ${rec.action}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -889,7 +889,7 @@ async function cmdPreflight(args) {
 
 function renderUserPlan(plan) {
   const u = plan.userPlan || {};
-  console.log(`\n✨ ${u.title || 'Siap melanjutkan'}`);
+  console.log(`\n✨ ${u.title || 'Ready to continue'}`);
   if (u.outcome) console.log(`   ${u.outcome}`);
   if (u.connectionMessage) console.log(`\n   ${u.connectionMessage}`);
   if (u.question) {
@@ -898,16 +898,16 @@ function renderUserPlan(plan) {
     return;
   }
   if (Array.isArray(u.steps) && u.steps.length) {
-    console.log('\n   Yang akan saya urus:');
+    console.log('\n   What I will handle:');
     u.steps.forEach((step, i) => console.log(`   ${i + 1}. ${step}`));
   }
   if (u.action) {
-    console.log(`\n   Yang kamu perlu lakukan sekarang:`);
+    console.log(`\n   What you need to do now:`);
     console.log(`   ${u.action.title}`);
     console.log(`   ${u.action.message}`);
     if (u.action.buttonLabel) console.log(`   → ${u.action.buttonLabel}`);
   }
-  console.log('\n   Detail teknis saya urus di belakang layar.');
+  console.log('\n   I will keep technical details in the background unless you ask for them.');
 }
 
 function cmdDeploy(sub, args) {
@@ -923,7 +923,7 @@ function cmdDeploy(sub, args) {
     else {
       renderUserPlan(plan);
       if (args.technical || args.advanced) {
-        console.log(`\n🔧 Detail teknis`);
+        console.log(`\n🔧 Technical details`);
         console.log(`   route: ${plan.route}${plan.target ? ` → ${plan.target}` : ''}`);
         console.log(`   reason: ${plan.reason}`);
         console.log(`   flow: ${plan.flow.join(' → ')}`);
@@ -939,15 +939,15 @@ function cmdDeploy(sub, args) {
 // Bare `sc` on a terminal opens the console rather than printing a wall of usage. On a pipe
 // it still prints usage, so `sc | head` and scripts behave the way anyone would expect.
 async function cmdMenu() {
-  const action = await selectOne('SI-Coder — buat dan online-kan web app', [
-    { id: 'deploy',    label: 'Online-kan app', hint: 'saya pilih cara hosting yang paling cocok' },
-    { id: 'providers', label: 'Akun terhubung', hint: 'lihat layanan yang sudah siap dipakai' },
-    { id: 'secrets',   label: 'Akses aman', hint: 'cek akses tanpa menampilkan rahasia' },
-    { id: 'setup',     label: 'Hubungkan akun', hint: 'siapkan akses yang masih dibutuhkan' },
-    { id: 'doctor',    label: 'Cek koneksi', hint: 'pastikan semua layanan bisa dipakai' },
-    { id: 'update',    label: 'Update SI-Coder', hint: 'pakai versi terbaru dengan aman' },
-    { id: 'audit',     label: 'Riwayat', hint: 'lihat aktivitas pengaturan tanpa rahasia' },
-    { id: 'preflight', label: 'Cek kesiapan', hint: 'lihat apa yang masih perlu disiapkan' },
+  const action = await selectOne('SI-Coder — build and publish a web app', [
+    { id: 'deploy',    label: 'Publish app', hint: 'I will choose the simplest suitable hosting route' },
+    { id: 'providers', label: 'Connected accounts', hint: 'see which services are ready to use' },
+    { id: 'secrets',   label: 'Secure access', hint: 'check access without showing secret values' },
+    { id: 'setup',     label: 'Connect accounts', hint: 'set up only the access that is still needed' },
+    { id: 'doctor',    label: 'Check connections', hint: 'verify connected services are usable' },
+    { id: 'update',    label: 'Update SI-Coder', hint: 'safely use the latest version' },
+    { id: 'audit',     label: 'History', hint: 'review configuration activity without secret values' },
+    { id: 'preflight', label: 'Readiness check', hint: 'see what still needs to be prepared' },
     { id: 'users',     label: 'users    ', hint: 'profiles, and which folder uses which' },
     { id: 'which',     label: 'which    ', hint: 'why this directory resolves to that profile' },
     { id: 'quit',      label: 'quit     ', hint: '' },

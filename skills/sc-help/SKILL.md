@@ -5,6 +5,10 @@ description: "Quick reference for SI-Coder route selection, secret-safe provider
 
 # /sc-help
 
+## Language
+
+Keep durable instructions in English. **Reply in the user's language** unless they request another language.
+
 
 ## Non-technical default UX — mandatory
 
@@ -12,27 +16,27 @@ SI-Coder is primarily for people who want a working web app, not an infrastructu
 
 A valid user request can be as simple as:
 
-> "Buatkan web app booking salon dan online-kan di domain saya."
+> "Create a salon booking app and put it on my domain."
 
 From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, and verification approach itself.
 
 Rules:
 
-1. **Speak in goals:** "online-kan aplikasi", "hubungkan akun", "pasang domain", "simpan data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
+1. **Speak in goals:** "publish the app", "connect the account", "connect the domain", "store the app data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
 2. **One user action at a time.** Never dump a setup checklist when only one permission/account connection blocks progress.
 3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep the technology name in optional technical details.
 4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
-5. **Credentials are framed as permissions, not secrets.** Say "Saya perlu izin untuk mengakses layanan email" first. Then show `Buat di`/`Hubungkan di`, `Simpan di`, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
+5. **Credentials are framed as permissions, not secrets.** Say "I need permission to use the email service" first. Then show the official create/connect action, where access is stored, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
 6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
-7. **Progress is product-oriented:** `Membuat aplikasi → Menyiapkan data → Online-kan → Memasang domain → Mengecek hasil`, not internal provider phases.
+7. **Progress is product-oriented:** `Build the app → Prepare data → Publish → Connect domain → Verify`, not internal provider phases.
 8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
-9. Technical users can ask for "detail teknis", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
+9. Technical users can ask for "technical details", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
 10. When a planner/tool returns `userPlan`, **that is the default user-facing response**. Fields such as route, providerRouting, executionEngine, credential key names, and raw flow ids are internal/advanced unless they are necessary to recover from an error.
 
 When a technical failure occurs, translate it first:
 
-- preferred: "Domain belum terhubung. Saya sedang memperbaiki arah domain ke website."
-- optional detail: "CNAME belum sesuai dengan target hosting."
+- preferred: "The domain is not connected yet. I am fixing the connection between the domain and the website."
+- optional detail: "The CNAME does not match the hosting target yet."
 
 Never hide a failure, but explain its user impact before its implementation detail.
 
@@ -41,7 +45,9 @@ Never hide a failure, but explain its user impact before its implementation deta
 
 | Goal | Use |
 |---|---|
-| Deploy from repo to production | `/sc-all` |
+| Describe anything you want SI-Coder to build/change | `/sc` |
+| New/vague app idea | `/sc-build` |
+| Existing app: publish from repo to production | `/sc-all` |
 | API/provider credential or account connection | `/sc-provider` |
 | Install in Claude Code/Codex/Hermes/OpenClaw | `/sc-install` |
 | Provider-specific operation | matching `/sc-*` skill |
@@ -107,8 +113,8 @@ Whenever a credential/API key is missing, **never output only the variable name*
 ```text
 Buat di      : <authoritative provider URL / secure connector auth link>
 Petunjuk     : <minimum scope / exact menu when useful>
-Simpan via   : <sc secret set provider KEY, or provider connector>
-Simpan di    : <SC profile 0600, or Composio connected account>
+Save with   : <sc secret set provider KEY, or provider connector>
+Stored in   : <SC profile 0600, or Composio connected account>
 Lanjut       : <verification/resume action>
 ```
 
@@ -122,10 +128,10 @@ After every meaningful completed milestone, emit exactly one next-step block:
 
 ```text
 [rekomendasi]
-Berikutnya   : <one highest-value next step>
-Kenapa       : <one sentence>
-Butuh        : <prerequisites, or "tidak ada">
-Kalau setuju : <what SI-Coder will do next / secure auth handoff>
+Next        : <one highest-value next step>
+Why         : <one sentence>
+Needs       : <prerequisites, or "nothing from you yet">
+If you want : <what SI-Coder will do next / secure auth handoff>
 ```
 
 Do not dump multiple recommendations. Do not recommend something already configured and healthy.

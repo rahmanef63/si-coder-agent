@@ -92,10 +92,12 @@ fi
 
 echo ""
 echo "✅ SI-Coder skills installed for: $agent"
-echo "   /sc-all      → one-prompt deploy; auto VPS or managed route"
-echo "   /sc-provider → secret-safe provider control plane"
+echo "   /sc          → main entry point: describe what you want in plain language"
+echo "   /sc-build    → idea → short product interview → first working version → publish"
+echo "   /sc-all      → publish an existing app end to end"
+echo "   /sc-provider → connect/manage service access safely"
 echo "   /sc-install  → portable install guidance"
-echo "   sc deploy plan --target auto --json"
+echo "   Technical CLI (optional): sc deploy plan --json"
 
 [[ -t 0 && -t 1 ]] || run_onboarding=0
 if [[ "$run_onboarding" == "1" ]]; then
