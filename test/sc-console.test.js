@@ -202,7 +202,7 @@ test('SCC-3: unknown target and unknown provider are rejected, not guessed', () 
 test('SCC-4: bare `sc` stays scriptable — usage on a pipe, never a menu', () => {
   const out = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js')],
     { input: '', encoding: 'utf8', timeout: 20000 });
-  assert.match(out, /si-coder provider console/);
+  assert.match(out, /SI-Coder interactive console/);
   assert.match(out, /sc preflight --target/, 'usage must still list the commands');
   assert.doesNotMatch(out, /\u001b\[\?25l/, 'must not emit cursor-hiding escapes to a pipe');
 });
@@ -234,4 +234,35 @@ test('SCC-6: the pickers are exported and take the documented shape', () => {
     'Enter with no toggled boxes must choose the highlighted provider');
   assert.match(sc, /!env\[v\.key\] \|\| varState\(v, env\) === 'INVALID'/,
     'setup must re-prompt malformed values instead of treating their mere presence as complete');
+});
+
+test('SCC-7: layered menu exposes the breadcrumb navigation contract and stays persistent', () => {
+  const { selectLayer } = require(path.join(ROOT, 'lib/prompt'));
+  assert.strictEqual(typeof selectLayer, 'function');
+  const prompt = fs.readFileSync(path.join(ROOT, 'lib/prompt.js'), 'utf8');
+  assert.match(prompt, /Tab deeper/);
+  assert.match(prompt, /→\/Enter open\/run/);
+  assert.match(prompt, /←\/Esc back/);
+  assert.match(prompt, /breadcrumb\.join\('  ›  '\)/);
+  const sc = fs.readFileSync(path.join(ROOT, 'bin/sc.js'), 'utf8');
+  assert.match(sc, /while \(true\)/, 'bare sc must keep a session loop');
+  assert.match(sc, /Stay on the current breadcrumb layer after every action/);
+  assert.match(sc, /Esc\/Left at Home intentionally does not close the CLI/);
+  assert.match(sc, /users\/profiles\/profile:/, 'profile details must be a real nested layer');
+});
+
+test('SCC-8: profile ownership is configurable from the CLI without exposing credentials', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-owner-cli-'));
+  const env = { ...process.env, SC_CONFIG_DIR: dir };
+  execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user', 'add', 'alpha', '--owner', 'Rahman personal'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  const shown = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user', 'show', 'alpha'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(shown, /owner\s+: Rahman personal/);
+  assert.match(shown, /values hidden/);
+  const listed = execFileSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'user'],
+    { encoding: 'utf8', env, timeout: 20000 });
+  assert.match(listed, /owner: Rahman personal/);
+  assert.match(listed, /ownership\s+:/);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

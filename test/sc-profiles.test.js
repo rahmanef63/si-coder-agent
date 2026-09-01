@@ -110,3 +110,34 @@ test('PRF-9: sc.md naming a deleted profile degrades to "not found", never to a 
   assert.strictEqual(profile, null);
   assert.match(reason, /not found/);
 });
+
+test('PRF-10: legacy profiles without metadata default owner to the profile name', () => {
+  P.ensureDirs();
+  fs.writeFileSync(P.profilePath('legacy'), "CLOUDFLARE_API_TOKEN='legacy-token'\n", { mode: 0o600 });
+  const meta = P.readProfileMeta();
+  delete meta.profiles.legacy;
+  P.writeProfileMeta(meta);
+  assert.strictEqual(P.profileOwner('legacy'), 'legacy');
+});
+
+test('PRF-11: owner metadata is explicit, private, and returned with resolved env', () => {
+  P.writeProfile('owned', { CLOUDFLARE_API_TOKEN: 'owned-token' });
+  P.setProfileOwner('owned', 'Rahman personal');
+  P.writeScMd({ active: 'owned', mappings: [] });
+  assert.strictEqual(P.profileOwner('owned'), 'Rahman personal');
+  assert.strictEqual(fs.statSync(P.PROFILE_META).mode & 0o777, 0o600);
+  const metaText = fs.readFileSync(P.PROFILE_META, 'utf8');
+  assert.match(metaText, /Rahman personal/);
+  assert.doesNotMatch(metaText, /owned-token/, 'ownership metadata must never duplicate secret values');
+  const resolved = P.loadEnvFor('/tmp', { shellRcEnv: {} });
+  assert.strictEqual(resolved.profile, 'owned');
+  assert.strictEqual(resolved.owner, 'Rahman personal');
+});
+
+test('PRF-12: deleting a profile removes its ownership metadata too', () => {
+  P.writeProfile('delete-me', { CLOUDFLARE_API_TOKEN: 'x' });
+  P.setProfileOwner('delete-me', 'Temporary user');
+  assert.strictEqual(P.profileOwner('delete-me'), 'Temporary user');
+  P.deleteProfile('delete-me');
+  assert.strictEqual(P.readProfileMeta().profiles['delete-me'], undefined);
+});

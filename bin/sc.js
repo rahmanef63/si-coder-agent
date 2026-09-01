@@ -20,7 +20,7 @@ const { isSecret, sourceLine, readShellRcEnv } =
 const { appendExportToShellRc, removeExportsFromShellRc } =
   require(path.resolve(__dirname, '../lib/env'));
 const { spawnSync } = require('child_process');
-const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany } =
+const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany, selectLayer } =
   require(path.resolve(__dirname, '../lib/prompt'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
@@ -51,7 +51,9 @@ function parseArgs(argv) {
 // Resolution order: profile (if one governs this directory) > process.env > ~/.bashrc.
 // The profile deliberately outranks the shell — see the precedence note in lib/profiles.js.
 let NO_PROFILE = false;
+let MENU_MODE = false;
 let _envCache = null;
+function invalidateEnvCache() { _envCache = null; }
 function currentEnvFull() {
   if (!_envCache) _envCache = P.loadEnvFor(process.cwd(), { noProfile: NO_PROFILE, shellRcEnv: readShellRcEnv() });
   return _envCache;
@@ -60,10 +62,9 @@ function currentEnv() { return currentEnvFull().env; }
 
 // One line, printed once, so it is never a mystery which identity a command ran as.
 function profileBanner() {
-  const { profile, reason } = currentEnvFull();
-  const { shadowed } = currentEnvFull();
+  const { profile, owner, reason, shadowed } = currentEnvFull();
   if (profile) {
-    console.log(`  👤 profile: ${profile}  (${reason})`);
+    console.log(`  👤 user: ${owner || profile} · profile: ${profile}  (${reason})`);
     if (shadowed.length) console.log(`     ignoring ${shadowed.length} var(s) from the shell not owned by this profile: ${shadowed.join(', ')}`);
   }
   else if (P.listProfiles().length) console.log(`  👤 profile: none  (${reason}) — \`sc user which\` explains`);
@@ -72,7 +73,7 @@ function profileBanner() {
 function sourceOf(key) {
   const { profile } = currentEnvFull();
   if (profile) {
-    if (P.readProfile(profile)[key]) return `profile:${profile}`;
+    if (P.readProfile(profile)[key]) return `profile:${profile} owner:${P.profileOwner(profile)}`;
     if (process.env[key] || readShellRcEnv()[key]) return 'shadowed-by-profile';
     return '—';
   }
@@ -96,11 +97,15 @@ function resolveIds(args) {
   return null;
 }
 
-function die(msg, code = 1) { console.error(`❌ ${msg}`); process.exit(code); }
+class MenuCommandError extends Error { constructor(message, code = 1) { super(message); this.code = code; this.menuCommand = true; } }
+function die(msg, code = 1) {
+  if (MENU_MODE) throw new MenuCommandError(msg, code);
+  console.error(`❌ ${msg}`); process.exit(code);
+}
 
 function storeLabel() {
   const t = writeTarget();
-  if (t.kind === 'profile') return `SC profile "${t.name}" (${P.profilePath(t.name)}, mode 0600)`;
+  if (t.kind === 'profile') return `SC profile "${t.name}" owned by "${P.profileOwner(t.name)}" (${P.profilePath(t.name)}, mode 0600)`;
   if (t.kind === 'profile-unset') return 'an SC profile mapped/selected for this directory (run `sc user which`, then `sc user use <name>` or `sc user map . <name>`)';
   return 'managed ~/.bashrc block (0600-compatible local shell store; profiles are preferred)';
 }
@@ -197,6 +202,7 @@ function cmdProvidersList(args) {
 
 async function cmdProvidersShow(id) {
   if (!id) id = await pickProvider('Show which provider?');
+  if (!id) return;
   const p = byId.get(id) || die(`unknown provider "${id}"`);
   const env = currentEnv();
   console.log(`\n🔌 ${p.id} — ${p.title}${p.status === 'stub' ? '  (STUB: script not implemented)' : ''}`);
@@ -253,7 +259,7 @@ const PROVIDER_TABS = [
 async function pickProvider(title) {
   if (!isInteractive()) die('provider id required on a non-TTY, e.g. `sc providers show cf`');
   const id = await selectOne(title, providerItems(), PROVIDER_TABS);
-  if (!id) { console.log('cancelled'); process.exit(0); }
+  if (!id) { console.log('cancelled'); return null; }
   return id;
 }
 
@@ -311,6 +317,7 @@ function persist(updates) {
   const t = writeTarget();
   if (t.kind === 'profile') {
     P.writeProfile(t.name, updates);
+    invalidateEnvCache();
     console.log(`\n✅ Wrote ${Object.keys(updates).length} value(s) to profile "${t.name}" (${P.profilePath(t.name)})`);
     console.log('   Use `sc run -- <cmd>` to consume them without revealing plaintext.');
     return t;
@@ -319,6 +326,7 @@ function persist(updates) {
     die('profiles exist but none governs this directory — pick one with `sc user use <name>` or map it with `sc user map . <name>`');
   }
   appendExportToShellRc(updates);
+  invalidateEnvCache();
   console.log(`\n✅ Wrote ${Object.keys(updates).length} export(s) to ~/.bashrc`);
   console.log('   Next: source ~/.bashrc');
   return t;
@@ -347,6 +355,7 @@ async function cmdSetup(args) {
 async function cmdProvidersSet(id) {
   if (!isInteractive()) die('sc providers set needs a TTY.');
   if (!id) id = await pickProvider('Re-enter credentials for which provider?');
+  if (!id) return;
   byId.get(id) || die(`unknown provider "${id}"`);
   console.log(`\n🔁 re-entering every var for "${id}" (existing values will be replaced)\n`);
   const updates = await collect([id], { force: true });
@@ -356,6 +365,7 @@ async function cmdProvidersSet(id) {
 
 async function cmdProvidersRm(id, args) {
   if (!id) id = await pickProvider('Remove credentials for which provider?');
+  if (!id) return;
   const p = byId.get(id) || die(`unknown provider "${id}"`);
   const keys = p.vars.map(v => v.key);
   console.log(`\nThis removes from the si-coder block in ~/.bashrc:\n  ${keys.join('\n  ')}\n`);
@@ -366,6 +376,7 @@ async function cmdProvidersRm(id, args) {
   const t = writeTarget();
   if (t.kind === 'profile') {
     const removed = P.removeFromProfile(t.name, keys);
+    invalidateEnvCache();
     console.log(removed.length ? `✅ removed from profile "${t.name}": ${removed.join(', ')}` : `nothing to remove in profile "${t.name}"`);
     return;
   }
@@ -591,6 +602,7 @@ async function cmdSecretRm(providerId, key, args) {
   if (t.kind === 'profile') removed = P.removeFromProfile(t.name, keys);
   else if (t.kind === 'profile-unset') die('profiles exist but none governs this directory — use `sc user which`');
   else ({ removed, unmanaged } = removeExportsFromShellRc(keys));
+  invalidateEnvCache();
   audit('credential.remove', { provider: providerId, keyNames: keys, store: t.kind, profile: t.name || undefined });
   console.log(removed.length ? `✅ removed ${removed.join(', ')}` : 'nothing to remove');
   if (unmanaged.length) console.log(`⚠️ left user-owned exports outside the si-coder block untouched: ${unmanaged.join(', ')}`);
@@ -650,30 +662,31 @@ function ensureScMd() {
 }
 
 function cmdUserList() {
-  const names = P.listProfiles();
+  const records = P.listProfileRecords();
   const st = ensureScMd();
   const { profile, reason } = P.resolveProfile();
-  console.log('\n👥 profiles\n');
-  if (!names.length) {
-    console.log('  (none yet)\n\n  sc user add <name>              create one');
-    console.log('  sc user add <name> --from-shell import what is exported right now\n');
+  console.log('\n👥 users / profiles\n');
+  if (!records.length) {
+    console.log('  (none yet)\n\n  sc user add <profile> --owner <user>        create one');
+    console.log('  sc user add <profile> --owner <user> --from-shell   import current credentials\n');
     return;
   }
-  for (const n of names) {
-    const keys = Object.keys(P.readProfile(n)).length;
+  for (const r of records) {
     const marks = [];
-    if (n === st.active) marks.push('active');
-    if (n === profile) marks.push('current dir');
-    console.log(`  ${n === profile ? '❯' : ' '} ${n.padEnd(18)} ${String(keys).padStart(2)} value(s)${marks.length ? '   [' + marks.join(', ') + ']' : ''}`);
+    if (r.name === st.active) marks.push('active');
+    if (r.name === profile) marks.push('current dir');
+    console.log(`  ${r.name === profile ? '❯' : ' '} ${r.name.padEnd(16)} owner: ${r.owner.padEnd(18)} ${String(r.keys).padStart(2)} credential(s)${marks.length ? '   [' + marks.join(', ') + ']' : ''}`);
   }
-  console.log(`\n  here: ${profile || 'none'}  (${reason})`);
-  console.log(`  map:  ${P.SC_MD}\n`);
+  console.log(`\n  here: ${profile || 'none'}${profile ? ` · owner: ${P.profileOwner(profile)}` : ''}  (${reason})`);
+  console.log(`  folder map : ${P.SC_MD}`);
+  console.log(`  ownership  : ${P.PROFILE_META}\n`);
 }
 
 function cmdUserWhich() {
   const { profile, reason, mapping, state } = P.resolveProfile();
   console.log(`\n📍 cwd      : ${process.cwd()}`);
   console.log(`   profile  : ${profile || '(none)'}`);
+  if (profile) console.log(`   owner    : ${P.profileOwner(profile)}`);
   console.log(`   because  : ${reason}`);
   if (mapping) console.log(`   rule     : ${mapping.path} → ${mapping.profile}`);
   if (profile && !P.profileExists(profile)) {
@@ -683,32 +696,73 @@ function cmdUserWhich() {
     console.log('\n   all rules (longest match wins):');
     for (const m of state.mappings) {
       const dead = P.profileExists(m.profile) ? '' : '   ⚠️ profile missing';
-      console.log(`     ${m.path.padEnd(38)} → ${m.profile}${dead}`);
+      const owner = P.profileExists(m.profile) ? ` · owner ${P.profileOwner(m.profile)}` : '';
+      console.log(`     ${m.path.padEnd(38)} → ${m.profile}${owner}${dead}`);
     }
   }
-  console.log(`\n   sc.md    : ${P.SC_MD}\n`);
+  console.log(`\n   folder map : ${P.SC_MD}`);
+  console.log(`   ownership  : ${P.PROFILE_META}\n`);
+}
+
+function cmdUserProfileInfo(name) {
+  if (!name || !P.profileExists(name)) die(`no such profile "${name || ''}"`);
+  const st = ensureScMd();
+  const env = P.readProfile(name);
+  const keys = Object.keys(env).sort();
+  console.log(`\n👤 ${name}`);
+  console.log(`   owner       : ${P.profileOwner(name)}`);
+  console.log(`   credentials : ${keys.length} key(s), values hidden`);
+  console.log(`   store       : ${P.profilePath(name)}`);
+  console.log(`   active      : ${st.active === name ? 'yes' : 'no'}`);
+  const maps = st.mappings.filter(m => m.profile === name);
+  console.log(`   folders     : ${maps.length ? maps.map(m => m.path).join(', ') : '(none)'}`);
+  if (keys.length) console.log(`   env keys    : ${keys.join(', ')}`);
+  console.log('');
+}
+
+async function cmdUserOwner(name, owner) {
+  if (!name) die('usage: sc user owner <profile> [owner]');
+  if (!P.profileExists(name)) die(`no such profile "${name}"`);
+  if (!owner) {
+    if (!isInteractive()) die('owner is required on a non-TTY: sc user owner <profile> <owner>');
+    owner = await askVisible(`Owner for ${name} [${P.profileOwner(name)}]: `);
+    if (!owner) return console.log('unchanged');
+  }
+  const meta = P.setProfileOwner(name, owner);
+  invalidateEnvCache();
+  audit('profile.owner', { profile: name, owner: meta.owner });
+  console.log(`✅ ${name} credentials belong to user/account: ${meta.owner}`);
 }
 
 async function cmdUserAdd(name, args) {
+  let enteredInteractively = false;
   if (!name) {
-    if (!isInteractive()) die('usage: sc user add <name> [--from-shell]');
+    if (!isInteractive()) die('usage: sc user add <name> [--owner <user>] [--from-shell]');
     name = await askVisible('New profile name: ');
+    enteredInteractively = true;
   }
   P.assertName(name);
   if (P.profileExists(name) && !args.force) die(`profile "${name}" already exists (use --force to overwrite)`);
+  let owner = typeof args.owner === 'string' ? P.assertOwner(args.owner) : name;
+  if (enteredInteractively && typeof args.owner !== 'string') {
+    const answer = await askVisible(`Owner/user for ${name} [${name}]: `);
+    if (answer) owner = P.assertOwner(answer);
+  }
   let updates = {};
   if (args['from-shell']) {
-    // Migration path off the single-identity ~/.bashrc: snapshot every registry var that is
-    // currently visible, so the first profile is a copy of what already worked.
     const env = { ...readShellRcEnv(), ...process.env };
     for (const v of PROVIDERS.flatMap(p => p.vars)) if (env[v.key]) updates[v.key] = env[v.key];
-    console.log(`  imported ${Object.keys(updates).length} value(s) from the current environment`);
+    console.log(`  imported ${Object.keys(updates).length} credential value(s) from the current environment`);
   }
   P.writeProfile(name, updates);
+  P.setProfileOwner(name, owner);
   const st = ensureScMd();
   if (!st.active) P.writeScMd({ active: name, mappings: st.mappings });
-  console.log(`✅ profile "${name}" created at ${P.profilePath(name)}`);
-  if (!st.active) console.log(`   set as the active profile`);
+  invalidateEnvCache();
+  audit('profile.create', { profile: name, owner, importedKeys: Object.keys(updates).length });
+  console.log(`✅ profile "${name}" created for user/account "${owner}"`);
+  console.log(`   credentials: ${P.profilePath(name)} (0600)`);
+  if (!st.active) console.log('   set as the active fallback profile');
   console.log(`\n   next: sc user map <folder> ${name}    (or: sc user use ${name})`);
 }
 
@@ -717,22 +771,22 @@ function cmdUserUse(name) {
   if (!P.profileExists(name)) die(`no such profile "${name}" — sc user list`);
   const st = ensureScMd();
   P.writeScMd({ active: name, mappings: st.mappings });
-  console.log(`✅ active profile: ${name}`);
+  invalidateEnvCache();
+  console.log(`✅ active profile: ${name} · owner: ${P.profileOwner(name)}`);
 }
 
 function cmdUserMap(dir, name) {
   if (!dir || !name) die('usage: sc user map <folder> <profile>');
   if (!P.profileExists(name)) die(`no such profile "${name}" — sc user list`);
   const st = ensureScMd();
-  // Store what the user typed (so `~` stays readable in sc.md) but de-dupe on the resolved
-  // path, or `.` and `~/x` could quietly create two rules for one directory.
   const shown = dir === '.' ? process.cwd() : dir;
   const resolved = path.resolve(P.expandHome(shown));
   const mappings = st.mappings.filter(m => m.resolved !== resolved);
   mappings.push({ path: shown, resolved, profile: name });
   mappings.sort((a, b) => a.resolved.localeCompare(b.resolved));
   P.writeScMd({ active: st.active, mappings });
-  console.log(`✅ ${shown} → ${name}`);
+  invalidateEnvCache();
+  console.log(`✅ ${shown} → ${name} · owner: ${P.profileOwner(name)}`);
 }
 
 function cmdUserUnmap(dir) {
@@ -742,6 +796,7 @@ function cmdUserUnmap(dir) {
   const kept = st.mappings.filter(m => m.resolved !== resolved);
   if (kept.length === st.mappings.length) die(`no rule for ${dir}`);
   P.writeScMd({ active: st.active, mappings: kept });
+  invalidateEnvCache();
   console.log(`✅ removed the rule for ${dir}`);
 }
 
@@ -750,7 +805,7 @@ async function cmdUserRm(name, args) {
   if (!P.profileExists(name)) die(`no such profile "${name}"`);
   if (!args.yes) {
     if (!isInteractive()) die('refusing to delete a profile without --yes on a non-TTY');
-    if (!await confirm(`Delete profile "${name}" and its stored credentials?`)) { console.log('aborted'); return; }
+    if (!await confirm(`Delete profile "${name}" for owner "${P.profileOwner(name)}" and its stored credentials?`)) { console.log('aborted'); return; }
   }
   P.deleteProfile(name);
   const st = ensureScMd();
@@ -758,7 +813,8 @@ async function cmdUserRm(name, args) {
     active: st.active === name ? null : st.active,
     mappings: st.mappings.filter(m => m.profile !== name),
   });
-  console.log(`✅ deleted profile "${name}" and any sc.md rules pointing at it`);
+  invalidateEnvCache();
+  console.log(`✅ deleted profile "${name}", its ownership metadata, and any sc.md rules pointing at it`);
 }
 
 // `sc env` used to print plaintext export lines for command substitution. That makes a
@@ -774,9 +830,9 @@ function cmdRun(args) {
   const idx = process.argv.indexOf('--');
   const cmd = idx === -1 ? [] : process.argv.slice(idx + 1);
   if (!cmd.length) die('usage: sc run -- <command> [args...]');
-  const { env, profile, shadowed } = currentEnvFull();
+  const { env, profile, owner, shadowed } = currentEnvFull();
   if (profile) {
-    console.error(`👤 running as profile "${profile}"`);
+    console.error(`👤 running as user "${owner || profile}" · profile "${profile}"`);
     if (shadowed.length) console.error(`   unset for the child: ${shadowed.join(', ')}`);
   }
   // Pass `env` AS the child's environment, never merged back over process.env — the merge is
@@ -791,6 +847,8 @@ async function cmdUser(sub, arg, arg2, args) {
     case undefined:
     case 'list':  return cmdUserList();
     case 'which': return cmdUserWhich();
+    case 'show':  return cmdUserProfileInfo(arg);
+    case 'owner': return cmdUserOwner(arg, arg2);
     case 'add':   return cmdUserAdd(arg, args);
     case 'use': {
       if (!arg && isInteractive()) {
@@ -835,7 +893,7 @@ async function cmdDoctor(args) {
     console.log(`  ${icon} ${p.id.padEnd(14)} ${r.detail}`);
   }
   console.log(`\n  ${checked} verified live, ${fails} failing, ${results.length - checked} not verifiable here.\n`);
-  if (fails) process.exit(1);
+  if (fails) { if (MENU_MODE) return { ok: false, fails, checked }; process.exitCode = 1; }
 }
 
 // ---------------------------------------------------------------------------
@@ -880,6 +938,7 @@ async function cmdPreflight(args) {
     // The parent shell cannot be mutated from here, so the caller must re-source before the
     // deploy reads process.env. Say so explicitly rather than letting it fail one step later.
     console.log('\n⚠️ Run `source ~/.bashrc` and re-run /sc-all — this process cannot change the parent shell.');
+    if (MENU_MODE) return;
     process.exit(2);
   }
   die('still missing required credentials', 1);
@@ -936,46 +995,182 @@ function cmdDeploy(sub, args) {
   die(`unknown: deploy ${sub}`);
 }
 
-// Bare `sc` on a terminal opens the console rather than printing a wall of usage. On a pipe
-// it still prints usage, so `sc | head` and scripts behave the way anyone would expect.
-async function cmdMenu() {
-  const action = await selectOne('SI-Coder — build and publish a web app', [
-    { id: 'deploy',    label: 'Publish app', hint: 'I will choose the simplest suitable hosting route' },
-    { id: 'providers', label: 'Connected accounts', hint: 'see which services are ready to use' },
-    { id: 'secrets',   label: 'Secure access', hint: 'check access without showing secret values' },
-    { id: 'setup',     label: 'Connect accounts', hint: 'set up only the access that is still needed' },
-    { id: 'doctor',    label: 'Check connections', hint: 'verify connected services are usable' },
-    { id: 'update',    label: 'Update SI-Coder', hint: 'safely use the latest version' },
-    { id: 'audit',     label: 'History', hint: 'review configuration activity without secret values' },
-    { id: 'preflight', label: 'Readiness check', hint: 'see what still needs to be prepared' },
-    { id: 'users',     label: 'users    ', hint: 'profiles, and which folder uses which' },
-    { id: 'which',     label: 'which    ', hint: 'why this directory resolves to that profile' },
-    { id: 'quit',      label: 'quit     ', hint: '' },
-  ]);
-  switch (action) {
-    case 'deploy':    return cmdDeploy('plan', {});
-    case 'providers': return cmdProvidersList({});
-    case 'secrets':   return cmdSecretList(undefined, {});
-    case 'setup':     return cmdSetup({});
-    case 'doctor':    return cmdDoctor({});
-    case 'update':    return cmdUpdate({});
-    case 'audit':     return cmdAudit({});
-    case 'users':     return cmdUserList();
-    case 'which':     return cmdUserWhich();
-    case 'preflight': {
-      const target = await selectOne('Which /sc-all target?', Object.entries(TARGET_PROVIDERS)
-        .map(([t, ids]) => ({ id: t, label: t.padEnd(9), hint: `needs: ${ids.join(', ')}` })));
-      if (!target) return;
-      return cmdPreflight({ target });
+// Bare `sc` on a terminal opens a persistent layered console. The layer stack is owned by
+// this session, not by individual commands, so finishing an action always returns to the
+// current menu instead of terminating `sc`.
+function menuLayer(stack) {
+  const ids = stack.map(x => x.id);
+  const here = ids.join('/');
+
+  if (here === '') return [
+    { id: 'build',    kind: 'action', label: 'Build / publish', hint: 'plan the simplest suitable route' },
+    { id: 'accounts', kind: 'branch', label: 'Accounts', hint: 'providers, credentials, and verification' },
+    { id: 'users',    kind: 'branch', label: 'Users', hint: 'who owns each credential profile and folder' },
+    { id: 'system',   kind: 'branch', label: 'System', hint: 'update, history, version, readiness' },
+    { id: 'quit',     kind: 'action', label: 'Quit', hint: 'close the SI-Coder menu' },
+  ];
+
+  if (here === 'accounts') return [
+    { id: 'providers', kind: 'branch', label: 'Connected accounts', hint: 'open one provider for details/actions' },
+    { id: 'connect',   kind: 'action', label: 'Connect accounts', hint: 'set up only access that is missing' },
+    { id: 'verify',    kind: 'action', label: 'Check connections', hint: 'live verification against provider APIs' },
+    { id: 'secrets',   kind: 'action', label: 'Secure access', hint: 'status/source only; values stay hidden' },
+  ];
+
+  if (here === 'accounts/providers') {
+    return providerItems().map(p => ({ id: `provider:${p.id}`, kind: 'branch', label: p.label, hint: p.hint }));
+  }
+
+  if (here.startsWith('accounts/providers/provider:')) return [
+    { id: 'details', kind: 'action', label: 'Details', hint: 'configuration state and safe setup links' },
+    { id: 'verify',  kind: 'action', label: 'Verify', hint: 'live API check for this provider' },
+    { id: 'set',     kind: 'action', label: 'Set / rotate', hint: 'hidden credential entry' },
+    { id: 'access',  kind: 'action', label: 'Credential status', hint: 'key names, state, source, and owner only' },
+  ];
+
+  if (here === 'users') return [
+    { id: 'profiles', kind: 'branch', label: 'Profiles', hint: 'credential stores and their owners' },
+    { id: 'which',    kind: 'action', label: 'Current folder', hint: 'explain which profile owns this directory' },
+    { id: 'add',      kind: 'action', label: 'Add profile', hint: 'create a new user/account credential store' },
+    { id: 'list',     kind: 'action', label: 'Overview', hint: 'all profiles, owners, and current mapping' },
+  ];
+
+  if (here === 'users/profiles') {
+    const rows = P.listProfileRecords();
+    if (!rows.length) return [{ id: 'add', kind: 'action', label: 'Add first profile', hint: 'create a user/account credential store' }];
+    return rows.map(r => ({
+      id: `profile:${r.name}`, kind: 'branch', label: r.name,
+      hint: `owner: ${r.owner} · ${r.keys} credential(s)`,
+    }));
+  }
+
+  if (here.startsWith('users/profiles/profile:')) return [
+    { id: 'details', kind: 'action', label: 'Details', hint: 'owner, env key names, mappings; values hidden' },
+    { id: 'owner',   kind: 'action', label: 'Set owner', hint: 'declare which user/account owns this profile' },
+    { id: 'use',     kind: 'action', label: 'Use as default', hint: 'fallback when no folder rule matches' },
+    { id: 'map',     kind: 'action', label: 'Map current folder', hint: 'this folder tree uses this profile' },
+    { id: 'remove',  kind: 'action', label: 'Delete profile', hint: 'remove profile, metadata, and mappings' },
+  ];
+
+  if (here === 'system') return [
+    { id: 'version',   kind: 'action', label: 'Version', hint: 'version and source checkout' },
+    { id: 'update',    kind: 'action', label: 'Update SI-Coder', hint: 'safe fast-forward update' },
+    { id: 'audit',     kind: 'action', label: 'History', hint: 'metadata-only configuration activity' },
+    { id: 'readiness', kind: 'branch', label: 'Readiness check', hint: 'preflight by deployment target' },
+  ];
+
+  if (here === 'system/readiness') return Object.entries(TARGET_PROVIDERS).map(([target, ids]) => ({
+    id: `target:${target}`, kind: 'action', label: target, hint: `needs: ${ids.join(', ')}`,
+  }));
+
+  return [];
+}
+
+function menuContext(stack) {
+  const providerNode = [...stack].reverse().find(x => x.id.startsWith('provider:'));
+  const profileNode = [...stack].reverse().find(x => x.id.startsWith('profile:'));
+  return {
+    provider: providerNode ? providerNode.id.slice('provider:'.length) : null,
+    profile: profileNode ? profileNode.id.slice('profile:'.length) : null,
+  };
+}
+
+async function runMenuAction(stack, item) {
+  const ids = stack.map(x => x.id);
+  const here = ids.join('/');
+  const { provider, profile } = menuContext(stack);
+  try {
+    if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
+    if (here === '' && item.id === 'quit') return 'quit';
+
+    if (here === 'accounts') {
+      if (item.id === 'connect') return cmdSetup({});
+      if (item.id === 'verify') return cmdDoctor({});
+      if (item.id === 'secrets') return cmdSecretList(undefined, {});
     }
-    default: return;
+    if (here.startsWith('accounts/providers/provider:')) {
+      if (item.id === 'details') return cmdProvidersShow(provider);
+      if (item.id === 'verify') return cmdDoctor({ providers: provider });
+      if (item.id === 'set') return cmdProvidersSet(provider);
+      if (item.id === 'access') return cmdSecretList(provider, {});
+    }
+
+    if (here === 'users') {
+      if (item.id === 'which') return cmdUserWhich();
+      if (item.id === 'add') return cmdUserAdd(undefined, {});
+      if (item.id === 'list') return cmdUserList();
+    }
+    if (here === 'users/profiles' && item.id === 'add') return cmdUserAdd(undefined, {});
+    if (here.startsWith('users/profiles/profile:')) {
+      if (item.id === 'details') return cmdUserProfileInfo(profile);
+      if (item.id === 'owner') return cmdUserOwner(profile);
+      if (item.id === 'use') return cmdUserUse(profile);
+      if (item.id === 'map') return cmdUserMap('.', profile);
+      if (item.id === 'remove') {
+        await cmdUserRm(profile, {});
+        return P.profileExists(profile) ? undefined : 'back';
+      }
+    }
+
+    if (here === 'system') {
+      if (item.id === 'version') return cmdVersion({});
+      if (item.id === 'update') return cmdUpdate({});
+      if (item.id === 'audit') return cmdAudit({});
+    }
+    if (here === 'system/readiness' && item.id.startsWith('target:')) {
+      return cmdPreflight({ target: item.id.slice('target:'.length) });
+    }
+  } catch (e) {
+    if (e?.menuCommand) {
+      console.error(`\n❌ ${e.message}\n`);
+      return;
+    }
+    throw e;
+  } finally {
+    invalidateEnvCache();
+  }
+}
+
+async function cmdMenu() {
+  if (!isInteractive()) die('sc menu needs a TTY');
+  MENU_MODE = true;
+  const stack = [];
+  try {
+    while (true) {
+      const items = menuLayer(stack);
+      const breadcrumb = ['SI-Coder', ...stack.map(x => x.label)];
+      const result = await selectLayer('SI-Coder — build and publish a web app', breadcrumb, items, { canBack: stack.length > 0 });
+      if (!result || result.type === 'quit') break;
+      if (result.type === 'back') {
+        if (stack.length) stack.pop();
+        continue; // Esc/Left at Home intentionally does not close the CLI.
+      }
+      const item = items.find(x => x.id === result.id);
+      if (!item) continue;
+      if (result.type === 'open' && item.kind === 'branch') {
+        stack.push({ id: item.id, label: String(item.label).replace(/\x1b\[[0-9;]*m/g, '').trim() });
+        continue;
+      }
+      const actionResult = await runMenuAction(stack, item);
+      if (actionResult === 'quit') break;
+      if (actionResult === 'back' && stack.length) stack.pop();
+      // Stay on the current breadcrumb layer after every action unless the action removed that layer.
+    }
+  } finally {
+    MENU_MODE = false;
+    invalidateEnvCache();
   }
 }
 
 // ---------------------------------------------------------------------------
 function usage() {
   console.log(`
-sc — si-coder provider console + secret control plane
+sc — SI-Coder interactive console + secret control plane
+
+  bare \`sc\` on a TTY opens a persistent layered menu:
+      ↑/↓ move · Tab deeper · →/Enter open/run · ←/Esc back · Ctrl-D quit
+      breadcrumb example: SI-Coder › Users › Profiles › rahmanef
+      actions return to the current menu layer instead of closing the CLI
 
   sc update [--check] [--json]        safe self-update: fetch + fast-forward only
   sc version [--json]                 version, source checkout and git state
@@ -1008,9 +1203,12 @@ sc — si-coder provider console + secret control plane
                                       gate used by /sc-all
   sc audit [--limit N] [--json]       metadata-only lifecycle audit trail
 
-  sc user                             list profiles + current resolution
+  sc user                             list profiles + owner + current resolution
   sc user which                       why this directory resolves to that profile
-  sc user add <name> [--from-shell]   create a profile
+  sc user show <name>                 owner, env key names, folder mappings; values hidden
+  sc user owner <name> <user>         declare which user/account owns the profile/env
+  sc user add <name> [--owner <user>] [--from-shell]
+                                      create a profile; owner defaults to profile name
   sc user use <name>                  set fallback profile
   sc user map <folder> <name>         bind folder tree to a profile
   sc user unmap <folder>              drop mapping

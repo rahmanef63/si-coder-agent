@@ -71,6 +71,22 @@ sc deploy plan --runtime local
 
 Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel|vps|managed`.
 
+## Local CLI navigation
+
+On a TTY, bare `sc` is a persistent layered menu. Use `Tab` to enter a deeper layer, `→`/`Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the current breadcrumb layer. `Esc` at Home does not quit; choose Quit or press Ctrl-D.
+
+Credential profiles have explicit user/account ownership:
+
+```bash
+sc user
+sc user show <profile>
+sc user owner <profile> <owner>
+sc user map <folder> <profile>
+sc user which
+```
+
+Owner metadata is separate from credential values. Never infer that credentials from one profile may be reused by another owner.
+
 ## Secret-safe commands
 
 | Command | Purpose |
