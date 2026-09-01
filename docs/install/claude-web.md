@@ -6,13 +6,13 @@ Claude Web does not need a local SI-Coder CLI, a VPS, or a local credential vaul
 
 Anthropic currently documents custom-skill upload as a **ZIP file containing the skill folder**. Use `sc.zip` here, not the `.skill` filename.
 
-[Download SI-Coder for Claude Web v0.8.8 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip)
+[Download SI-Coder for Claude Web v0.8.9 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.9/sc.zip)
 
 The ZIP contains the canonical `sc/SKILL.md` entry point plus its bundled resources.
 
 ## Install
 
-1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.8/sc.zip).
+1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.9/sc.zip).
 2. In Claude, open **Customize → Skills**.
 3. Select **+ → Create skill → Upload a skill**.
 4. Upload `sc.zip`.

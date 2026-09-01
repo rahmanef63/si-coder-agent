@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.8.8",
+  "version": "0.8.9",
   "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",

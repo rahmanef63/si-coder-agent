@@ -258,37 +258,99 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
 
-test('SCC-7b: Finder renderer paints live preview and transient result into one cleared frame', () => {
-  const { renderFinderFrame } = require(path.join(ROOT, 'lib/finder-tui'));
-  let out = '';
-  const output = { isTTY: true, columns: 100, rows: 28, write(chunk) { out += String(chunk); } };
+test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer panel', () => {
+  const { renderFinderFrame, stripAnsi } = require(path.join(ROOT, 'lib/finder-tui'));
   const root = [
     { id: 'users', kind: 'branch', label: 'Users', hint: 'identities' },
     { id: 'catalog', kind: 'branch', label: 'Provider catalog', hint: 'definitions' },
   ];
   const users = [{ id: 'user:rahmanef', kind: 'branch', label: 'rahmanef', hint: '4 credentials · default', preview: ['user rahmanef · default', '4 credential(s) · values hidden'] }];
-  renderFinderFrame({
-    title: 'SI-Coder',
-    breadcrumb: ['SI-Coder', 'Users'],
-    stack: [{ id: 'users', label: 'Users' }],
+  const userMenu = [{ id: 'providers', kind: 'branch', label: 'Providers', hint: 'provider credentials' }];
+  const providers = [{ id: 'provider:github', kind: 'branch', label: '✅ github 1/2', hint: 'repo create + push', preview: ['user rahmanef › provider github', '1/2 credential(s) · ready'] }];
+
+  const paint = ({ columns, activeItems, cursor = 0, activity = [] }) => {
+    let out = '';
+    const output = { isTTY: true, columns: 140, rows: 28, write(chunk) { out += String(chunk); } };
+    renderFinderFrame({
+      title: 'SI-Coder', breadcrumb: ['SI-Coder', 'Users'], stack: [{ id: 'users', label: 'Users' }],
+      columns, activeItems, cursor, query: '',
+      sections: [{ id: 'users', label: 'Users' }, { id: 'catalog', label: 'Providers' }], activity, output,
+    });
+    return { raw: out, clean: stripAnsi(out) };
+  };
+
+  const beforeProvider = paint({
+    columns: [
+      { title: 'SI-Coder', items: root, selectedId: 'users' },
+      { title: 'Users', items: users, selectedId: 'user:rahmanef' },
+      { title: 'rahmanef', items: userMenu, selectedId: null },
+    ],
+    activeItems: userMenu,
+  });
+  const inProvider = paint({
+    columns: [
+      { title: 'SI-Coder', items: root, selectedId: 'users' },
+      { title: 'Users', items: users, selectedId: 'user:rahmanef' },
+      { title: 'rahmanef', items: userMenu, selectedId: 'providers' },
+      { title: 'Providers', items: providers, selectedId: null },
+    ],
+    activeItems: providers,
+  });
+
+  assert.ok(beforeProvider.raw.startsWith('\x1b[H\x1b[2J'), 'each render must home+clear the same frame');
+  assert.ok(!beforeProvider.raw.endsWith('\n'), 'final terminal row must not emit a scrolling newline');
+  assert.strictEqual(beforeProvider.clean.split('\n').length, 28, 'renderer must own exactly the terminal row count');
+  assert.strictEqual(inProvider.clean.split('\n').length, 28, 'provider view must keep the same frame height');
+
+  const beforeHeader = beforeProvider.clean.split('\n').find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef'));
+  const providerHeader = inProvider.clean.split('\n').find(line => line.includes('SI-Coder') && line.includes('Users') && line.includes('rahmanef') && line.includes('Providers'));
+  assert.ok(beforeHeader && providerHeader);
+  assert.deepStrictEqual(
+    [...beforeHeader.matchAll(/│/g)].map(m => m.index),
+    [...providerHeader.matchAll(/│/g)].map(m => m.index),
+    'opening Providers must fill the reserved fourth slot instead of resizing the first three columns',
+  );
+  assert.strictEqual([...providerHeader.matchAll(/│/g)].length, 3, 'wide view must render exactly four stable slots');
+  assert.match(inProvider.clean, /PREVIEW/);
+  assert.match(inProvider.clean, /user rahmanef › provider github/);
+  assert.doesNotMatch(inProvider.clean, /RESULT/);
+
+  const withResult = paint({
     columns: [
       { title: 'SI-Coder', items: root, selectedId: 'users' },
       { title: 'Users', items: users, selectedId: null },
     ],
-    activeItems: users, cursor: 0, query: '',
-    sections: [{ id: 'users', label: 'Users' }, { id: 'catalog', label: 'Providers' }],
+    activeItems: users,
     activity: ['owner : rahmanef'],
-    output,
   });
-  assert.ok(out.startsWith('\x1b[H\x1b[2J'), 'each render must home+clear the same frame');
-  assert.match(out, /SECTIONS/);
-  assert.match(out, /PATH/);
-  assert.match(out, /│/, 'Finder columns must have visible separators');
-  assert.match(out, /PREVIEW/);
-  assert.match(out, /user rahmanef · default/);
-  assert.match(out, /RESULT/);
-  assert.match(out, /owner : rahmanef/);
-  assert.doesNotMatch(out, /\x1b\[\d+A/, 'render must never cursor-walk into previous lines');
+  assert.match(withResult.clean, /RESULT/);
+  assert.match(withResult.clean, /owner : rahmanef/);
+  assert.doesNotMatch(withResult.clean, /PREVIEW/, 'RESULT replaces PREVIEW instead of changing footer height');
+  assert.strictEqual(withResult.clean.split('\n').length, 28);
+  assert.doesNotMatch(withResult.raw, /\x1b\[\d+A/, 'render must never cursor-walk into previous lines');
+});
+
+test('SCC-7c: Finder slides the oldest column out after the fourth layer', () => {
+  const { renderFinderFrame, stripAnsi } = require(path.join(ROOT, 'lib/finder-tui'));
+  let out = '';
+  const output = { isTTY: true, columns: 140, rows: 28, write(chunk) { out += String(chunk); } };
+  const one = id => [{ id, kind: 'branch', label: id }];
+  const columns = [
+    { title: 'SI-Coder', items: one('users'), selectedId: 'users' },
+    { title: 'Users', items: one('rahmanfakh'), selectedId: 'rahmanfakh' },
+    { title: 'rahmanfakh', items: one('providers'), selectedId: 'providers' },
+    { title: 'Providers', items: one('github'), selectedId: 'github' },
+    { title: 'github', items: one('credentials'), selectedId: null },
+  ];
+  renderFinderFrame({
+    title: 'SI-Coder', breadcrumb: ['SI-Coder', 'Users', 'rahmanfakh', 'Providers', 'github'],
+    stack: [{ id: 'users', label: 'Users' }], columns, activeItems: one('credentials'), cursor: 0, query: '',
+    sections: [{ id: 'users', label: 'Users' }], activity: [], output,
+  });
+  const clean = stripAnsi(out);
+  const columnHeader = clean.split('\n').find(line => line.includes('… / Users') && line.includes('rahmanfakh') && line.includes('Providers') && line.includes('github'));
+  assert.ok(columnHeader, 'fifth layer should slide SI-Coder out and keep the newest four columns');
+  assert.strictEqual([...columnHeader.matchAll(/│/g)].length, 3);
 });
 
 test('SCC-8: profile ownership is configurable from the CLI without exposing credentials', () => {
