@@ -53,11 +53,12 @@ test('DIST-4: OpenAI UI metadata exists for main skills and uses current explici
     assert.match(text, /default_prompt:/);
   }
   const install = fs.readFileSync(path.join(ROOT, 'AI_INSTALL.md'), 'utf8');
+  const version = readJson('package.json').version.replaceAll('.', '\\.');
   assert.match(install, /Claude Code/);
   assert.match(install, /ChatGPT Web/);
   assert.match(install, /@sc/);
   assert.match(install, /@SI-Coder/);
-  assert.match(install, /releases\/download\/v0\.8\.3\/sc\.zip/);
+  assert.match(install, new RegExp(`releases/download/v${version}/sc\\.zip`));
   assert.match(install, /optional `\.skill` archive/i);
   assert.match(install, /Do not promise `\/sc` on ChatGPT Web/);
 });
@@ -65,8 +66,8 @@ test('DIST-4: OpenAI UI metadata exists for main skills and uses current explici
 test('DIST-5: version and package file list include distributable skill artifacts', () => {
   const pkg = readJson('package.json');
   const plugin = readJson('.claude-plugin/plugin.json');
-  assert.strictEqual(pkg.version, '0.8.3');
-  assert.strictEqual(plugin.version, '0.8.3');
+  assert.strictEqual(pkg.version, '0.8.4');
+  assert.strictEqual(plugin.version, '0.8.4');
   assert.ok(pkg.files.includes('dist/'));
   assert.ok(pkg.files.includes('AI_INSTALL.md'));
   assert.ok(pkg.files.includes('.agents/'));
@@ -82,7 +83,7 @@ test('DIST-6: OpenAI repository marketplace exposes a web-compatible skill-only 
   assert.deepStrictEqual(row.source, { source: 'local', path: './plugins/si-coder' });
   const plugin = readJson('plugins/si-coder/.codex-plugin/plugin.json');
   assert.strictEqual(plugin.name, 'si-coder');
-  assert.strictEqual(plugin.version, '0.8.3');
+  assert.strictEqual(plugin.version, '0.8.4');
   assert.strictEqual(plugin.skills, './skills/');
   assert.ok(!('mcpServers' in plugin), 'web plugin must not declare MCP and become Desktop-only');
   assert.ok(!fs.existsSync(path.join(ROOT, 'plugins/si-coder/.mcp.json')));
@@ -154,18 +155,21 @@ test('DIST-8: packaged .skill artifacts are reproducible for unchanged source', 
 
 
 test('DIST-10: install links match each surface transport contract', () => {
+  const pkg = readJson('package.json');
+  const version = pkg.version.replaceAll('.', '\\.');
+
   const claudeWeb = fs.readFileSync(path.join(ROOT, 'docs/install/claude-web.md'), 'utf8');
-  assert.match(claudeWeb, /releases\/download\/v0\.8\.3\/sc\.zip/);
-  assert.match(claudeWeb, /documents custom-skill upload as a \*\*ZIP/i);
+  assert.match(claudeWeb, new RegExp(`releases/download/v${version}/sc\\.zip`));
+  assert.match(claudeWeb, /custom-skill upload as a \*\*ZIP/i);
   assert.doesNotMatch(claudeWeb, /Download[^\n]*sc\.skill/i);
 
   const codex = fs.readFileSync(path.join(ROOT, 'docs/install/codex.md'), 'utf8');
-  assert.match(codex, /tree\/v0\.8\.3\/skills\/sc/);
+  assert.match(codex, new RegExp(`tree/v${version}/skills/sc`));
   assert.match(codex, /directories containing `SKILL\.md`/);
-  assert.doesNotMatch(codex, /releases\/download\/v0\.8\.3\/sc\.(zip|skill)/);
+  assert.doesNotMatch(codex, new RegExp(`releases/download/v${version}/sc\\.(zip|skill)`));
 
   const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-personal-skills.md'), 'utf8');
-  assert.match(chatgpt, /releases\/download\/v0\.8\.3\/sc\.zip/);
+  assert.match(chatgpt, new RegExp(`releases/download/v${version}/sc\\.zip`));
   assert.match(chatgpt, /does \*\*not\*\* specify that a `\.skill` filename is required/i);
   assert.match(chatgpt, /optional.*sc\.skill/i);
 
@@ -175,4 +179,25 @@ test('DIST-10: install links match each surface transport contract', () => {
   const matrix = fs.readFileSync(path.join(ROOT, 'docs/install/README.md'), 'utf8');
   assert.match(matrix, /Canonical format:/);
   assert.match(matrix, /None of the Claude\/OpenAI surfaces verified for this release requires the `\.skill` extension itself/);
+});
+test('DIST-11: install documentation is SSOT-generated and CI-enforced', () => {
+  const pkg = readJson('package.json');
+  assert.strictEqual(pkg.scripts['docs:sync'], 'node scripts/sync-install-docs.js');
+  assert.strictEqual(pkg.scripts['docs:check'], 'node scripts/sync-install-docs.js --check');
+  execFileSync('node', [path.join(ROOT, 'scripts/sync-install-docs.js'), '--check'], { cwd: ROOT, stdio: 'pipe' });
+
+  const source = fs.readFileSync(path.join(ROOT, 'docs/install/README.md'), 'utf8');
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const release = fs.readFileSync(path.join(ROOT, `docs/releases/v${pkg.version}.md`), 'utf8');
+  assert.match(source, /INSTALL_MATRIX_SSOT:BEGIN/);
+  assert.match(readme, /INSTALL_MATRIX_GENERATED:BEGIN/);
+  assert.match(release, /INSTALL_MATRIX_GENERATED:BEGIN/);
+  assert.match(source, /`sc\.zip` does not contain `sc\.skill`/i);
+
+  const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/verify.yml'), 'utf8');
+  assert.match(workflow, /npm test/);
+  assert.match(workflow, /npm run docs:check/);
+  assert.match(workflow, /npm run package:skills/);
+  assert.match(workflow, /git diff --exit-code -- dist plugins\/si-coder/);
+  assert.match(workflow, /cmp --silent dist\/sc\.zip dist\/sc\.skill/);
 });

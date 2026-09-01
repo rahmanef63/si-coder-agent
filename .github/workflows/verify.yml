@@ -1,0 +1,39 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check install documentation SSOT
+        run: npm run docs:check
+
+      - name: Rebuild generated skill artifacts
+        run: npm run package:skills
+
+      - name: Verify generated artifacts are committed
+        run: git diff --exit-code -- dist plugins/si-coder
+
+      - name: Verify ZIP and .skill are sibling-identical archives
+        run: cmp --silent dist/sc.zip dist/sc.skill

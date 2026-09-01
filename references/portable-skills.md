@@ -29,12 +29,12 @@ Canonical source: `skills/sc/`. The Agent Skills specification does not define `
 | Generic local Agent Skills | skill directory containing `SKILL.md` |
 | Explicit `.skill`-aware clients | optional `.skill` ZIP-format archive |
 
-## Stable links for v0.8.3
+## Stable links for v0.8.4
 
-- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.8.3/skills/sc`
-- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.3/skills/sc/SKILL.md`
-- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.zip`
-- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.3/sc.skill`
+- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.8.4/skills/sc`
+- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.4/skills/sc/SKILL.md`
+- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.4/sc.zip`
+- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.4/sc.skill`
 
 ## Rule for agents
 
