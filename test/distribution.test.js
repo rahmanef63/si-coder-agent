@@ -200,4 +200,13 @@ test('DIST-11: install documentation is SSOT-generated and CI-enforced', () => {
   assert.match(workflow, /npm run package:skills/);
   assert.match(workflow, /git diff --exit-code -- dist plugins\/si-coder/);
   assert.match(workflow, /cmp --silent dist\/sc\.zip dist\/sc\.skill/);
+
+  const releaseWorkflow = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
+  assert.match(releaseWorkflow, /tags:/);
+  assert.match(releaseWorkflow, /permissions:[\s\S]*contents: write/);
+  assert.match(releaseWorkflow, /npm run docs:check/);
+  assert.match(releaseWorkflow, /npm run package:skills/);
+  assert.match(releaseWorkflow, /gh release create/);
+  assert.match(releaseWorkflow, /dist\/sc\.zip/);
+  assert.match(releaseWorkflow, /dist\/sc\.skill/);
 });

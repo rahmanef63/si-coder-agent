@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p \"require('./package.json').version\")"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          test -f "docs/releases/v${version}.md"
+
+      - name: Verify documentation SSOT
+        run: npm run docs:check
+
+      - name: Rebuild release assets
+        run: npm run package:skills
+
+      - name: Verify generated assets are committed
+        run: git diff --exit-code -- dist plugins/si-coder
+
+      - name: Verify archive relationship
+        run: cmp --silent dist/sc.zip dist/sc.skill
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p \"require('./package.json').version\")"
+          gh release create "v${version}" \
+            dist/sc.zip \
+            dist/sc.skill \
+            dist/sc-build.skill \
+            dist/manifest.json \
+            --title "SI-Coder v${version}" \
+            --notes-file "docs/releases/v${version}.md"
