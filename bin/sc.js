@@ -1532,16 +1532,20 @@ function menuLayer(stack) {
 
   if (ctx.user && ctx.provider && (here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/add-connection` || here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/add-connection`)) {
     const p = byId.get(ctx.provider);
-    return C.authOptions(p).map(a => ({
-      id: `auth:${a.id}`, kind: 'action', pathLabel: a.label, label: a.label,
-      hint: `${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external' : ''}${a.recommended ? ` · ${a.recommended}` : ''}`,
-      preview: [
-        `${ctx.provider} › ${a.label}`,
-        `${a.scheme} · scope: ${a.scope}`,
-        a.external ? 'no local provider secret · authorization happens in managed/OAuth flow' : `fields: ${(a.fields || []).join(', ') || '(none)'}`,
-        ...(p.composio?.source ? [`reference: ${p.composio.source}`] : []),
-      ],
-    }));
+    return C.authOptions(p).map(a => {
+      const firstField = (a.requiredFields || a.fields || [])[0] || null;
+      const guide = firstField ? credentialGuide(firstField, { user: ctx.user }) : null;
+      return {
+        id: `auth:${a.id}`, kind: 'action', pathLabel: a.label, label: a.label,
+        hint: `${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external' : ''}${a.recommended ? ` · ${a.recommended}` : ''}`,
+        preview: [
+          `${ctx.provider} › ${a.label}`,
+          `${a.scheme} · scope: ${a.scope}${a.fields?.length ? ` · fields: ${a.fields.join(', ')}` : ''}`,
+          a.external ? 'authorize: managed/OAuth flow · no local provider secret' : guide?.referenceUrl ? `open: ${guide.referenceUrl}` : guide?.createCommand ? `get with: ${guide.createCommand}` : 'direct connection · setup shown per credential field',
+          a.external && p.composio?.source ? `reference: ${p.composio.source}` : guide?.navigationText ? `click: ${guide.navigationText}` : p.composio?.source ? `reference: ${p.composio.source}` : '',
+        ].filter(Boolean),
+      };
+    });
   }
 
   if (ctx.user && ctx.provider && ctx.connection && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/connection:${ctx.connection}`) {

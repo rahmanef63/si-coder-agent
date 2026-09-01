@@ -11,6 +11,7 @@ const P = require('../lib/profiles');
 const C = require('../lib/connections');
 const { PROVIDERS } = require('../lib/providers');
 const UC = require('../lib/user-control');
+const { credentialGuide } = require('../lib/credential-guidance');
 
 const SC = path.resolve(__dirname, '../bin/sc.js');
 const ACTION = process.argv[2];
@@ -215,6 +216,10 @@ async function main() {
         id: method.id, label: method.label, scheme: method.scheme, scope: method.scope,
         external: Boolean(method.external), recommended: method.recommended || null,
         fields: method.fields || [], requiredFields: method.requiredFields || [],
+        fieldGuidance: (method.fields || []).map(key => {
+          const g = credentialGuide(key, { user });
+          return { key, required: (method.requiredFields || []).includes(key), referenceUrl: g.referenceUrl, createCommand: g.createCommand, navigation: g.navigation, navigationText: g.navigationText, note: g.note };
+        }),
       }));
       if (!input.connection) {
         const selectedMethod = input.authMethod ? methods.find(m => m.id === input.authMethod) : null;

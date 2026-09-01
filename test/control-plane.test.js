@@ -378,6 +378,29 @@ test('SCCP-15: external OAuth connection request returns alias-based managed-aut
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+
+
+test('SCCP-15b: pre-connection Convex auth selection includes per-field endpoint/navigation guidance', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['user', 'add', 'agent'], { env });
+  const r = spawnSync(process.execPath, [AGENT, 'user.connection.request'], {
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'convex-cloud', authMethod: 'personal-access-token' }), encoding: 'utf8', timeout: 20000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const j = JSON.parse(r.stdout);
+  assert.strictEqual(j.selectedAuthMethod.id, 'personal-access-token');
+  assert.strictEqual(j.selectedAuthMethod.fieldGuidance[0].key, 'CONVEX_PERSONAL_ACCESS_TOKEN');
+  assert.strictEqual(j.selectedAuthMethod.fieldGuidance[0].referenceUrl, 'https://dashboard.convex.dev/profile#personal-access-tokens');
+  assert.ok(j.selectedAuthMethod.fieldGuidance[0].navigation.length >= 3);
+  const deploy = j.authMethods.find(x => x.id === 'deployment-key');
+  assert.deepStrictEqual(deploy.fieldGuidance.map(x => x.key), ['CONVEX_DEPLOYMENT_NAME', 'CONVEX_DEPLOY_KEY']);
+  assert.ok(deploy.fieldGuidance.every(x => x.referenceUrl && x.navigation.length));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 test('SCCP-16: custom provider acquisition navigation survives metadata -> connection request', () => {
   const dir = tmp();
   const home = path.join(dir, 'home');
