@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "id": "evidence-repository-verification-3fb160fc3e86",
+  "target": "repository verification",
+  "generated_at": "2026-09-02T17:18:39.448Z",
+  "commit": "3fb160fc3e86576bef95a057285460d9c0b08b99",
+  "risk": "HIGH",
+  "command": "sc verify",
+  "arguments": [],
+  "exit_code": 0,
+  "assertions": {
+    "workingTreeDirty": false,
+    "skillErrors": 0,
+    "secretFindings": 0
+  },
+  "checks": {
+    "syntax": "passed",
+    "unit_integration_cli_distribution": "passed",
+    "docs": "passed",
+    "skills": "passed",
+    "secret_scan": "passed"
+  },
+  "stdout_contract": "Raw test output is not persisted; only exit status and bounded tails are returned to the caller.",
+  "stderr_contract": "Raw stderr is not persisted; secret-shaped memory/evidence writes are rejected.",
+  "filesystem_assertions": {
+    "agentMemoryPresent": true,
+    "evidenceReceiptWritten": true
+  },
+  "metadata_assertions": {
+    "memoryLifecycle": true,
+    "recipeLifecycle": true,
+    "skillVerification": true
+  },
+  "permissions": {},
+  "secret_redaction": true,
+  "provider": null,
+  "source": null,
+  "migration": null
+}

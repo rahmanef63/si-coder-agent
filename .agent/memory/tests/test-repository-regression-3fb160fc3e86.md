@@ -1,15 +1,15 @@
 ---
-id: "test-repository-regression-941a6184ca77"
+id: "test-repository-regression-3fb160fc3e86"
 type: "test"
 title: "Repository regression verification"
-status: "superseded"
+status: "confirmed"
 confidence: 1
 scope: "repository"
 tags: ["regression","security","distribution","agent-workflow"]
-commit: "941a6184ca77ccf44bfd4cd9e4b28cfd7bb4e5eb"
-supersedes: null
-created_at: "2026-09-02T17:06:46.661Z"
-last_verified: "2026-09-02T17:06:57.783Z"
+commit: "3fb160fc3e86576bef95a057285460d9c0b08b99"
+supersedes: "test-repository-regression-941a6184ca77"
+created_at: "2026-09-02T17:18:39.448Z"
+last_verified: "2026-09-02T17:18:39.448Z"
 target: "SI-Coder repository verification"
 source: "sc verify"
 environment: "node v22.23.2"
@@ -20,4 +20,4 @@ result: "pass"
 related_areas: ["agent workflow","memory","skills","security","distribution"]
 ---
 
-Evidence: .agent/evidence/evidence-repository-verification-941a6184ca77.json
+Evidence: .agent/evidence/evidence-repository-verification-3fb160fc3e86.json
