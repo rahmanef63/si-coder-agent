@@ -7,18 +7,18 @@ Choose the guide that matches the surface where SI-Coder will run. The Agent Ski
 <!-- INSTALL_MATRIX_SSOT:BEGIN -->
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_SSOT:END -->
 
 OpenAI currently documents uploaded Skills for eligible ChatGPT **Business, Enterprise, Healthcare, and Edu** workspaces, subject to workspace settings and product availability. The Plugin Directory is broader, but installation/invocation still depends on plan, role, surface, and plugin capabilities.
 
-For local repository installs, SI-Coder requires **Node.js 22+**. `install.sh` reads `skills/catalog.json` and installs only active/default capabilities; unfinished/legacy skills remain source-only unless a maintainer explicitly works on them.
+For local repository installs, SI-Coder requires **Node.js 22, 24, or 26**. `install.sh` reads `skills/catalog.json` and installs only active/default capabilities; unfinished/legacy skills remain source-only unless a maintainer explicitly works on them.
 
 **Distribution availability:** a Git tag is not proof that public GitHub/raw/release URLs are reachable. Release automation verifies unauthenticated reachability before publishing assets. If GitHub account/repository visibility is restricted, do not tell a remote user that the download links work until that check passes. Optional npm publication is a separate fallback and is valid only when the registry exposes the same current version.
 
@@ -32,10 +32,10 @@ For local repository installs, SI-Coder requires **Node.js 22+**. `install.sh` r
 
 ## Direct source links
 
-- [Canonical `sc` skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc)
-- [View raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.2/skills/sc/SKILL.md)
-- [Download upload-ready `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip)
-- [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.skill)
+- [Canonical `sc` skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc)
+- [View raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.3/skills/sc/SKILL.md)
+- [Download upload-ready `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip)
+- [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.skill)
 
 ## Guides
 

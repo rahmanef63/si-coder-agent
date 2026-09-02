@@ -55,7 +55,7 @@ Use the built-in `$skill-installer` and the GitHub repository paths listed in `A
 
 Codex skill invocation is surface-specific. Use the current Codex skill picker/invocation UX; do not rewrite it as Claude's `/sc`.
 
-Local fallback requires **Node.js 22+** and installs only active/default skills from `skills/catalog.json`:
+Local fallback requires **Node.js 22, 24, or 26** and installs only active/default skills from `skills/catalog.json`:
 
 ```bash
 bash install.sh --agent codex
@@ -78,7 +78,7 @@ ChatGPT also has a Plugin Directory. Plugins can bundle Skills and Apps. Publish
 
 ## Hermes / OpenClaw / generic local Agent Skills
 
-Local installer requirement: **Node.js 22+**. It installs active/default skills only; stub and legacy skills are not exposed as normal capabilities.
+Local installer requirement: **Node.js 22, 24, or 26**. It installs active/default skills only; stub and legacy skills are not exposed as normal capabilities.
 
 Skills only:
 

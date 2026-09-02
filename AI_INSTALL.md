@@ -23,7 +23,7 @@ For a skill-only install, Anthropic also documents the `skills` installer patter
 
 ### Codex CLI / Codex app
 
-For the repository-local CLI/installer path, require **Node.js 22+**. Use the built-in `$skill-installer`. Install these repository paths from `main`:
+For the repository-local CLI/installer path, require **Node.js 22, 24, or 26**. Use the built-in `$skill-installer`. Install these repository paths from `main`:
 
 - `skills/sc`
 - `skills/sc-build`
@@ -37,7 +37,7 @@ The installer can accept GitHub repo paths and install them into the Codex skill
 
 Anthropic currently documents **ZIP upload** for custom Skills. Use:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip`
 
 Do not default to the `.skill` filename on Claude Web; the official web instructions say to upload a ZIP containing the skill folder.
 
@@ -47,7 +47,7 @@ Do not default to the `.skill` filename on Claude Web; the official web instruct
 
 **Uploaded Skill (eligible workspace):** OpenAI currently documents Skills for eligible ChatGPT Business, Enterprise, Healthcare, and Edu workspaces, subject to workspace settings and product availability. When **Plugins → Skills → Create → Upload from your computer** is available, use the complete ZIP package. OpenAI does not currently require a `.skill` extension:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip`
 
 The optional `.skill` archive is only for clients that explicitly accept that extension.
 

@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",
@@ -32,7 +32,7 @@
   "author": "Rahman EF",
   "type": "commonjs",
   "engines": {
-    "node": ">=22"
+    "node": "^22.0.0 || ^24.0.0 || ^26.0.0"
   },
   "bin": {
     "si-coder-onboard": "bin/onboard.js",

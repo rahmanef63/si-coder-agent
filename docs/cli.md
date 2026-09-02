@@ -6,7 +6,7 @@ The identity model is **user-first**. A user owns an isolated credential store, 
 
 ## Fresh setup
 
-Current local releases require **Node.js 22+**. `sc setup` creates/selects the SI-Coder user first, then creates or reuses named provider connections. Direct credentials are entered with hidden input and stored only in the selected connection's `0600` file. Fresh setup does not write provider secrets to `~/.bashrc`.
+Current local releases require **Node.js 22, 24, or 26**. `sc setup` creates/selects the SI-Coder user first, then creates or reuses named provider connections. Direct credentials are entered with hidden input and stored only in the selected connection's `0600` file. Fresh setup does not write provider secrets to `~/.bashrc`.
 
 ```text
 sc setup

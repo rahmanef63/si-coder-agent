@@ -11,17 +11,17 @@ Read AI_INSTALL.md and use the built-in skill installer for the core SI-Coder sk
 
 Core GitHub directories:
 
-- [skills/sc](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc)
-- [skills/sc-build](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc-build)
-- [skills/sc-all](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc-all)
-- [skills/sc-provider](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc-provider)
-- [skills/sc-install](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc-install)
+- [skills/sc](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc)
+- [skills/sc-build](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc-build)
+- [skills/sc-all](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc-all)
+- [skills/sc-provider](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc-provider)
+- [skills/sc-install](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc-install)
 
-The main raw entry point is [skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.2/skills/sc/SKILL.md), but install the directory rather than copying only that file because SI-Coder can use bundled metadata/resources.
+The main raw entry point is [skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.3/skills/sc/SKILL.md), but install the directory rather than copying only that file because SI-Coder can use bundled metadata/resources.
 
 ## Local script fallback
 
-From a repository checkout with **Node.js 22+**:
+From a repository checkout with **Node.js 22, 24, or 26**:
 
 ```bash
 bash install.sh --agent codex

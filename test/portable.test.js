@@ -221,20 +221,22 @@ test('SCPORT-10b: installer reports npm-link failure instead of silently claimin
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('SCPORT-10c: installer fails early on Node versions below the supported floor', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-install-node20-'));
-  const fakeBin = path.join(home, 'bin');
-  fs.mkdirSync(fakeBin, { recursive: true });
-  const node = path.join(fakeBin, 'node');
-  fs.writeFileSync(node, '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 20; else echo v20.99.0; fi\n', { mode: 0o755 });
-  try {
-    const r = spawnSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'codex', '--no-onboard'], {
-      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}`, SC_SKIP_NPM_LINK: '1' },
-    });
-    assert.strictEqual(r.status, 1);
-    assert.match(r.stderr, /requires Node\.js >=22/i);
-    assert.ok(!fs.existsSync(path.join(home, '.agents/skills/sc')), 'unsupported runtime must fail before installation');
-  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+test('SCPORT-10c: installer fails early on unsupported/EOL Node majors instead of treating >=22 as open-ended support', () => {
+  for (const major of [20, 23, 25, 27]) {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), `sc-install-node${major}-`));
+    const fakeBin = path.join(home, 'bin');
+    fs.mkdirSync(fakeBin, { recursive: true });
+    const node = path.join(fakeBin, 'node');
+    fs.writeFileSync(node, `#!/bin/sh\nif [ "$1" = "-p" ]; then echo ${major}; else echo v${major}.99.0; fi\n`, { mode: 0o755 });
+    try {
+      const r = spawnSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'codex', '--no-onboard'], {
+        cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}`, SC_SKIP_NPM_LINK: '1' },
+      });
+      assert.strictEqual(r.status, 1, `Node ${major} must be rejected`);
+      assert.match(r.stderr, /supports Node\.js major 22, 24, or 26/i);
+      assert.ok(!fs.existsSync(path.join(home, '.agents/skills/sc')), `Node ${major} must fail before installation`);
+    } finally { fs.rmSync(home, { recursive: true, force: true }); }
+  }
 });
 
 test('SCPORT-11: machine deploy-plan schema exposes runtime but no secret-value fields', () => {

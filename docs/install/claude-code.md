@@ -21,8 +21,8 @@ Then start with:
 
 Claude Code skills use a directory containing `SKILL.md`. The full plugin marketplace route above is preferred for SI-Coder, but the canonical main skill source is:
 
-- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc)
-- [raw skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.2/skills/sc/SKILL.md)
+- [skills/sc directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc)
+- [raw skills/sc/SKILL.md](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.3/skills/sc/SKILL.md)
 
 Do not use `sc.zip` or `sc.skill` for the normal Claude Code plugin installation. Those are archive artifacts for upload/package workflows.
 
@@ -39,7 +39,7 @@ The agent should not ask you to clone the repository manually unless marketplace
 
 ## Development checkout
 
-For plugin development or local testing, use **Node.js 22+** for the SI-Coder CLI/tooling:
+For plugin development or local testing, use **Node.js 22, 24, or 26** for the SI-Coder CLI/tooling:
 
 ```bash
 git clone https://github.com/rahmanef63/si-coder-agent.git

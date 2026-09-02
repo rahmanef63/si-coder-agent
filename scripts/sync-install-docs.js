@@ -153,13 +153,13 @@ const generic = read('docs/install/generic-local.md');
 requireText(generic, new RegExp(`tree/v${version.replaceAll('.', '\\.')}/skills/sc`), 'Generic Agent Skills');
 requireText(generic, /directory containing `SKILL\.md`|skill directory/i, 'Generic Agent Skills');
 
-requireText(sourceText, /Node\.js 22\+/, 'install SSOT local runtime');
+requireText(sourceText, /Node\.js[^\n]*(?:22[^\n]*24[^\n]*26|22, 24, or 26)/, 'install SSOT local runtime');
 requireText(generic, /skills\/catalog\.json/, 'Generic Agent Skills lifecycle catalog');
 requireText(generic, /2026-07-28/, 'Generic Agent Skills modern MCP');
 const firstRun = read('docs/install/first-run-onboarding.md');
 requireText(firstRun, /named-connection-first|named connection/i, 'first-run named connection');
 requireText(firstRun, /does \*\*not\*\* write new provider secrets to `~\/\.bashrc`/i, 'first-run shell-global refusal');
-requireText(firstRun, /Node\.js 22 or newer/i, 'first-run Node floor');
+requireText(firstRun, /Node\.js[^\n]*(?:22[^\n]*24[^\n]*26|22, 24, or 26)/i, 'first-run supported Node majors');
 const toolCalling = read('docs/tool-calling.md');
 requireText(toolCalling, /2026-07-28/, 'MCP modern protocol');
 requireText(toolCalling, /2025-11-25/, 'MCP legacy compatibility');

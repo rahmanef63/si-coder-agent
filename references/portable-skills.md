@@ -29,12 +29,12 @@ Canonical source: `skills/sc/`. The Agent Skills specification does not define `
 | Generic local Agent Skills | skill directory containing `SKILL.md` |
 | Explicit `.skill`-aware clients | optional `.skill` ZIP-format archive |
 
-## Current release links — v0.9.2
+## Current release links — v0.9.3
 
-- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc`
-- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.2/skills/sc/SKILL.md`
-- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip`
-- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.skill`
+- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc`
+- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.3/skills/sc/SKILL.md`
+- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip`
+- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.skill`
 
 ## Rule for agents
 
@@ -42,8 +42,8 @@ Never infer that a product accepts `.skill` just because the file is a ZIP archi
 
 ## Local runtime contract
 
-The current SI-Coder local CLI/installer requires **Node.js 22+**. Full local installs read `skills/catalog.json` and expose active/default skills only. Stub and legacy skills remain in source for maintenance/backward compatibility and are not normal user-facing capabilities. Credential-dependent direct local helpers should run through `sc run -- ...` so selected named connections are injected only into the child process.
+The current SI-Coder local CLI/installer requires **Node.js 22, 24, or 26**. Full local installs read `skills/catalog.json` and expose active/default skills only. Stub and legacy skills remain in source for maintenance/backward compatibility and are not normal user-facing capabilities. Credential-dependent direct local helpers should run through `sc run -- ...` so selected named connections are injected only into the child process.
 
 ## Distribution availability
 
-Treat a pushed tag, a GitHub Release, and an npm publication as separate states. Before presenting a public download as usable, verify the destination without maintainer authentication. The v0.9.2 release workflow fails closed if GitHub/raw tagged source is not publicly reachable and can be rerun for the same existing tag after visibility is restored.
+Treat a pushed tag, a GitHub Release, and an npm publication as separate states. Before presenting a public download as usable, verify the destination without maintainer authentication. The v0.9.3 release workflow fails closed if GitHub/raw tagged source is not publicly reachable and can be rerun for the same existing tag after visibility is restored.

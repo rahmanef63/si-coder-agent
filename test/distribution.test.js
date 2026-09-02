@@ -81,7 +81,7 @@ test('DIST-5: version and package file list include distributable skill artifact
   assert.ok(!pkg.files.includes('.mso/'));
   assert.ok(pkg.files.includes('plugins/'));
   assert.ok(pkg.files.includes('SECURITY.md'));
-  assert.strictEqual(pkg.engines.node, '>=22');
+  assert.strictEqual(pkg.engines.node, '^22.0.0 || ^24.0.0 || ^26.0.0');
   assert.strictEqual(pkg.scripts['package:skills'], 'python3 scripts/package-web-skill.py');
   assert.strictEqual(pkg.scripts['catalog:check'], 'node scripts/check-skill-catalog.js');
   assert.ok(!pkg.scripts.preversion, 'npm version must not be an alternate release gate');

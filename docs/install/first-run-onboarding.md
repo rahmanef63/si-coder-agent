@@ -23,7 +23,7 @@ Describe the app → build/preview → connect an account only if blocked → pu
 
 Examples: Claude Code, Codex CLI, Hermes, OpenClaw.
 
-SI-Coder requires **Node.js 22 or newer** for the current local release.
+SI-Coder requires **Node.js 22, 24, or 26** for the current local release.
 
 After installation:
 
