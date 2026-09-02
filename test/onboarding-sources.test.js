@@ -114,16 +114,19 @@ test('SRC-12: every built-in dashboard URL has click-by-click navigation metadat
 test('SRC-13: credential guide returns reference URL plus navigation, or a local generation path', () => {
   const { credentialGuide, humanGuideLines } = require('../lib/credential-guidance');
   const github = credentialGuide('GITHUB_TOKEN', { user: 'alpha' });
-  assert.strictEqual(github.referenceUrl, 'https://github.com/settings/personal-access-tokens/new');
+  assert.strictEqual(github.referenceUrl, 'https://github.com/settings/tokens/new');
   assert.ok(github.navigation.length >= 3);
-  assert.match(github.navigationText, /repositories SI-Coder should access/i);
+  assert.match(github.navigationText, /Tokens \(classic\)/i);
   assert.match(github.userCard.navigationText, /Generate token/i);
   assert.match(humanGuideLines('GITHUB_TOKEN', { user: 'alpha' }).join('\n'), /Navigate\s+:/);
   const githubProvider = require('../lib/providers').PROVIDERS.find(p => p.id === 'github');
   const classic = githubProvider.auth.find(a => a.id === 'classic-pat');
+  assert.strictEqual(githubProvider.auth.length, 1, 'SC direct GitHub must expose PAT classic only');
   const classicGuide = credentialGuide('GITHUB_TOKEN', { user: 'alpha', override: classic.guidance.GITHUB_TOKEN });
   assert.strictEqual(classicGuide.referenceUrl, 'https://github.com/settings/tokens/new');
-  assert.match(classicGuide.navigationText, /repo scope/i);
+  assert.match(classicGuide.navigationText, /repo for private repository automation/i);
+  assert.strictEqual(require('../lib/providers').VALIDATORS.GITHUB_TOKEN(`ghp_${'a'.repeat(40)}`), true);
+  assert.strictEqual(require('../lib/providers').VALIDATORS.GITHUB_TOKEN(`github_pat_${'a'.repeat(48)}`), false);
 
   const webhook = credentialGuide('SC_GIT_WEBHOOK_SECRET', { user: 'alpha' });
   assert.strictEqual(webhook.referenceUrl, null);
@@ -155,7 +158,7 @@ test('SRC-15: provider source/backend metadata keeps Composio and native MCP sep
   const { sourceOptions, authOptions } = require('../lib/connections');
   const row = id => PROVIDERS.find(p => p.id === id);
   assert.deepStrictEqual(sourceOptions(row('github')).map(x => x.id), ['sc', 'composio']);
-  assert.deepStrictEqual(authOptions(row('github'), 'sc').map(x => x.id), ['fine-grained-pat', 'classic-pat']);
+  assert.deepStrictEqual(authOptions(row('github'), 'sc').map(x => x.id), ['classic-pat']);
   assert.deepStrictEqual(authOptions(row('github'), 'composio').map(x => x.scheme), ['OAUTH2']);
   assert.ok(row('supabase').sources.composio);
   assert.ok(row('stripe').sources.composio);

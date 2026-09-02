@@ -1,40 +1,39 @@
 # GitHub connections
 
-GitHub can be connected through two distinct backends. Do not treat Composio as a GitHub auth method.
+GitHub can be connected through two distinct backends. Composio is a connection backend, not a GitHub auth method.
 
 ## Option A — SI-Coder direct
 
+SC direct GitHub uses **Personal access token (classic)** only.
+
 ```bash
-sc user connection-add <user> github "Default GitHub" --source sc --auth fine-grained-pat --default
+sc user connection-add <user> github "Default GitHub" --source sc --auth classic-pat --default
 ```
-
-Preferred when SI-Coder/local execution needs deterministic direct repository access.
-
-### Fine-grained PAT — recommended when sufficient
 
 Credential field: `GITHUB_TOKEN`
 
-Create at:
-https://github.com/settings/personal-access-tokens/new
+Create it here:
 
-Choose the resource owner, only the repositories SI-Coder needs, and the minimum repository permissions required for the operation. Copy the token once, then enter it through hidden local input:
+https://github.com/settings/tokens/new
+
+GitHub navigation:
+
+1. Settings
+2. Developer settings
+3. Personal access tokens
+4. Tokens (classic)
+5. Generate new token → Generate new token (classic)
+6. Set a descriptive note and a limited expiration
+7. Enable only the scopes SC needs; use `repo` when SC must automate private repositories
+8. Generate token and copy it once
+
+Store it through hidden local input:
 
 ```bash
 sc user credential-set <user> github GITHUB_TOKEN --connection default-github
 ```
 
-### Classic PAT — compatibility / broad repository automation
-
-```bash
-sc user connection-add <user> github "Compatibility GitHub" --source sc --auth classic-pat
-```
-
-Create at:
-https://github.com/settings/tokens/new
-
-Use the `repo` scope only when the task genuinely requires broad repository automation. Copy the token once and store it through the same hidden `credential-set` flow.
-
-`GITHUB_TOKEN` validation accepts current `github_pat_…` fine-grained tokens and `ghp_…` classic tokens. SI-Coder metadata never stores the token value.
+SC accepts the `ghp_…` PAT-classic format for direct GitHub. Fine-grained `github_pat_…` tokens are not accepted by the direct SC provider. Credential values are never stored in connection metadata or returned through machine tools.
 
 `GH_OWNER` is optional public account metadata for direct GitHub routing when needed.
 

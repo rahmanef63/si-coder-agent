@@ -32,7 +32,7 @@ rahmanfakhr
 └─ GitHub
    ├─ Default GitHub
    │  source = sc
-   │  auth   = Fine-grained PAT
+   │  auth   = Personal access token (classic)
    │  scope  = account
    │
    └─ Work GitHub
@@ -161,12 +161,11 @@ SI-Coder is the resolver/control plane. It should not wrap every Composio tool e
 source = sc
 ```
 
-Preferred choices:
+Direct SC has one GitHub auth method:
 
-- `fine-grained-pat` — recommended when its repository/permission model covers the required operation.
-- `classic-pat` — compatibility/broad repository automation path.
+- `classic-pat` — Personal access token (classic), created from `https://github.com/settings/tokens/new`.
 
-The method-specific guidance points to the correct GitHub creation page. Both use `GITHUB_TOKEN`; the connection method determines the acquisition guidance.
+SC accepts `ghp_…` for direct GitHub and keeps the token out of machine payloads. Composio remains a separate OAuth-backed connection source.
 
 ### Composio
 

@@ -8,6 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { EventEmitter } = require('events');
 
 const ROOT = path.resolve(__dirname, '..');
 const {
@@ -259,6 +260,38 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
 
+test('SCC-7a: Esc cancels credential line input without exiting the surrounding SC flow', async () => {
+  const { askHidden, askVisible } = require(path.join(ROOT, 'lib/prompt'));
+  const fakeInput = () => {
+    const input = new EventEmitter();
+    input.isTTY = true;
+    input.isRaw = false;
+    input.setRawMode = value => { input.isRaw = Boolean(value); };
+    input.resume = () => {};
+    input.pause = () => {};
+    return input;
+  };
+  const fakeOutput = () => ({ text: '', write(chunk) { this.text += String(chunk); } });
+
+  let input = fakeInput();
+  let output = fakeOutput();
+  const hidden = askHidden('token: ', { escapeCancels: true, input, output });
+  input.emit('data', Buffer.from('super-secret-value'));
+  input.emit('data', Buffer.from('\x1b'));
+  assert.strictEqual(await hidden, null);
+  assert.doesNotMatch(output.text, /super-secret-value/, 'hidden credential bytes must never be echoed while Esc remains available');
+  assert.strictEqual(input.isRaw, false, 'Esc must restore terminal raw mode before returning to SC');
+
+  input = fakeInput();
+  output = fakeOutput();
+  const visible = askVisible('owner: ', { escapeCancels: true, input, output });
+  input.emit('data', Buffer.from('example-owner'));
+  input.emit('data', Buffer.from('\x1b'));
+  assert.strictEqual(await visible, null);
+  assert.match(output.text, /example-owner/, 'non-secret credential metadata may echo normally');
+  assert.strictEqual(input.isRaw, false);
+});
+
 function finderCupRows(raw) {
   const re = /\x1b\[(\d+);1H/g;
   const matches = [...String(raw).matchAll(re)];
@@ -328,6 +361,9 @@ test('SCC-7b: Finder renderer keeps stable column slots and one fixed footer pan
   assert.match(inProvider.clean, /PREVIEW/);
   assert.match(inProvider.clean, /user rahmanef › provider github/);
   assert.doesNotMatch(inProvider.clean, /RESULT/);
+  const previewRow = inProvider.rows.find(row => row.includes('PREVIEW'));
+  assert.ok(previewRow && finderCupRows(inProvider.raw).find(row => row.text.includes('PREVIEW')).row <= 20,
+    '28-row terminals should reserve a taller lower description/help panel instead of leaving the center mostly empty');
 
   const withResult = paint({
     columns: [

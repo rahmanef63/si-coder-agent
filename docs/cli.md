@@ -14,13 +14,13 @@ Enter       open a layer or run/submit an action
 Ctrl-D      quit the interactive console
 ```
 
-At Home, `Esc` does not close SI-Coder. Use **Quit** or `Ctrl-D`.
+At Home, `Esc` does not close SI-Coder. Use **Quit** or `Ctrl-D`. When an action opens a credential/metadata input, `Esc` cancels **that input only**, saves nothing, and returns immediately to the previous Finder screen. It never exits SI-Coder.
 
 ### Stable Finder grid
 
 On wide terminals SI-Coder reserves **four fixed-width column slots**. Before a fourth layer exists, the unused slot stays blank instead of stretching the existing columns. Opening a deeper layer fills that slot. Outside provider management, the oldest visible column slides out after four layers. Inside a provider subtree, the `Providers` list and the selected provider stay anchored; the two right-hand slots rotate through the selected connection and deepest active layer. This keeps provider context visible even at `Connection → Credentials → KEY`. Medium terminals use the same model with three slots, and narrow terminals use two.
 
-The footer is fixed-height as well: `PREVIEW` shows the highlighted item, while `RESULT` temporarily replaces it after an action. This keeps the body height stable and prevents provider navigation from jumping or pushing the header out of the terminal viewport.
+The lower `INFO` + `PREVIEW`/`RESULT` panel deliberately gets more vertical space so setup instructions are easier to read and the middle of the screen is not mostly empty. On a normal 28-row terminal it reserves **8 detail rows**; medium/compact terminals step down automatically. Its height stays stable for a given terminal size: `PREVIEW` shows the highlighted item and `RESULT` temporarily replaces it after an action, so navigation does not jump.
 
 The frame is painted with **absolute terminal row addressing**, not newline-delimited output, and keeps one physical cell unused at the right edge. This prevents Windows Terminal/SSH PTYs from auto-wrapping a full-width row and scrolling the Finder header out of view.
 
@@ -155,7 +155,7 @@ sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOYMENT_NAME --connect
 sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-a-production
 ```
 
-On a TTY secret input is hidden. Scripted trusted-local use may use stdin/env/file, but the value must never be put in argv or agent JSON.
+On a TTY secret input is hidden. In the Finder flow, `Esc` cancels the current hidden/visible credential input and returns to the previous SC screen without saving. Scripted trusted-local use may use stdin/env/file, but the value must never be put in argv or agent JSON.
 
 Delete one field:
 
@@ -190,10 +190,12 @@ PREVIEW
 user rahmanfakhr › github › Work GitHub › GITHUB_TOKEN
 state: missing · plaintext read disabled
 open: https://github.com/settings/tokens/new
-click: Open the token page → Set a note/name → Choose expiration → Enable repo scope → Generate token → Copy it now
+click: Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic) → Set note/expiration → Enable only needed scopes → Generate token → Copy it now
 ```
 
-Pressing **Enter** repeats the reference URL and navigation path before the hidden `value:` prompt. Credentials generated locally use `get with:` instead of a URL; generated-at-deploy values explain that they should normally be left blank.
+Pressing **Enter** repeats the reference URL and navigation path before the hidden `value:` prompt. Press **Esc** at that prompt to cancel and return to the credential screen immediately. Credentials generated locally use `get with:` instead of a URL; generated-at-deploy values explain that they should normally be left blank.
+
+For `github` with `source=sc`, SI-Coder exposes one direct auth method: **Personal access token (classic)** (`classic-pat`). The setup URL is `https://github.com/settings/tokens/new`; direct SC validates the `ghp_…` token format. GitHub via Composio remains a separate OAuth-backed connection source.
 
 The source/auth metadata is defined once in `lib/providers.js` (`auth[]`, `url`/`cmd`, `navigation[]`, `note`) and rendered by `lib/credential-guidance.js`. Tool-calling returns the same fields as `referenceUrl`, `createCommand`, `navigation`, and `navigationText`.
 

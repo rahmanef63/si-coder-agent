@@ -294,7 +294,8 @@ test('PRF-21: v1 connection metadata normalizes read-only and migrates explicitl
   assert.strictEqual(JSON.parse(fs.readFileSync(C.CONNECTION_META, 'utf8')).version, 1, 'read must not persist migration');
   assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').source, 'sc');
   assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').origin, 'legacy-profile');
-  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').authMethod, 'fine-grained-pat');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').authMethod, 'classic-pat');
+  assert.strictEqual(UC.connectionStatus('legacy-v1', 'github', 'direct-fg').credentials.find(c => c.key === 'GITHUB_TOKEN').state, 'invalid', 'old fine-grained token must require rotation to PAT classic');
   assert.strictEqual(C.get('legacy-v1', 'github', 'direct-classic').authMethod, 'classic-pat');
   assert.strictEqual(C.get('legacy-v1', 'github', 'oauth').source, 'composio');
   assert.strictEqual(UC.connectionStatus('legacy-v1', 'github', 'oauth').state, 'needs-authorization');

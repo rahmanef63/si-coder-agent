@@ -60,6 +60,7 @@ function parseArgs(argv) {
 // The profile deliberately outranks the shell — see the precedence note in lib/profiles.js.
 let NO_PROFILE = false;
 let MENU_MODE = false;
+const INPUT_CANCELLED = Symbol('input-cancelled');
 let USER_OVERRIDE = null;
 let CONNECTION_OVERRIDES = {};
 let _envCache = null;
@@ -372,8 +373,11 @@ async function promptForVar(v, { force = false, user, connection, store } = {}) 
   console.log(`  ${v.key}${v.required ? '' : '  (optional — press Enter to skip)'}`);
   printCredentialGuide(v.key, '    ', { user, connection, store });
   if (isSecret(v.key)) console.log('    ↳ input is hidden (not echoed)');
+  if (MENU_MODE) console.log('    ↳ Esc cancels this input and returns to the previous SI-Coder screen');
   while (true) {
-    const value = isSecret(v.key) ? await askHidden('    value: ') : await askVisible('    value: ');
+    const inputOptions = MENU_MODE ? { escapeCancels: true } : {};
+    const value = isSecret(v.key) ? await askHidden('    value: ', inputOptions) : await askVisible('    value: ', inputOptions);
+    if (value === null && MENU_MODE) return INPUT_CANCELLED;
     if (!value && !v.required) return null;
     if (!value && v.required) { console.log(`    ❌ ${v.key} is required`); continue; }
     const validator = VALIDATORS[v.key];
@@ -396,6 +400,7 @@ async function collect(ids, { force = false } = {}) {
     if (p.status === 'stub') console.log('   ⚠️ this /sc-* script is not implemented yet; values are stored for later.');
     for (const v of todo) {
       const val = await promptForVar(v, { force });
+      if (val === INPUT_CANCELLED) return INPUT_CANCELLED;
       if (val !== null) updates[v.key] = val;
     }
   }
@@ -448,6 +453,7 @@ async function cmdSetup(args) {
     if (ids.length === 0) { console.log('Nothing selected.'); return; }
   }
   const updates = await collect(ids, { force: Boolean(args.force) });
+  if (updates === INPUT_CANCELLED) return MENU_MODE ? 'cancel' : undefined;
   if (Object.keys(updates).length === 0) { console.log('\n✅ Nothing to write — everything asked for is already set.'); return; }
   persist(updates);
   printRecommendation(recommendation({ next: 'verifikasi provider yang baru diset', why: 'format key saja tidak membuktikan key masih valid', action: 'sc doctor' }));
@@ -460,6 +466,7 @@ async function cmdProvidersSet(id) {
   byId.get(id) || die(`unknown provider "${id}"`);
   console.log(`\n🔁 re-entering every var for "${id}" (existing values will be replaced)\n`);
   const updates = await collect([id], { force: true });
+  if (updates === INPUT_CANCELLED) return MENU_MODE ? 'cancel' : undefined;
   if (Object.keys(updates).length === 0) { console.log('\nNothing entered — no change.'); return; }
   persist(updates);
 }
@@ -680,7 +687,10 @@ async function readSecretInput(v, args) {
     source = 'file';
   } else {
     if (!isInteractive()) die('no secret input source on a non-TTY; use --stdin, --from-env NAME, or --from-file PATH');
-    value = isSecret(v.key) ? await askHidden(`  ${v.key} (hidden): `) : await askVisible(`  ${v.key}: `);
+    if (MENU_MODE) console.log('  Esc = cancel input and return to the previous SI-Coder screen');
+    const inputOptions = MENU_MODE ? { escapeCancels: true } : {};
+    value = isSecret(v.key) ? await askHidden(`  ${v.key} (hidden): `, inputOptions) : await askVisible(`  ${v.key}: `, inputOptions);
+    if (value === null && MENU_MODE) return { cancelled: true, source };
   }
   if (!value) die(`${v.key} cannot be empty`);
   const validator = VALIDATORS[v.key];
@@ -696,7 +706,9 @@ async function cmdSecretSet(providerId, key, args) {
     return cmdProvidersSet(providerId);
   }
   const v = p.vars.find(x => x.key === key) || die(`${providerId} does not define ${key}`);
-  const { value, source } = await readSecretInput(v, args);
+  const secretInput = await readSecretInput(v, args);
+  if (secretInput.cancelled) return 'cancel';
+  const { value, source } = secretInput;
   const target = persist({ [key]: value });
   audit('credential.set', { provider: providerId, keyName: key, inputSource: source, store: target.kind, profile: target.name || undefined });
   console.log(`✅ stored ${providerId}.${key}; value not displayed`);
@@ -1126,7 +1138,9 @@ async function cmdUserCredentialSet(name, providerId, key, args = {}) {
   if (key) {
     const v=fields.find(x=>x.key===key)||die(`${providerId}/${conn.id} auth method ${conn.authMethod} does not use ${key}`);
     printCredentialGuide(key,'  ',{user:name,connection:conn.id,store});
-    const {value,source}=await readSecretInput(v,args);
+    const secretInput=await readSecretInput(v,args);
+    if (secretInput.cancelled) return 'cancel';
+    const {value,source}=secretInput;
     C.writeValues(name,providerId,conn.id,{[key]:value});
     audit('connection.credential.set',{profile:name,provider:providerId,connection:conn.id,keyName:key,inputSource:source});
     invalidateEnvCache();
@@ -1137,6 +1151,7 @@ async function cmdUserCredentialSet(name, providerId, key, args = {}) {
   const existing=C.readValues(name,providerId,conn.id), updates={};
   for (const v of fields) {
     const value=await promptForVar(v,{force:true,user:name,connection:conn.id,store});
+    if (value===INPUT_CANCELLED) return 'cancel';
     if (value!==null) updates[v.key]=value;
   }
   if (Object.keys(updates).length) C.writeValues(name,providerId,conn.id,updates);
@@ -1482,6 +1497,7 @@ async function cmdPreflight(args) {
   console.log('');
   if (!await confirm('Enter them now?')) die('aborted — deploy not started', 1);
   const updates = await collect(ids);
+  if (updates === INPUT_CANCELLED) return MENU_MODE ? 'cancel' : undefined;
   if (Object.keys(updates).length) {
     appendExportToShellRc(updates);
     console.log(`\n✅ Wrote ${Object.keys(updates).length} export(s) to ~/.bashrc`);
@@ -1859,7 +1875,7 @@ async function runTerminalMenuAction(stack, item) {
   clearAlternateScreen(process.stdout, { cursor: true });
   console.log(`SI-Coder › ${[...stack.map(x => x.label), stripAnsi(item.label)].join(' › ')}\n`);
   const value = await runMenuAction(stack, item);
-  if (value !== 'quit') await waitForEnter('Press Enter to return to SI-Coder ');
+  if (value !== 'quit' && value !== 'cancel') await waitForEnter('Press Enter to return to SI-Coder ');
   hideCursor();
   return value;
 }
@@ -1925,6 +1941,7 @@ async function cmdMenu() {
         activity = captured.lines.length ? captured.lines : [`${stripAnsi(item.label)} completed`];
       }
       if (actionResult === 'quit') break;
+      if (actionResult === 'cancel') { activity = []; continue; }
       if (actionResult === 'back' && stack.length) stack.pop();
       if (actionResult && typeof actionResult === 'object' && actionResult.renameUser) {
         const index = stack.findIndex(x => x.id.startsWith('user:'));

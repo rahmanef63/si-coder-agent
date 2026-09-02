@@ -284,6 +284,17 @@ test('SCCP-12: user credential request exposes source URL/navigation but never a
   fs.mkdirSync(home, { recursive: true });
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
   run(['user', 'add', 'alpha'], { env });
+  const connectionRequest = spawnSync(process.execPath, [AGENT, 'user.connection.request'], {
+    cwd: ROOT,
+    env,
+    input: JSON.stringify({ user: 'alpha', provider: 'github', source: 'sc' }),
+    encoding: 'utf8',
+  });
+  assert.strictEqual(connectionRequest.status, 0, connectionRequest.stderr);
+  const connectionPlan = JSON.parse(connectionRequest.stdout);
+  assert.deepStrictEqual(connectionPlan.selectedSource.authMethods.map(method => method.id), ['classic-pat']);
+  assert.strictEqual(connectionPlan.selectedSource.authMethods[0].fieldGuidance.find(field => field.key === 'GITHUB_TOKEN').referenceUrl, 'https://github.com/settings/tokens/new');
+
   const r = spawnSync(process.execPath, [AGENT, 'user.credential.request'], {
     cwd: ROOT,
     env,
@@ -292,7 +303,7 @@ test('SCCP-12: user credential request exposes source URL/navigation but never a
   });
   assert.strictEqual(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  assert.strictEqual(out.referenceUrl, 'https://github.com/settings/personal-access-tokens/new');
+  assert.strictEqual(out.referenceUrl, 'https://github.com/settings/tokens/new');
   assert.ok(Array.isArray(out.navigation) && out.navigation.length >= 3);
   assert.match(out.navigationText, /Generate token/i);
   assert.strictEqual(out.requiresUserTerminal, true);

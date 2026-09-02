@@ -93,6 +93,16 @@ deployment-key        API_KEY       deployment
 
 Then create a named connection with `sc.user.connection.manage`.
 
+For GitHub with `source=sc`, the same request now returns one direct auth method only:
+
+```text
+classic-pat  BEARER_TOKEN  account
+  → GITHUB_TOKEN
+  → referenceUrl: https://github.com/settings/tokens/new
+```
+
+This is metadata/handoff only. The machine schema does not change and never accepts the PAT value; `sc.user.credential.request` sends the human to hidden local input. GitHub `source=composio` remains a separate OAuth-backed connection path.
+
 ## OAuth / externally managed authorization
 
 If a connection has `source=composio` or `source=native-mcp`, SI-Coder stores only safe routing/lifecycle metadata. It must **not** request/copy OAuth access or refresh tokens into SC.
