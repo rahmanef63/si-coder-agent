@@ -397,7 +397,7 @@
     },
     {
       "name": "sc.user.connections.list",
-      "description": "List named provider connections for one SI-Coder user, including labels, auth methods, scopes, defaults, and credential key names without values.",
+      "description": "List named provider connections for one SI-Coder user, including labels, source/backends, auth methods, scopes, defaults, safe external references/status, and credential key names without values.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -424,7 +424,7 @@
     },
     {
       "name": "sc.user.connection.manage",
-      "description": "Create, rename, select, delete, or migrate one named provider connection. Metadata/secret files remain local; no credential value is accepted or returned.",
+      "description": "Create, select, rename, delete, migrate, authorize, or sync one named provider connection with an explicit source/backend. Composio authorization persists only external IDs/status; no credential value or link_token is accepted or returned.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -443,7 +443,9 @@
               "set-default",
               "rename",
               "delete",
-              "migrate-legacy"
+              "migrate-legacy",
+              "authorize",
+              "sync-external"
             ]
           },
           "connection": {
@@ -455,12 +457,33 @@
             "minLength": 1,
             "maxLength": 120
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "sc",
+              "composio",
+              "native-mcp"
+            ]
+          },
           "authMethod": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
           },
           "setDefault": {
             "type": "boolean"
+          },
+          "authConfigId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{2,128}$"
+          },
+          "brokerConnection": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "callbackUrl": {
+            "type": "string",
+            "pattern": "^https://",
+            "maxLength": 2048
           },
           "confirm": {
             "type": "boolean",
@@ -484,7 +507,7 @@
     },
     {
       "name": "sc.user.connection.request",
-      "description": "Describe available auth methods or the next authorization/setup action for a named provider connection, including Composio/OAuth/API-key/deployment scope metadata without secrets.",
+      "description": "Describe available connection sources/backends and auth methods, or the next setup/authorization action for one named provider connection, without secrets.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -499,6 +522,14 @@
           "connection": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "sc",
+              "composio",
+              "native-mcp"
+            ]
           },
           "authMethod": {
             "type": "string",
@@ -520,7 +551,7 @@
     },
     {
       "name": "sc.user.provider.verify",
-      "description": "Run live provider verification for one explicit user and optional named provider connection. Values are never returned.",
+      "description": "Run source-aware live verification for one explicit user and optional named provider connection. Direct connections call the provider API; Composio connections sync safe Connected Account status; native MCP auth remains provider-owned. Values are never returned.",
       "inputSchema": {
         "type": "object",
         "properties": {

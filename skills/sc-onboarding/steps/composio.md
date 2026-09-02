@@ -14,7 +14,7 @@ Prefer a scoped project key when the agent only needs selected resource areas su
 Example:
 
 ```bash
-sc user connection-add rahmanfakhr composio "SI-Coder Project" --auth project-api-key
+sc user connection-add rahmanfakhr composio "SI-Coder Project" --source sc --auth project-api-key
 sc user credential-set rahmanfakhr composio COMPOSIO_API_KEY --connection si-coder-project
 ```
 
@@ -28,7 +28,7 @@ Dashboard navigation:
 Example:
 
 ```bash
-sc user connection-add rahmanfakhr composio "Organization Admin" --auth organization-token
+sc user connection-add rahmanfakhr composio "Organization Admin" --source sc --auth organization-token
 sc user credential-set rahmanfakhr composio COMPOSIO_ORG_API_KEY --connection organization-admin
 ```
 

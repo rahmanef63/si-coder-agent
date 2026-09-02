@@ -82,7 +82,7 @@ sc user
 sc user show <user>
 sc user duplicate <source> <target>
 sc user connections <user> [provider]
-sc user connection-add <user> <provider> "<label>" --auth <method>
+sc user connection-add <user> <provider> "<label>" --source <sc|composio|native-mcp> --auth <method>
 sc user credentials <user> [provider] [--connection alias]
 sc user credential-set <user> <provider> [KEY] --connection <alias>
 sc user credential-rm <user> <provider> [KEY] --connection <alias> --yes
@@ -91,7 +91,7 @@ sc user map <folder> <user>
 sc user which
 ```
 
-Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. One user can own several isolated provider connections with unique labels, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
+Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. One user can own several isolated provider connections with unique labels, source/backends, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
 
 For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/functions.json`. Use `sc.user.connection.request/manage/list` for account/auth selection and `sc.user.credential.request` for direct create/rotate handoff because machine JSON never accepts raw secret values.
 

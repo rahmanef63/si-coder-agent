@@ -11,6 +11,7 @@ const P = require('../lib/profiles');
 const C = require('../lib/connections');
 const { PROVIDERS } = require('../lib/providers');
 const UC = require('../lib/user-control');
+const CC = require('../lib/composio-connections');
 const { credentialGuide } = require('../lib/credential-guidance');
 
 const SC = path.resolve(__dirname, '../bin/sc.js');
@@ -188,10 +189,25 @@ async function main() {
       const provider = assertString(input.provider, 'provider', /^[a-z0-9][a-z0-9._-]{0,63}$/);
       const action = assertString(input.action, 'action');
       let argv;
-      if (action === 'create') {
+      if (action === 'authorize') {
+        const connection = assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+        const out = await CC.authorize(user, provider, connection, {
+          authConfigId: input.authConfigId ? assertString(input.authConfigId, 'authConfigId', /^[A-Za-z0-9_-]{2,128}$/) : null,
+          brokerConnection: input.brokerConnection ? assertString(input.brokerConnection, 'brokerConnection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null,
+          callbackUrl: input.callbackUrl ? assertString(input.callbackUrl, 'callbackUrl') : null,
+        });
+        process.stdout.write(`${JSON.stringify({ action, ...out, policy: 'The authorization URL is transient; provider credentials and Composio link_token are not persisted by SI-Coder.' }, null, 2)}\n`);
+        return;
+      } else if (action === 'sync-external') {
+        const connection = assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+        const out = await CC.sync(user, provider, connection);
+        process.stdout.write(`${JSON.stringify({ action, ...out }, null, 2)}\n`);
+        return;
+      } else if (action === 'create') {
         const label = assertString(input.label, 'label');
+        const source = input.source ? assertString(input.source, 'source', /^(sc|composio|native-mcp)$/) : 'sc';
         const authMethod = assertString(input.authMethod, 'authMethod', /^[a-z0-9][a-z0-9._-]{0,63}$/);
-        argv = ['user','connection-add',user,provider,label,'--auth',authMethod];
+        argv = ['user','connection-add',user,provider,label,'--source',source,'--auth',authMethod];
         if (input.setDefault === true) argv.push('--default');
       } else if (action === 'set-default') {
         argv = ['user','connection-use',user,provider,assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/)];
@@ -212,27 +228,32 @@ async function main() {
       const providerId = assertString(input.provider, 'provider', /^[a-z0-9][a-z0-9._-]{0,63}$/);
       const provider = PROVIDERS.find(p => p.id === providerId);
       if (!provider) throw new Error(`unknown provider ${providerId}`);
-      const methods = C.authOptions(provider).map(method => ({
-        id: method.id, label: method.label, scheme: method.scheme, scope: method.scope,
-        external: Boolean(method.external), recommended: method.recommended || null,
-        fields: method.fields || [], requiredFields: method.requiredFields || [],
-        fieldGuidance: (method.fields || []).map(key => {
-          const g = credentialGuide(key, { user });
-          return { key, required: (method.requiredFields || []).includes(key), referenceUrl: g.referenceUrl, createCommand: g.createCommand, navigation: g.navigation, navigationText: g.navigationText, note: g.note };
-        }),
+      const sources = C.sourceOptions(provider).map(source => ({
+        id: source.id, label: source.label, description: source.description || null,
+        toolkit: source.toolkit || null, reference: source.reference || null,
+        managedAuth: Boolean(source.managedAuth),
+        authMethods: C.authOptions(provider, source.id).map(method => ({
+          id: method.id, label: method.label, scheme: method.scheme, scope: method.scope,
+          external: source.id !== 'sc', recommended: method.recommended || null,
+          fields: method.fields || [], requiredFields: method.requiredFields || [],
+          fieldGuidance: source.id === 'sc' ? (method.fields || []).map(key => {
+            const g = credentialGuide(key, { user, override: method.guidance?.[key] || null });
+            return { key, required: (method.requiredFields || []).includes(key), referenceUrl: g.referenceUrl, createCommand: g.createCommand, navigation: g.navigation, navigationText: g.navigationText, note: g.note };
+          }) : [],
+        })),
       }));
       if (!input.connection) {
-        const selectedMethod = input.authMethod ? methods.find(m => m.id === input.authMethod) : null;
+        const selectedSource = input.source ? sources.find(x => x.id === input.source) : null;
+        if (input.source && !selectedSource) throw new Error(`unsupported source ${input.source} for ${providerId}`);
+        const selectedAuthMethod = input.authMethod
+          ? (selectedSource || sources.find(src => src.authMethods.some(m => m.id === input.authMethod)))?.authMethods.find(m => m.id === input.authMethod) || null
+          : null;
         process.stdout.write(`${JSON.stringify({
-          user, provider: providerId, authMethods: methods, selectedAuthMethod: selectedMethod || null,
-          composio: provider.composio || null,
-          managedConnectionAction: selectedMethod?.external && provider.composio?.toolkit ? {
-            strategy: 'composio-session-authorize', toolkit: provider.composio.toolkit,
-            aliasRequired: true, secretHandling: 'provider OAuth/token credentials remain in the external connected account; SI-Coder stores only local connection metadata',
-            fallbackMetaTool: 'COMPOSIO_MANAGE_CONNECTIONS',
-          } : null,
-          next: selectedMethod?.external ? 'authorize through the managed/OAuth surface; do not request a raw secret in chat' : 'create a named connection, then request each required credential field through hidden local input',
-        }, null, 2)}\n`);
+          user, provider: providerId, sources, selectedSource: selectedSource || null, selectedAuthMethod,
+          next: selectedSource?.id === 'composio' ? 'create a labeled connection, then authorize it with a Composio Connect Link; no provider token belongs in SI-Coder' : selectedSource?.id === 'native-mcp' ? 'create a labeled connection and complete the provider-owned MCP/OAuth flow' : 'create a named connection, then enter each required credential through hidden local input',
+          policy: 'Provider secrets must never be sent in chat or tool JSON.',
+        }, null, 2)}
+`);
         return;
       }
       const connection = UC.connectionStatus(user, providerId, assertString(input.connection,'connection',/^[a-z0-9][a-z0-9._-]{0,63}$/));
@@ -240,19 +261,24 @@ async function main() {
         key:s.key, referenceUrl:s.referenceUrl, createCommand:s.createCommand, navigation:s.navigation, navigationText:s.navigationText, note:s.note,
         command:s.saveWith,
       }));
+      const source = sources.find(x => x.id === connection.source) || null;
       process.stdout.write(`${JSON.stringify({
-        user, provider: providerId, connection,
-        composio: provider.composio || null,
-        managedConnectionAction: connection.external && provider.composio?.toolkit ? {
-          strategy: 'composio-session-authorize', toolkit: provider.composio.toolkit, alias: connection.id,
-          displayLabel: connection.label, requireExplicitSelectionWhenMultiple: true,
-          secretHandling: 'provider credentials stay in the external connected account; do not copy OAuth/access tokens into SI-Coder',
-          fallbackMetaTool: 'COMPOSIO_MANAGE_CONNECTIONS',
+        user, provider: providerId, connection, source,
+        externalConnectionAction: connection.source === 'composio' ? {
+          strategy: 'composio-connect-link', toolkit: connection.externalRef?.toolkit || source?.toolkit || providerId,
+          alias: connection.externalRef?.alias || connection.id, connectedAccountId: connection.externalRef?.connectedAccountId || null,
+          authConfigId: connection.externalRef?.authConfigId || null, status: connection.state,
+          requireExplicitSelectionWhenMultiple: true,
+          secretHandling: 'OAuth/access/refresh tokens stay in Composio; SI-Coder persists only external identifiers and last-known status.',
+        } : connection.source === 'native-mcp' ? {
+          strategy: 'native-mcp-authorization', toolkit: connection.externalRef?.toolkit || source?.toolkit || providerId, status: connection.state,
+          secretHandling: 'Provider-owned MCP/OAuth credentials are not copied into SI-Coder.',
         } : null,
-        next: connection.external ? 'authorize this labeled connection through the managed/OAuth surface' : 'enter only the missing fields in the hidden local terminal',
+        next: connection.source === 'composio' ? (connection.state === 'active' ? 'use the explicit connected account id/alias when executing Composio tools' : 'authorize or refresh this connection through the Composio Connect Link flow') : connection.source === 'native-mcp' ? 'complete or use the provider-owned MCP authorization' : 'enter only missing fields in the hidden local terminal',
         fields: fieldSetup,
         policy: 'Never send provider credentials in chat or tool JSON.',
-      }, null, 2)}\n`);
+      }, null, 2)}
+`);
       return;
     }
     case 'user.providers.list': {
@@ -297,19 +323,22 @@ async function main() {
       const provider = assertString(input.provider, 'provider');
       const key = input.key ? assertString(input.key, 'key', /^[A-Z][A-Z0-9_]{1,127}$/) : null;
       const connection = input.connection ? assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/) : null;
-      const status = key ? UC.credentialStatus(user, provider, key, connection) : UC.providerStatus(user, provider, connection);
-      const setup = key ? status.setup : null;
+      const providerStatus = UC.providerStatus(user, provider, connection);
+      const external = Boolean(providerStatus.external);
+      const status = external ? providerStatus : key ? UC.credentialStatus(user, provider, key, connection) : providerStatus;
+      const setup = !external && key ? status.setup : null;
       process.stdout.write(`${JSON.stringify({
         ...status,
-        requiresUserTerminal: true,
-        command: key ? `sc user credential-set ${user} ${provider} ${key}${connection ? ` --connection ${connection}` : ''}` : `sc user credential-set ${user} ${provider}${connection ? ` --connection ${connection}` : ''}`,
-        userAction: setup?.userCard || null,
-        createAt: setup?.createAt || null,
-        referenceUrl: setup?.referenceUrl || null,
-        createCommand: setup?.createCommand || null,
-        navigation: setup?.navigation || [],
-        navigationText: setup?.navigationText || null,
-        policy: 'Never send the credential in chat or tool JSON. Enter it only in the hidden local terminal prompt or an explicitly connected secure credential action.',
+        requiresUserTerminal: external ? false : true,
+        command: external ? null : key ? `sc user credential-set ${user} ${provider} ${key}${connection ? ` --connection ${connection}` : ''}` : `sc user credential-set ${user} ${provider}${connection ? ` --connection ${connection}` : ''}`,
+        userAction: external ? null : setup?.userCard || null,
+        createAt: external ? null : setup?.createAt || null,
+        referenceUrl: external ? null : setup?.referenceUrl || null,
+        createCommand: external ? null : setup?.createCommand || null,
+        navigation: external ? [] : setup?.navigation || [],
+        navigationText: external ? null : setup?.navigationText || null,
+        next: external ? `This connection uses source=${status.source}; use sc.user.connection.request and the external authorization/execution flow instead of requesting a local provider credential.` : null,
+        policy: external ? 'Externally managed provider credentials must stay in their source backend and are never requested through SI-Coder credential tools.' : 'Never send the credential in chat or tool JSON. Enter it only in the hidden local terminal prompt or an explicitly connected secure credential action.',
       }, null, 2)}
 `);
       return;

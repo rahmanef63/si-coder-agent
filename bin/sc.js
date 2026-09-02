@@ -29,6 +29,7 @@ const {
 const P = require(path.resolve(__dirname, '../lib/profiles'));
 const C = require(path.resolve(__dirname, '../lib/connections'));
 const UC = require(path.resolve(__dirname, '../lib/user-control'));
+const CC = require(path.resolve(__dirname, '../lib/composio-connections'));
 const CP = require(path.resolve(__dirname, '../lib/custom-providers'));
 const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
 const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
@@ -253,22 +254,22 @@ async function cmdProvidersShow(id) {
 
 function cmdProviderDefinition(id) {
   const p = byId.get(id) || die(`unknown provider "${id}"`);
-  console.log(`\n🔌 provider: ${p.id} — ${p.title}`);
+  console.log(`
+🔌 provider: ${p.id} — ${p.title}`);
   console.log(`   ${p.blurb}`);
-  console.log('   credentials are user-scoped and may have multiple named connections.\n');
-  console.log('  Authentication methods:');
-  for (const a of C.authOptions(p)) {
-    console.log(`    • ${a.id} — ${a.label}`);
-    console.log(`      ${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external auth' : ''}${a.recommended ? ` · recommended: ${a.recommended}` : ''}`);
-    if (a.fields?.length) console.log(`      fields: ${a.fields.join(', ')}`);
+  console.log('   connections are user-scoped; provider, source/backend, auth, and scope are separate.\n');
+  console.log('  Connection sources:');
+  for (const source of C.sourceOptions(p)) {
+    console.log(`    • ${source.id} — ${source.label}`);
+    if (source.description) console.log(`      ${source.description}`);
+    for (const a of C.authOptions(p, source.id)) {
+      console.log(`      - ${a.id} — ${a.label} · ${a.scheme} · scope ${a.scope}${a.recommended ? ` · ${a.recommended}` : ''}`);
+      if (a.fields?.length) console.log(`        fields: ${a.fields.join(', ')}`);
+    }
+    if (source.toolkit) console.log(`      toolkit: ${source.toolkit}`);
+    if (source.reference) console.log(`      reference: ${source.reference}`);
   }
-  if (p.composio) {
-    console.log(`\n  Composio toolkit: ${p.composio.toolkit}`);
-    console.log(`    auth: ${(p.composio.authSchemes || []).join(' / ') || '—'}${p.composio.managedAuth ? ' · managed auth available' : ''}`);
-    if (p.composio.mcpToolkit) console.log(`    MCP: ${p.composio.mcpToolkit} · ${p.composio.mcpAuthScheme || 'auth varies'}`);
-    if (p.composio.source) console.log(`    reference: ${p.composio.source}`);
-  }
-  console.log('\n  Credential fields:');
+  console.log('\n  Credential fields (SI-Coder direct only):');
   for (const v of p.vars) {
     console.log(`    ${v.required ? '• provider-required' : '• auth-method scoped'} ${v.key}`);
     if (v.url) console.log(`      create/manage: ${v.url}`);
@@ -328,7 +329,7 @@ function connectionItemsForUser(name, providerId) {
   return rows.map(c => ({
     id: `connection:${c.id}`, kind: 'branch', pathLabel: c.label,
     label: `${c.isDefault ? '★' : ' '} ${c.label}`,
-    hint: `${c.scheme} · ${c.scope}${c.external ? ' · external auth' : ` · ${c.stored}/${c.total} field(s)`}`,
+    hint: `${c.sourceLabel} · ${c.scheme} · ${c.scope}${c.external ? ` · ${c.state}` : ` · ${c.stored}/${c.total} field(s)`}`,
     preview: UC.previewForConnection(name, providerId, c.id),
   }));
 }
@@ -894,7 +895,7 @@ function cmdUserConnections(name, providerId) {
   }
   for (const row of rows) {
     console.log(`  ${row.provider.padEnd(14)} ${row.id.padEnd(18)} ${row.label}${row.isDefault ? '   [default]' : ''}`);
-    console.log(`    auth ${row.scheme} · scope ${row.scope} · ${row.external ? 'external auth' : `${row.stored}/${row.total} credential field(s) · ${row.state}`}`);
+    console.log(`    source ${row.sourceLabel} · auth ${row.scheme} · scope ${row.scope} · ${row.external ? row.state : `${row.stored}/${row.total} credential field(s) · ${row.state}`}`);
   }
   console.log('');
 }
@@ -902,29 +903,47 @@ function cmdUserConnections(name, providerId) {
 async function cmdUserConnectionAdd(name, providerId, label, args = {}) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
   const p = byId.get(providerId) || die(`unknown provider "${providerId || ''}"`);
-  const options = C.authOptions(p);
+  const sources = C.sourceOptions(p);
+  let source = typeof args.source === 'string' ? args.source : null;
   let authMethod = typeof args.auth === 'string' ? args.auth : null;
-  if (!authMethod) {
-    if (!isInteractive()) die(`--auth is required on a non-TTY; choose: ${options.map(x=>x.id).join(' | ')}`);
-    authMethod = await selectOne(`Authentication method for ${providerId}`, options.map(o => ({ id:o.id, label:o.label, hint:`${o.scheme} · ${o.scope}${o.external ? ' · external/managed' : ''}` })));
-    if (!authMethod) return console.log('cancelled');
+  if (!source && authMethod) {
+    const matches = sources.filter(src => C.authOptions(p, src.id).some(a => a.id === authMethod));
+    source = matches.length === 1 ? matches[0].id : 'sc';
   }
-  const method = C.authOption(p, authMethod);
+  if (!source) {
+    if (!isInteractive()) die(`--source is required on a non-TTY; choose: ${sources.map(x=>x.id).join(' | ')}`);
+    source = await selectOne(`Connection method for ${providerId}`, sources.map(x => ({ id:x.id, label:x.label, hint:x.description || '' })));
+    if (!source) return console.log('cancelled');
+  }
+  const sourceMeta = C.sourceOption(p, source);
+  const options = C.authOptions(p, source);
+  if (!authMethod) {
+    if (options.length === 1) authMethod = options[0].id;
+    else {
+      if (!isInteractive()) die(`--auth is required on a non-TTY for source ${source}; choose: ${options.map(x=>x.id).join(' | ')}`);
+      authMethod = await selectOne(`Authentication for ${providerId} via ${sourceMeta.label}`, options.map(o => ({ id:o.id, label:o.label, hint:`${o.scheme} · ${o.scope}${o.recommended ? ` · ${o.recommended}` : ''}` })));
+      if (!authMethod) return console.log('cancelled');
+    }
+  }
+  const method = C.authOption(p, source, authMethod);
   if (!label) {
     if (!isInteractive()) die('connection label is required on a non-TTY');
     label = await askVisible(`Label for this ${providerId} connection: `);
     if (!label) return console.log('cancelled');
   }
-  const row = C.create(name, providerId, { label, authMethod, scope: method.scope, setDefault: Boolean(args.default) });
-  audit('connection.create', { profile:name, provider:providerId, connection:row.id, label:row.label, authMethod, scope:row.scope, external:Boolean(method.external) });
+  const external = source === 'sc' ? null : {
+    system: source, toolkit: sourceMeta.toolkit || providerId, alias: C.slugify(label), lastKnownStatus: 'UNLINKED', checkedAt: null,
+  };
+  const row = C.create(name, providerId, { label, source, authMethod, scope: method.scope, setDefault: Boolean(args.default), external });
+  audit('connection.create', { profile:name, provider:providerId, connection:row.id, label:row.label, source, authMethod, scope:row.scope, external:source !== 'sc' });
   invalidateEnvCache();
   console.log(`✅ connection "${row.label}" created for ${name}/${providerId}${row.isDefault ? ' and set as default' : ''}`);
-  if (method.external) {
-    console.log(`   auth: ${method.scheme} · external/managed connection`);
-    if (p.composio?.source) console.log(`   reference: ${p.composio.source}`);
-    console.log('   no provider secret was requested or stored locally.');
+  console.log(`   source: ${sourceMeta.label} · auth: ${method.scheme} · scope ${method.scope}`);
+  if (source !== 'sc') {
+    console.log(`   status: needs authorization · toolkit ${sourceMeta.toolkit || providerId}`);
+    if (sourceMeta.reference) console.log(`   reference: ${sourceMeta.reference}`);
+    console.log('   no provider credential was requested or stored locally.');
   } else {
-    console.log(`   auth: ${method.scheme} · scope ${method.scope}`);
     console.log(`   next: sc user credential-set ${name} ${providerId} <KEY> --connection ${row.id}`);
   }
   return row;
@@ -934,36 +953,45 @@ function cmdUserConnectionGuide(name, providerId, id = null) {
   const p = byId.get(providerId) || die(`unknown provider "${providerId || ''}"`);
   const connection = id ? C.get(name, providerId, id) : C.selected(name, providerId);
   if (!connection) {
-    console.log(`\n🔐 authentication options for ${name}/${providerId}\n`);
-    for (const method of C.authOptions(p)) {
-      console.log(`  ${method.id} — ${method.label}`);
-      console.log(`    ${method.scheme} · scope ${method.scope}${method.external ? ' · managed/external auth' : ''}`);
+    console.log(`
+🔐 connection methods for ${name}/${providerId}
+`);
+    for (const source of C.sourceOptions(p)) {
+      console.log(`  ${source.id} — ${source.label}${source.description ? ` · ${source.description}` : ''}`);
+      for (const method of C.authOptions(p, source.id)) console.log(`    ${method.id} — ${method.label} · ${method.scheme} · scope ${method.scope}`);
     }
-    if (p.composio?.source) console.log(`\n  Composio reference: ${p.composio.source}`);
     console.log('');
     return;
   }
-  const method = C.authOption(p, connection.authMethod);
-  console.log(`\n🔗 ${name} › ${providerId} › ${connection.label}`);
+  const source = C.sourceOption(p, connection.source || 'sc');
+  const method = C.authOption(p, connection.source || 'sc', connection.authMethod);
+  console.log(`
+🔗 ${name} › ${providerId} › ${connection.label}`);
+  console.log(`   source : ${source.label} (${connection.source || 'sc'})`);
   console.log(`   auth   : ${method.label} (${method.scheme})`);
   console.log(`   scope  : ${connection.scope || method.scope}`);
   console.log(`   default: ${connection.isDefault ? 'yes' : 'no'}`);
-  if (method.external) {
-    console.log('   local secret: none — this connection must be authorized by the managed/OAuth surface.');
-    if (p.composio?.toolkit) console.log(`   Composio toolkit: ${p.composio.toolkit}`);
-    if (p.composio?.source) console.log(`   reference: ${p.composio.source}`);
-    if (p.composio?.mcpToolkit) console.log(`   MCP toolkit: ${p.composio.mcpToolkit} · auth ${p.composio.mcpAuthScheme || method.scheme}`);
+  if ((connection.source || 'sc') !== 'sc') {
+    const ext = connection.external || {};
+    console.log(`   system : ${ext.system || connection.source}`);
+    if (ext.toolkit || source.toolkit) console.log(`   toolkit: ${ext.toolkit || source.toolkit}`);
+    if (ext.connectedAccountId) console.log(`   account: ${ext.connectedAccountId}`);
+    if (ext.authConfigId) console.log(`   auth config: ${ext.authConfigId}`);
+    if (ext.alias) console.log(`   alias  : ${ext.alias}`);
+    console.log(`   status : ${ext.lastKnownStatus || 'UNLINKED'}`);
+    if (source.reference) console.log(`   reference: ${source.reference}`);
+    console.log('   local provider secret: none.');
   } else {
     const fields=C.connectionFields(p,connection);
     console.log(`   fields : ${fields.map(v=>v.key).join(', ') || '(none)'}`);
     for (const v of fields) {
-      const g=credentialGuide(v.key,{user:name,connection:connection.id,store:`SI-Coder connection "${connection.label}" (${C.connectionPath(name,providerId,connection.id)}, mode 0600)`});
+      const g=credentialGuide(v.key,{user:name,connection:connection.id,store:`SI-Coder connection "${connection.label}" (${C.connectionPath(name,providerId,connection.id)}, mode 0600)`,override:method.guidance?.[v.key] || null});
       if (g.referenceUrl) console.log(`   ${v.key} → ${g.referenceUrl}`);
       if (g.navigationText) console.log(`     click: ${g.navigationText}`);
     }
   }
   console.log('');
-  return { connection, method };
+  return { connection, source, method };
 }
 
 function cmdUserConnectionUse(name, providerId, id) {
@@ -974,6 +1002,47 @@ function cmdUserConnectionUse(name, providerId, id) {
   console.log(`✅ default ${providerId} connection for ${name}: ${row.label} (${row.id})`);
   return row;
 }
+async function cmdUserConnectionAuthorize(name, providerId, id, args = {}) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  if (!id) die('connection id is required');
+  const out = await CC.authorize(name, providerId, id, {
+    authConfigId: args['auth-config'] || null,
+    brokerConnection: args['composio-connection'] || null,
+    callbackUrl: args.callback || null,
+  });
+  audit('connection.external.authorize', { profile:name, provider:providerId, connection:id, source:'composio', connectedAccountId:out.connectedAccountId, authConfigId:out.authConfigId, brokerConnection:out.brokerConnection });
+  invalidateEnvCache();
+  console.log(`✅ Composio authorization started for ${name}/${providerId}/${id}`);
+  console.log(`   status : ${out.status}`);
+  console.log(`   account: ${out.connectedAccountId}`);
+  console.log(`   open   : ${out.redirectUrl}`);
+  if (out.expiresAt) console.log(`   link expires: ${out.expiresAt}`);
+  console.log('   SI-Coder stored only external ids/status; provider tokens remain in Composio.');
+  return out;
+}
+
+async function cmdUserConnectionSync(name, providerId, id) {
+  if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
+  if (!id) die('connection id is required');
+  const out = await CC.sync(name, providerId, id);
+  audit('connection.external.sync', { profile:name, provider:providerId, connection:id, source:'composio', status:out.status, connectedAccountId:out.connectedAccountId });
+  invalidateEnvCache();
+  console.log(`✅ ${name}/${providerId}/${id} · Composio ${out.status}`);
+  return out;
+}
+
+async function cmdConnectionMetadataMigrate(args = {}) {
+  if (!args.yes) {
+    if (!isInteractive()) die('connection metadata migration requires --yes on a non-TTY');
+    if (!(await confirm('Migrate connection metadata v1 → v2 with a 0600 backup?'))) return console.log('cancelled');
+  }
+  const result = C.migrateMetadata();
+  audit('connection.metadata.migrate', { fromVersion:result.fromVersion, toVersion:result.toVersion, changed:result.changed, backup:result.backup ? path.basename(result.backup) : null });
+  console.log(result.changed ? `✅ connection metadata migrated v${result.fromVersion} → v${result.toVersion}` : `✅ connection metadata already v${result.toVersion}`);
+  if (result.backup) console.log(`   backup: ${result.backup}`);
+  return result;
+}
+
 async function cmdUserConnectionLabel(name, providerId, id, label) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
   if (!label) {
@@ -1049,8 +1118,8 @@ async function cmdUserCredentialSet(name, providerId, key, args = {}) {
   const explicit=typeof args.connection==='string'?args.connection:null;
   const conn=C.selected(name,providerId,explicit);
   if (!conn) return withUserProfile(name, async () => key ? cmdSecretSet(providerId,key,args) : cmdProvidersSet(providerId));
-  const method=C.authOption(p,conn.authMethod);
-  if (method.external) die(`${providerId}/${conn.label} uses ${method.scheme} external auth; connect it through the managed/OAuth flow instead of entering a local key`);
+  const method=C.authOption(p,conn.source || 'sc',conn.authMethod);
+  if ((conn.source || 'sc') !== 'sc') die(`${providerId}/${conn.label} uses ${conn.source} / ${method.scheme}; provider credentials are external, so use the connection authorization flow instead of entering a local key`);
   const fields=C.connectionFields(p,conn);
   const store=`SI-Coder connection "${conn.label}" (${C.connectionPath(name,providerId,conn.id)}, mode 0600)`;
   if (key) {
@@ -1081,6 +1150,7 @@ async function cmdUserCredentialRm(name, providerId, key, args = {}) {
   const conn=C.selected(name,providerId,explicit);
   if (!conn) return withUserProfile(name,()=>cmdSecretRm(providerId,key,args));
   const p=byId.get(providerId)||die(`unknown provider "${providerId}"`);
+  if ((conn.source || 'sc') !== 'sc') die(`${providerId}/${conn.label} uses ${conn.source}; it has no local provider credentials to remove`);
   const fields=C.connectionFields(p,conn);
   const keys=key?[fields.find(v=>v.key===key)?.key||die(`${providerId}/${conn.id} does not define ${key}`)]:fields.map(v=>v.key);
   if (!args.yes) {
@@ -1247,7 +1317,11 @@ function parseRunConnectionOverrides(spec, profile) {
     if (eq <= 0 || eq === raw.length - 1) die('--connection expects provider=connection[,provider=connection]');
     const provider = raw.slice(0, eq), connection = raw.slice(eq + 1);
     if (!byId.has(provider)) die(`unknown provider "${provider}" in --connection`);
-    try { C.get(profile, provider, connection); } catch (e) { die(e.message); }
+    let row;
+    try { row = C.get(profile, provider, connection); } catch (e) { die(e.message); }
+    if ((row.source || 'sc') !== 'sc') {
+      die(`sc run can inject only source=sc credentials; ${provider}/${row.label} uses source=${row.source}. Resolve it with sc user connection-request and execute through ${row.source === 'composio' ? 'Composio using its connected account id/alias' : 'the provider-native MCP session'}.`);
+    }
     overrides[provider] = connection;
   }
   return overrides;
@@ -1294,6 +1368,9 @@ async function cmdUser(sub, arg, arg2, args) {
     case 'import-current': return cmdUserImportCurrent(arg, args);
     case 'connections': return cmdUserConnections(arg, arg2);
     case 'connection-add': return cmdUserConnectionAdd(arg, arg2, args._[4], args);
+    case 'connection-authorize': return cmdUserConnectionAuthorize(arg, arg2, args._[4], args);
+    case 'connection-sync': return cmdUserConnectionSync(arg, arg2, args._[4]);
+    case 'connection-metadata-migrate': return cmdConnectionMetadataMigrate(args);
     case 'connection-use': return cmdUserConnectionUse(arg, arg2, args._[4]);
     case 'connection-label': return cmdUserConnectionLabel(arg, arg2, args._[4], args._[5]);
     case 'connection-rm':
@@ -1329,7 +1406,8 @@ async function cmdUser(sub, arg, arg2, args) {
 // doctor — live verification
 // ---------------------------------------------------------------------------
 async function cmdDoctor(args) {
-  const env = currentEnv();
+  const full = currentEnvFull();
+  const env = full.env;
   const ids = resolveIds(args) || PROVIDERS.filter(p => p.status !== 'stub').map(p => p.id);
   console.log('\n🩺 sc doctor — live verification against each provider API\n');
   profileBanner();
@@ -1337,8 +1415,24 @@ async function cmdDoctor(args) {
   let fails = 0, checked = 0;
   const results = await Promise.all(ids.map(async id => {
     const p = byId.get(id);
+    const selected = full.selectedConnections?.[id] || null;
     let r;
-    try { r = await p.check(env); } catch (e) { r = { ok: false, detail: `check threw: ${e.message}` }; }
+    if (selected?.source === 'composio') {
+      if (!selected.externalRef?.connectedAccountId) {
+        r = { ok: false, detail: `${selected.label} · Composio · needs authorization` };
+      } else {
+        try {
+          const synced = await CC.sync(full.profile, id, selected.id);
+          r = { ok: synced.status === 'ACTIVE', detail: `${selected.label} · Composio · ${synced.status}` };
+        } catch (e) {
+          r = { ok: false, detail: `${selected.label} · Composio check failed: ${e.message}` };
+        }
+      }
+    } else if (selected?.source === 'native-mcp') {
+      r = { ok: null, detail: `${selected.label} · native MCP auth is verified in the provider-owned MCP session` };
+    } else {
+      try { r = await p.check(env); } catch (e) { r = { ok: false, detail: `check threw: ${e.message}` }; }
+    }
     return { p, r };
   }));
   for (const { p, r } of results) {
@@ -1515,7 +1609,7 @@ function menuLayer(stack) {
     const legacyCount = p.vars.filter(v => legacy[v.key] !== undefined).length;
     return [
       { id: 'connections', kind: 'branch', label: 'Connections', hint: `${connections.length} named connection(s) · labels + scopes`, preview: UC.previewForProvider(ctx.user, ctx.provider) },
-      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: `OAuth / API key / bearer / project scope for ${ctx.provider}`, preview: [`user ${ctx.user} › ${ctx.provider}`, ...C.authOptions(p).slice(0,3).map(a => `${a.label} · ${a.scheme} · ${a.scope}`)] },
+      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: `choose where ${ctx.provider} authentication is managed`, preview: [`user ${ctx.user} › ${ctx.provider}`, ...C.sourceOptions(p).map(src => `${src.label} · ${src.description || src.id}`)] },
       ...(legacyCount ? [{ id: 'migrate-legacy', kind: 'action', label: 'Migrate legacy credentials', hint: `${legacyCount} legacy field(s) → named default connection`, preview: [`user ${ctx.user} › ${ctx.provider}`, `${legacyCount} legacy field(s) are still stored in the old profile`, 'migration moves values locally without printing them'] }] : []),
       { id: 'details', kind: 'action', label: 'Provider details', hint: `auth methods + integration metadata for ${ctx.provider}` },
       ...(connections.length || legacyCount ? [{ id: 'verify', kind: 'action', label: 'Verify default connection', hint: `live API check using only ${ctx.user}'s selected ${ctx.provider} connection` }] : []),
@@ -1526,23 +1620,38 @@ function menuLayer(stack) {
     const rows = connectionItemsForUser(ctx.user, ctx.provider);
     return [
       ...rows,
-      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: 'choose auth method, then give the connection a label' },
+      { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: 'choose source/backend, then authentication' },
     ];
   }
 
   if (ctx.user && ctx.provider && (here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/add-connection` || here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/add-connection`)) {
     const p = byId.get(ctx.provider);
-    return C.authOptions(p).map(a => {
+    return C.sourceOptions(p).map(source => ({
+      id: `source:${source.id}`, kind: 'branch', pathLabel: source.label, label: source.label,
+      hint: source.description || source.id,
+      preview: [
+        `${ctx.provider} › ${source.label}`,
+        source.description || `connection source: ${source.id}`,
+        source.toolkit ? `toolkit: ${source.toolkit}` : source.id === 'sc' ? 'credentials stay in SI-Coder local 0600 storage' : '',
+        source.reference ? `reference: ${source.reference}` : '',
+      ].filter(Boolean),
+    }));
+  }
+
+  if (ctx.user && ctx.provider && ctx.source && (here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/add-connection/source:${ctx.source}` || here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/add-connection/source:${ctx.source}`)) {
+    const p = byId.get(ctx.provider);
+    const source = C.sourceOption(p, ctx.source);
+    return C.authOptions(p, ctx.source).map(a => {
       const firstField = (a.requiredFields || a.fields || [])[0] || null;
-      const guide = firstField ? credentialGuide(firstField, { user: ctx.user }) : null;
+      const guide = firstField ? credentialGuide(firstField, { user: ctx.user, override: a.guidance?.[firstField] || null }) : null;
       return {
         id: `auth:${a.id}`, kind: 'action', pathLabel: a.label, label: a.label,
-        hint: `${a.scheme} · scope ${a.scope}${a.external ? ' · managed/external' : ''}${a.recommended ? ` · ${a.recommended}` : ''}`,
+        hint: `${a.scheme} · scope ${a.scope}${a.recommended ? ` · ${a.recommended}` : ''}`,
         preview: [
-          `${ctx.provider} › ${a.label}`,
+          `${ctx.provider} › ${source.label} › ${a.label}`,
           `${a.scheme} · scope: ${a.scope}${a.fields?.length ? ` · fields: ${a.fields.join(', ')}` : ''}`,
-          a.external ? 'authorize: managed/OAuth flow · no local provider secret' : guide?.referenceUrl ? `open: ${guide.referenceUrl}` : guide?.createCommand ? `get with: ${guide.createCommand}` : 'direct connection · setup shown per credential field',
-          a.external && p.composio?.source ? `reference: ${p.composio.source}` : guide?.navigationText ? `click: ${guide.navigationText}` : p.composio?.source ? `reference: ${p.composio.source}` : '',
+          ctx.source === 'sc' ? (guide?.referenceUrl ? `open: ${guide.referenceUrl}` : guide?.createCommand ? `get with: ${guide.createCommand}` : 'direct connection · setup shown per credential field') : 'external account · provider credential is not stored in SI-Coder',
+          ctx.source === 'sc' ? (guide?.navigationText ? `click: ${guide.navigationText}` : '') : source.reference ? `reference: ${source.reference}` : '',
         ].filter(Boolean),
       };
     });
@@ -1552,7 +1661,9 @@ function menuLayer(stack) {
     const c = UC.connectionStatus(ctx.user, ctx.provider, ctx.connection);
     const items = [
       ...(!c.external && c.total ? [{ id: 'credentials', kind: 'branch', label: 'Credentials', hint: `${c.total} field(s) in ${c.label}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
-      { id: 'auth-guide', kind: 'action', label: c.external ? 'Authorization guide' : 'Auth / setup guide', hint: `${c.scheme} · ${c.scope}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) },
+      { id: 'auth-guide', kind: 'action', label: c.external ? 'Authorization guide' : 'Auth / setup guide', hint: `${c.sourceLabel} · ${c.scheme} · ${c.scope}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) },
+      ...(c.source === 'composio' && !c.externalRef?.connectedAccountId ? [{ id: 'connect-external', kind: 'action', label: 'Connect account', hint: 'create a secure Composio Connect Link', preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
+      ...(c.source === 'composio' && c.externalRef?.connectedAccountId ? [{ id: 'sync-external', kind: 'action', label: 'Refresh status', hint: 'read safe Connected Account status; credentials are discarded', preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
       ...(!c.isDefault ? [{ id: 'default-connection', kind: 'action', label: 'Set as default', hint: `use ${c.label} when ${ctx.provider} has no explicit connection override`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
       { id: 'label-connection', kind: 'action', label: 'Rename label', hint: `current label: ${c.label}` },
       ...(!c.external ? [{ id: 'verify-connection', kind: 'action', label: 'Verify this connection', hint: 'live API check with only this connection injected' }] : []),
@@ -1599,11 +1710,13 @@ function menuLayer(stack) {
 function menuContext(stack) {
   const userNode = [...stack].reverse().find(x => x.id.startsWith('user:'));
   const providerNode = [...stack].reverse().find(x => x.id.startsWith('provider:'));
+  const sourceNode = [...stack].reverse().find(x => x.id.startsWith('source:'));
   const connectionNode = [...stack].reverse().find(x => x.id.startsWith('connection:'));
   const credentialNode = [...stack].reverse().find(x => x.id.startsWith('credential:'));
   return {
     user: userNode ? userNode.id.slice('user:'.length) : null,
     provider: providerNode ? providerNode.id.slice('provider:'.length) : null,
+    source: sourceNode ? sourceNode.id.slice('source:'.length) : null,
     connection: connectionNode ? connectionNode.id.slice('connection:'.length) : null,
     credential: credentialNode ? credentialNode.id.slice('credential:'.length) : null,
   };
@@ -1634,7 +1747,7 @@ const MENU_SECTIONS = [
 async function runMenuAction(stack, item) {
   const ids = stack.map(x => x.id);
   const here = ids.join('/');
-  const { user, provider, connection, credential } = menuContext(stack);
+  const { user, provider, source, connection, credential } = menuContext(stack);
   try {
     if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
     if (here === '' && item.id === 'quit') return 'quit';
@@ -1669,12 +1782,14 @@ async function runMenuAction(stack, item) {
     }
 
 
-    if (user && provider && (here === `users/user:${user}/providers/provider:${provider}/add-connection` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection`) && item.id.startsWith('auth:')) {
-      return cmdUserConnectionAdd(user, provider, undefined, { auth: item.id.slice('auth:'.length) });
+    if (user && provider && source && (here === `users/user:${user}/providers/provider:${provider}/add-connection/source:${source}` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection/source:${source}`) && item.id.startsWith('auth:')) {
+      return cmdUserConnectionAdd(user, provider, undefined, { source, auth: item.id.slice('auth:'.length) });
     }
 
     if (user && provider && connection && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}`) {
       if (item.id === 'auth-guide') return cmdUserConnectionGuide(user, provider, connection);
+      if (item.id === 'connect-external') return cmdUserConnectionAuthorize(user, provider, connection, {});
+      if (item.id === 'sync-external') return cmdUserConnectionSync(user, provider, connection);
       if (item.id === 'default-connection') return cmdUserConnectionUse(user, provider, connection);
       if (item.id === 'label-connection') return cmdUserConnectionLabel(user, provider, connection);
       if (item.id === 'verify-connection') return cmdUserVerify(user, provider, { connection });
@@ -1712,12 +1827,12 @@ async function runMenuAction(stack, item) {
 
 function menuActionNeedsTerminal(stack, item) {
   const here = stack.map(x => x.id).join('/');
-  const { user, provider, connection, credential } = menuContext(stack);
+  const { user, provider, source, connection, credential } = menuContext(stack);
   if (here === 'users' && item.id === 'add') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
   if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
-  if (user && provider && (here === `users/user:${user}/providers/provider:${provider}/add-connection` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection`) && item.id.startsWith('auth:')) return true;
-  if (user && provider && connection && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}` && ['label-connection', 'delete-connection'].includes(item.id)) return true;
+  if (user && provider && source && (here === `users/user:${user}/providers/provider:${provider}/add-connection/source:${source}` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection/source:${source}`) && item.id.startsWith('auth:')) return true;
+  if (user && provider && connection && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}` && ['connect-external', 'label-connection', 'delete-connection'].includes(item.id)) return true;
   if (user && provider && connection && credential && here === `users/user:${user}/providers/provider:${provider}/connections/connection:${connection}/credentials/credential:${credential}` && ['set', 'remove'].includes(item.id)) return true;
   if (here === 'system/readiness') return true;
   return false;
@@ -1882,7 +1997,13 @@ sc — SI-Coder interactive console + secret control plane
   sc user rename <src> <dst>          rename user + migrate default/folder mappings
   sc user connections <name> [provider]
                                       list labeled connections + auth/scope; no plaintext
-  sc user connection-add <name> <provider> <label> --auth <method> [--default]
+  sc user connection-add <name> <provider> <label> --source <sc|composio|native-mcp> --auth <method> [--default]
+  sc user connection-authorize <name> <provider> <connection> [--auth-config ID] [--composio-connection ID]
+                                      create a transient Composio Connect Link; persists only external ids/status
+  sc user connection-sync <name> <provider> <connection>
+                                      refresh safe connected-account status from Composio
+  sc user connection-metadata-migrate --yes
+                                      persist v1→v2 source/backend metadata with a 0600 backup
   sc user connection-use <name> <provider> <connection>
   sc user connection-label <name> <provider> <connection> <label>
   sc user connection-rm <name> <provider> <connection> [--yes]

@@ -247,9 +247,105 @@ test('PRF-19: duplicate, rename, and delete user lifecycle includes named connec
 
 test('PRF-20: named connection env roundtrips quotes and shell metacharacters in a 0600 file', () => {
   P.writeProfile('quoted-conn', {});
-  C.create('quoted-conn', 'github', { id: 'quoted', label: 'Quoted', authMethod: 'personal-access-token', setDefault: true });
+  C.create('quoted-conn', 'github', { id: 'quoted', label: 'Quoted', source: 'sc', authMethod: 'classic-pat', setDefault: true });
   const value = "ghp_quote'with $dollar and `tick`";
   C.writeValues('quoted-conn', 'github', 'quoted', { GITHUB_TOKEN: value, GH_OWNER: 'quoted-owner' });
   assert.strictEqual(C.readValues('quoted-conn', 'github', 'quoted').GITHUB_TOKEN, value);
   assert.strictEqual(fs.statSync(C.connectionPath('quoted-conn', 'github', 'quoted')).mode & 0o777, 0o600);
+});
+
+test('PRF-21: v1 connection metadata normalizes read-only and migrates explicitly to source/backend v2', () => {
+  const UC = require('../lib/user-control');
+  P.writeProfile('legacy-v1', {});
+
+  const fgPath = C.connectionPath('legacy-v1', 'github', 'direct-fg');
+  const classicPath = C.connectionPath('legacy-v1', 'github', 'direct-classic');
+  fs.mkdirSync(path.dirname(fgPath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(fgPath, `GITHUB_TOKEN='github_pat_${'x'.repeat(48)}'\n`, { mode: 0o600 });
+  fs.writeFileSync(classicPath, `GITHUB_TOKEN='ghp_${'y'.repeat(48)}'\n`, { mode: 0o600 });
+
+  const rawV1 = {
+    version: 1,
+    users: {
+      'legacy-v1': {
+        providers: {
+          github: {
+            default: 'direct-fg',
+            connections: {
+              'direct-fg': { label: 'Fine', authMethod: 'personal-access-token', scope: 'account', source: 'legacy-profile' },
+              'direct-classic': { label: 'Classic', authMethod: 'personal-access-token', scope: 'account' },
+              oauth: { label: 'OAuth Placeholder', authMethod: 'oauth2', scope: 'account' },
+            },
+          },
+          vercel: {
+            default: 'native',
+            connections: {
+              native: { label: 'Native MCP', authMethod: 'mcp-oauth', scope: 'account' },
+            },
+          },
+        },
+      },
+    },
+  };
+  fs.writeFileSync(C.CONNECTION_META, `${JSON.stringify(rawV1, null, 2)}\n`, { mode: 0o600 });
+
+  const normalized = C.readMeta();
+  assert.strictEqual(normalized.version, 2);
+  assert.strictEqual(JSON.parse(fs.readFileSync(C.CONNECTION_META, 'utf8')).version, 1, 'read must not persist migration');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').source, 'sc');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').origin, 'legacy-profile');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-fg').authMethod, 'fine-grained-pat');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'direct-classic').authMethod, 'classic-pat');
+  assert.strictEqual(C.get('legacy-v1', 'github', 'oauth').source, 'composio');
+  assert.strictEqual(UC.connectionStatus('legacy-v1', 'github', 'oauth').state, 'needs-authorization');
+  assert.strictEqual(C.get('legacy-v1', 'vercel', 'native').source, 'native-mcp');
+  assert.strictEqual(C.get('legacy-v1', 'vercel', 'native').authMethod, 'dcr-oauth');
+
+  const result = C.migrateMetadata();
+  assert.strictEqual(result.changed, true);
+  assert.strictEqual(result.fromVersion, 1);
+  assert.strictEqual(result.toVersion, 2);
+  assert.ok(result.backup && fs.existsSync(result.backup));
+  assert.strictEqual(fs.statSync(result.backup).mode & 0o777, 0o600);
+  const persisted = fs.readFileSync(C.CONNECTION_META, 'utf8');
+  assert.strictEqual(JSON.parse(persisted).version, 2);
+  assert.doesNotMatch(persisted, /github_pat_|ghp_/i, 'secret values must never enter metadata');
+});
+
+test('PRF-22: named connection credential removal is exact and external connections create no local credential file', () => {
+  P.writeProfile('remove-exact', {});
+  C.create('remove-exact', 'github', { id: 'direct', label: 'Direct', source: 'sc', authMethod: 'classic-pat', setDefault: true });
+  C.writeValues('remove-exact', 'github', 'direct', { GITHUB_TOKEN: 'ghp_' + 'z'.repeat(48), GH_OWNER: 'owner' });
+  assert.deepStrictEqual(C.removeValues('remove-exact', 'github', 'direct', ['GITHUB_TOKEN']), ['GITHUB_TOKEN']);
+  const remaining = C.readValues('remove-exact', 'github', 'direct');
+  assert.strictEqual(remaining.GITHUB_TOKEN, undefined);
+  assert.strictEqual(remaining.GH_OWNER, 'owner');
+
+  C.create('remove-exact', 'github', {
+    id: 'external', label: 'External', source: 'composio', authMethod: 'oauth2',
+    external: { system: 'composio', toolkit: 'github', alias: 'external', lastKnownStatus: 'UNLINKED' },
+  });
+  assert.ok(!fs.existsSync(C.connectionPath('remove-exact', 'github', 'external')), 'external metadata connection must not create a local credential file');
+});
+
+
+test('PRF-23: selecting an external connection strips local and shell provider credentials instead of leaking them into the route', () => {
+  P.writeProfile('external-isolation', { GITHUB_TOKEN: 'ghp_legacy_should_not_route', GH_OWNER: 'legacy-owner' });
+  C.create('external-isolation', 'github', {
+    id: 'work-github', label: 'Work GitHub', source: 'composio', authMethod: 'oauth2', scope: 'account', setDefault: true,
+    external: { system: 'composio', toolkit: 'github', alias: 'work-github', lastKnownStatus: 'UNLINKED' },
+  });
+  const resolved = P.loadEnvForProfile('external-isolation', {
+    shellRcEnv: { GITHUB_TOKEN: 'ghp_shell_should_not_route', GH_OWNER: 'shell-owner', PATH: '/usr/bin' },
+    connectionOverrides: { github: 'work-github' },
+  });
+  assert.strictEqual(resolved.env.GITHUB_TOKEN, undefined);
+  assert.strictEqual(resolved.env.GH_OWNER, undefined);
+  assert.ok(resolved.shadowed.includes('GITHUB_TOKEN'));
+  assert.ok(resolved.shadowed.includes('GH_OWNER'));
+  assert.ok(resolved.env.PATH && resolved.env.PATH.includes('/usr/bin'), 'non-credential env must survive external routing');
+  assert.strictEqual(resolved.selectedConnections.github.id, 'work-github');
+  assert.strictEqual(resolved.selectedConnections.github.source, 'composio');
+  assert.strictEqual(resolved.selectedConnections.github.external, true);
+  assert.deepStrictEqual(resolved.selectedConnections.github.keyNames, []);
 });

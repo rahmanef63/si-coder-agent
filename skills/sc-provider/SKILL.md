@@ -60,7 +60,7 @@ To consume credentials, run the actual tool under the resolved profile:
 sc run -- <command> [args...]
 ```
 
-This injects the profile environment into the child without printing secret values.
+This injects only resolved `source=sc` credential sets into the child without printing secret values. `sc run` deliberately refuses `source=composio` / `source=native-mcp`; resolve those connections in SI-Coder, then execute through the returned Connected Account or provider-owned MCP session.
 
 ## SC + Composio hybrid routing
 
@@ -110,20 +110,20 @@ The user-first hierarchy is now:
 User → Provider → Connection(alias) → Credential fields
 ```
 
-One user may own several isolated connections for the same provider (work/personal GitHub, multiple Convex deployments, multiple Vercel teams, client accounts, etc.). Each connection has a unique label/alias within that user+provider, one auth method, one scope, and a private `0600` env file.
+One user may own several isolated connections for the same provider (work/personal GitHub, multiple Convex deployments, multiple Vercel teams, client accounts, etc.). Each connection has a unique label/alias within that user+provider, one **source/backend**, one auth method, and one scope. Only `source=sc` has a private `0600` env file; external sources keep provider credentials outside SI-Coder.
 
 ```bash
 sc user connections <user> [provider]
-sc user connection-add <user> <provider> "<label>" --auth <method> [--default]
+sc user connection-add <user> <provider> "<label>" --source <sc|composio|native-mcp> --auth <method> [--default]
 sc user connection-use <user> <provider> <connection>
 sc user connection-label <user> <provider> <connection> "<new label>"
 sc user connection-rm <user> <provider> <connection>
 sc user connection-migrate <user> [provider]
 ```
 
-The provider's `auth[]` metadata in `lib/providers.js` defines whether a connection uses OAuth, API key, Bearer token, or local/generated config and which fields are required for that method.
+The provider's `sources` metadata selects the backend first; direct `auth[]` then defines local auth methods. External source metadata supplies its own auth schemes. Do not put Composio back into direct `auth[]`.
 
-OAuth/external connections must not copy provider access/refresh tokens into SI-Coder. Store only the local alias/scope metadata and authorize through the external connected-account flow.
+OAuth/external connections must not copy provider access/refresh tokens into SI-Coder. Store only safe external ids/alias/scope/status and authorize Composio-backed connections through `connected_accounts/link`. Never persist `link_token`, redirect URL, or Connected Account credential state.
 
 Direct credential values live under:
 
@@ -133,11 +133,13 @@ Direct credential values live under:
 
 Legacy `profiles/<user>.env` remains a compatibility/migration source only. A selected named connection atomically overrides the legacy provider fields so credentials from two accounts cannot be merged accidentally.
 
-For one command, select a non-default connection without changing the user's stored default:
+For one command, select a non-default **direct (`source=sc`)** connection without changing the user's stored default:
 
 ```bash
 sc run --connection github=work,convex-cloud=client-a-production -- <command>
 ```
+
+Never pass a Composio/native-MCP connection to `sc run`; resolve it, then use the external backend explicitly.
 
 ## Credential CRUD
 

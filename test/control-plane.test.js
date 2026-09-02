@@ -289,7 +289,7 @@ test('SCCP-12: user credential request exposes source URL/navigation but never a
   });
   assert.strictEqual(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  assert.strictEqual(out.referenceUrl, 'https://github.com/settings/tokens/new');
+  assert.strictEqual(out.referenceUrl, 'https://github.com/settings/personal-access-tokens/new');
   assert.ok(Array.isArray(out.navigation) && out.navigation.length >= 3);
   assert.match(out.navigationText, /Generate token/i);
   assert.strictEqual(out.requiresUserTerminal, true);
@@ -363,16 +363,18 @@ test('SCCP-15: external OAuth connection request returns alias-based managed-aut
   const call = (action, input) => spawnSync(process.execPath, [AGENT, action], {
     cwd: ROOT, env, input: JSON.stringify(input), encoding: 'utf8', timeout: 20000,
   });
-  let r = call('user.connection.manage', { user: 'agent', provider: 'github', action: 'create', label: 'Work GitHub', authMethod: 'oauth2', confirm: true });
+  let r = call('user.connection.manage', { user: 'agent', provider: 'github', action: 'create', label: 'Work GitHub', source: 'composio', authMethod: 'oauth2', confirm: true });
   assert.strictEqual(r.status, 0, r.stderr);
   r = call('user.connection.request', { user: 'agent', provider: 'github', connection: 'work-github' });
   assert.strictEqual(r.status, 0, r.stderr);
   const j = JSON.parse(r.stdout);
+  assert.strictEqual(j.connection.source, 'composio');
   assert.strictEqual(j.connection.external, true);
-  assert.strictEqual(j.managedConnectionAction.toolkit, 'github');
-  assert.strictEqual(j.managedConnectionAction.alias, 'work-github');
-  assert.strictEqual(j.managedConnectionAction.requireExplicitSelectionWhenMultiple, true);
-  assert.match(j.managedConnectionAction.strategy, /composio-session-authorize/);
+  assert.strictEqual(j.connection.state, 'needs-authorization');
+  assert.strictEqual(j.externalConnectionAction.toolkit, 'github');
+  assert.strictEqual(j.externalConnectionAction.alias, 'work-github');
+  assert.strictEqual(j.externalConnectionAction.requireExplicitSelectionWhenMultiple, true);
+  assert.strictEqual(j.externalConnectionAction.strategy, 'composio-connect-link');
   assert.deepStrictEqual(j.fields, []);
   assert.doesNotMatch(r.stdout, /access_token|refresh_token|oauth_token/i);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -388,7 +390,7 @@ test('SCCP-15b: pre-connection Convex auth selection includes per-field endpoint
   const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
   run(['user', 'add', 'agent'], { env });
   const r = spawnSync(process.execPath, [AGENT, 'user.connection.request'], {
-    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'convex-cloud', authMethod: 'personal-access-token' }), encoding: 'utf8', timeout: 20000,
+    cwd: ROOT, env, input: JSON.stringify({ user: 'agent', provider: 'convex-cloud', source: 'sc', authMethod: 'personal-access-token' }), encoding: 'utf8', timeout: 20000,
   });
   assert.strictEqual(r.status, 0, r.stderr);
   const j = JSON.parse(r.stdout);
@@ -396,7 +398,7 @@ test('SCCP-15b: pre-connection Convex auth selection includes per-field endpoint
   assert.strictEqual(j.selectedAuthMethod.fieldGuidance[0].key, 'CONVEX_PERSONAL_ACCESS_TOKEN');
   assert.strictEqual(j.selectedAuthMethod.fieldGuidance[0].referenceUrl, 'https://dashboard.convex.dev/profile#personal-access-tokens');
   assert.ok(j.selectedAuthMethod.fieldGuidance[0].navigation.length >= 3);
-  const deploy = j.authMethods.find(x => x.id === 'deployment-key');
+  const deploy = j.selectedSource.authMethods.find(x => x.id === 'deployment-key');
   assert.deepStrictEqual(deploy.fieldGuidance.map(x => x.key), ['CONVEX_DEPLOYMENT_NAME', 'CONVEX_DEPLOY_KEY']);
   assert.ok(deploy.fieldGuidance.every(x => x.referenceUrl && x.navigation.length));
   fs.rmSync(dir, { recursive: true, force: true });
@@ -417,5 +419,81 @@ test('SCCP-16: custom provider acquisition navigation survives metadata -> conne
   const j = JSON.parse(r.stdout);
   assert.strictEqual(j.fields[0].referenceUrl, 'https://example.com/settings');
   assert.deepStrictEqual(j.fields[0].navigation, ['Settings', 'API Keys', 'Create']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+
+test('SCCP-17: external connections never expose local credential-set handoff and reject direct credential editing', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'github', 'Work GitHub', '--source', 'composio', '--auth', 'oauth2', '--default'], { env });
+
+  let r = spawnSync(process.execPath, [AGENT, 'user.credential.request'], {
+    cwd: ROOT, env,
+    input: JSON.stringify({ user: 'agent', provider: 'github', connection: 'work-github', key: 'GITHUB_TOKEN' }),
+    encoding: 'utf8', timeout: 20000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const handoff = JSON.parse(r.stdout);
+  assert.strictEqual(handoff.external, true);
+  assert.strictEqual(handoff.source, 'composio');
+  assert.strictEqual(handoff.requiresUserTerminal, false);
+  assert.strictEqual(handoff.command, null);
+  assert.strictEqual(handoff.referenceUrl, null);
+  assert.match(handoff.next, /connection\.request|external authorization/i);
+
+  r = spawnSync(process.execPath, [SC, 'user', 'credential-set', 'agent', 'github', 'GITHUB_TOKEN', '--connection', 'work-github', '--stdin'], {
+    cwd: ROOT, env, encoding: 'utf8', timeout: 20000,
+  });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(`${r.stdout || ''}${r.stderr || ''}`, /credentials are external|authorization flow/i);
+
+  r = spawnSync(process.execPath, [SC, 'user', 'credential-rm', 'agent', 'github', 'GITHUB_TOKEN', '--connection', 'work-github', '--yes'], {
+    cwd: ROOT, env, encoding: 'utf8', timeout: 20000,
+  });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(`${r.stdout || ''}${r.stderr || ''}`, /no local provider credentials/i);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-18: sc run refuses an external connection before child execution', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config };
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'use', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'github', 'Work GitHub', '--source', 'composio', '--auth', 'oauth2', '--default'], { env });
+  const r = spawnSync(process.execPath, [SC, 'run', '--connection', 'github=work-github', '--', process.execPath, '-e', 'process.stdout.write("CHILD_RAN")'], {
+    cwd: ROOT, env, encoding: 'utf8', timeout: 20000,
+  });
+  assert.notStrictEqual(r.status, 0);
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  assert.match(out, /source=composio/);
+  assert.match(out, /connected account id\/alias|Composio/i);
+  assert.doesNotMatch(out, /CHILD_RAN/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('SCCP-19: source-aware verify reports unlinked Composio connection without falling through to direct GitHub auth', () => {
+  const dir = tmp();
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config, GITHUB_TOKEN: 'ghp_shell_must_not_be_verified' };
+  run(['user', 'add', 'agent'], { env });
+  run(['user', 'connection-add', 'agent', 'github', 'Work GitHub', '--source', 'composio', '--auth', 'oauth2', '--default'], { env });
+  const r = spawnSync(process.execPath, [SC, 'user', 'verify', 'agent', 'github', '--connection', 'work-github'], {
+    cwd: ROOT, env, encoding: 'utf8', timeout: 20000,
+  });
+  assert.notStrictEqual(r.status, 0);
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  assert.match(out, /Composio · needs authorization/i);
+  assert.doesNotMatch(out, /ghp_shell_must_not_be_verified/);
   fs.rmSync(dir, { recursive: true, force: true });
 });

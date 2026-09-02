@@ -1,170 +1,233 @@
 # Composio auth model reference for SI-Coder
 
-Verified against current Composio and provider documentation on **2026-09-02**.
+Verified against current Composio documentation on **2026-09-02**. The executable SI-Coder registry SSOT is `lib/providers.js`; connection persistence is `lib/connections.js`; Composio lifecycle logic is `lib/composio-connections.js`.
 
-This document is research/reference. The executable SI-Coder auth SSOT is `lib/providers.js`.
+## Mental model
 
-## Why SI-Coder follows this model
+Keep these five questions separate:
 
-Composio separates three ideas that SI-Coder should also keep separate:
+1. **User** — who owns the integration.
+2. **Provider** — the actual service: GitHub, Convex, Vercel, Gmail, etc.
+3. **Connection** — one concrete account/project/deployment, with a stable id and human label.
+4. **Source/backend** — where authentication is actually managed: `sc`, `composio`, or `native-mcp`.
+5. **Auth scheme + scope** — OAuth2, PAT/Bearer, API key, DCR OAuth, account/project/deployment/team/server scope, etc.
 
-1. **User** — the human/entity whose integrations are isolated.
-2. **Toolkit/provider** — GitHub, Convex, Vercel, Stripe, etc.
-3. **Connected account** — one concrete credential/authorization for that provider.
-
-One user may connect multiple accounts for the same toolkit. Composio gives each account a human-readable **alias**, requires aliases to be unique per user+toolkit, and lets execution explicitly select an alias/account instead of silently mixing credentials.
-
-SI-Coder mirrors that as:
+SI-Coder therefore models:
 
 ```text
-User → Provider → Connection(alias) → Credential fields
+User
+└─ Provider
+   └─ Connection
+      ├─ source/backend
+      ├─ auth method / scheme
+      ├─ scope
+      ├─ default selection
+      └─ external reference OR local credential fields
 ```
 
-A connection also records its authentication scheme and scope (`account`, `project`, `deployment`, `team`, `server`, etc.).
+Example:
+
+```text
+rahmanfakhr
+└─ GitHub
+   ├─ Default GitHub
+   │  source = sc
+   │  auth   = Fine-grained PAT
+   │  scope  = account
+   │
+   └─ Work GitHub
+      source = composio
+      auth   = OAuth2
+      scope  = account
+      external.connectedAccountId = ca_...
+```
+
+**Composio is not a GitHub auth method and not the parent provider.** GitHub remains the provider. Composio is the connection source/backend.
+
+## Composio concepts mapped to SI-Coder
+
+Composio separates:
+
+- **Toolkit** — provider integration such as `github`.
+- **Auth Config** — authentication blueprint: scheme, scopes, and auth configuration. It is project-scoped.
+- **Connected Account** — one user's authenticated toolkit account.
+- **Alias / connected account id** — explicit identity used when one user has multiple accounts for the same toolkit.
+
+SI-Coder stores the equivalent routing identity but does not copy externally managed provider credentials into its vault.
 
 References:
-- https://docs.composio.dev/docs/authentication/managing-multiple-connected-accounts
-- https://docs.composio.dev/docs/authentication
 - https://docs.composio.dev/reference/api-reference/auth-configs
-- https://docs.composio.dev/docs/configuring-sessions
+- https://docs.composio.dev/docs/authentication/managing-multiple-connected-accounts
+- https://docs.composio.dev/docs/auth-configuration/connected-accounts
 
-## Auth-scheme semantics
+## Connection source contract
 
-| Scheme | Meaning in SI-Coder | Secret storage |
+### `source = sc`
+
+SI-Coder owns the direct credential lifecycle. Values live only in:
+
+```text
+~/.config/si-coder/connections/<user>/<provider>/<connection>.env
+```
+
+The file is mode `0600`. Examples: GitHub PAT, Convex Cloud PAT/deploy key, Vercel token, Dokploy API key.
+
+### `source = composio`
+
+Composio owns the provider credential. SI-Coder stores **no provider access/refresh token** and creates no local provider credential file for the connection.
+
+Safe persisted metadata is limited to routing/lifecycle fields such as:
+
+```json
+{
+  "system": "composio",
+  "brokerConnection": "project",
+  "toolkit": "github",
+  "connectedAccountId": "ca_...",
+  "alias": "work-github",
+  "authConfigId": "ac_...",
+  "lastKnownStatus": "ACTIVE",
+  "checkedAt": "..."
+}
+```
+
+A Composio **project API key** is a separate normal SI-Coder provider connection under provider `composio`; it gives SI-Coder permission to create/read Connected Account metadata in that Composio project. An organization token is a different connection and is not used as a project API key.
+
+### `source = native-mcp`
+
+Authentication belongs to the provider-owned MCP/OAuth surface. SI-Coder stores only routing identity/status references and does not copy the provider credential.
+
+## Auth schemes
+
+| Scheme | Meaning | Storage rule |
 |---|---|---|
-| `OAUTH2` | User authorizes a hosted/provider consent flow | OAuth tokens stay in the external connected-account system when managed externally |
-| `DCR_OAUTH` | Dynamic-client-registration OAuth, commonly for hosted MCP servers | External connected account |
-| `API_KEY` | Static key supplied by the user/provider | Local named connection when using SC directly, or external connected account when a connector owns it |
-| `BEARER_TOKEN` | Long-lived bearer/token already issued by provider | Same rule as API key |
-| `LOCAL` | Non-provider config discovered/generated on the machine | Local connection only |
+| `OAUTH2` | Hosted/provider OAuth consent | External when source is Composio/native MCP |
+| `DCR_OAUTH` | Dynamic-client-registration OAuth, common for MCP | External/native MCP |
+| `API_KEY` | Static key | Local only for `source=sc`; otherwise external system |
+| `BEARER_TOKEN` | Long-lived bearer/PAT | Local only for `source=sc`; otherwise external system |
+| `BASIC` | Username/password basic auth | External or direct according to source |
+| `LOCAL` | Machine-generated/discovered config | `source=sc` only |
 
-Composio supports OAuth2, API key, Bearer token, and Basic Auth in auth configs. SI-Coder does not need to emulate Composio's credential vault; it only borrows the identity/scope model.
+Composio Auth Configs support OAuth2, API key, Bearer, and Basic schemes.
 
 Reference: https://docs.composio.dev/reference/api-reference/auth-configs
 
-## Useful provider matrix
+## Current Composio Connect Link lifecycle
 
-| Provider / toolkit | Current Composio auth | SI-Coder recommendation | Scope model |
-|---|---|---|---|
-| GitHub | OAuth2; managed app available | Hosted agents: OAuth/Composio. Local CLI: named PAT connection | account |
-| Convex Cloud | Bearer Token + API Key | Bearer PAT for account/management; Deployment Name + Deploy Key for deployment/project work | account or deployment |
-| Supabase | OAuth2 + API Key; managed app available | Hosted: OAuth. Local/admin automation: PAT connection | organization/account |
-| Vercel | OAuth2 + API Key; Vercel MCP also exposes `DCR_OAUTH` | Prefer MCP/OAuth where available; local automation may use a named account/team token | account/team |
-| Stripe | OAuth2 + API Key; managed app available | Hosted/multi-user: OAuth; local single-account automation: secret-key connection | account |
-| Cloudflare | API Key | Named API-token connection, optionally carrying account/zone IDs | account/zone |
-| Resend | API Key | Named API-key connection + sender-domain metadata | account/domain |
-| Neon | API Key | Candidate future SI-Coder provider; use per-account/org API-key connection | account/organization |
-| Dokploy | No SI-Coder Composio dependency | Direct named admin connection to one Dokploy server | server |
-| Hostinger | Direct SI-Coder API token path | Named account token; do not infer ownership from another provider | account |
-| Convex self-hosted | Generated deployment admin key | Keep separate from Convex Cloud; one named connection per self-hosted deployment when manual override is necessary | deployment |
-| Composio itself | Project API key, scoped project API key, organization API key | Separate project vs organization connections; never treat an org token as a project token | project or organization |
-
-Toolkit references:
-- GitHub: https://docs.composio.dev/toolkits/github
-- Convex: https://docs.composio.dev/toolkits/convex
-- Supabase: https://docs.composio.dev/toolkits/supabase
-- Vercel: https://docs.composio.dev/toolkits/vercel
-- Vercel MCP: https://docs.composio.dev/toolkits/vercel_mcp
-- Stripe: https://docs.composio.dev/toolkits/stripe
-- Cloudflare: https://docs.composio.dev/toolkits/cloudflare
-- Resend: https://docs.composio.dev/toolkits/resend
-- Neon: https://docs.composio.dev/toolkits/neon
-- Composio API authentication: https://docs.composio.dev/reference/authenticating-to-composio
-
-## Convex: keep three connection types distinct
-
-### 1. Self-hosted Convex
-
-Provider id: `convex`
-
-This is the Convex backend running on Dokploy/self-hosted infrastructure. `CONVEX_ADMIN_KEY` is normally generated by the deployment flow and should not be confused with a Convex Cloud account token or deploy key.
-
-### 2. Convex Cloud — account/admin access
-
-Provider id: `convex-cloud`
-
-Auth method: `personal-access-token`
+For a Composio-backed connection:
 
 ```text
-Scheme: BEARER_TOKEN
-Scope : account
-Field : CONVEX_PERSONAL_ACCESS_TOKEN
+SC user/provider/connection
+→ resolve the same user's Composio project connection
+→ resolve/pin an Auth Config for the toolkit + scheme
+→ POST /api/v3.1/connected_accounts/link
+→ return the transient redirect URL to the human
+→ persist only connected_account_id/auth_config_id/alias/status
+→ poll GET /api/v3.1/connected_accounts/{id}
+→ ACTIVE
 ```
 
-Create/manage:
-https://dashboard.convex.dev/profile#personal-access-tokens
+The v3.1 Link endpoint accepts `auth_config_id`, `user_id`, optional alias/callback URL, and returns `redirect_url`, `expires_at`, `connected_account_id`, and `link_token`.
 
-Convex's Management API accepts Bearer authentication. A personal access token created in dashboard user settings has the access of that account, so it should be treated as broad account/management authorization rather than a deployment credential.
+**SI-Coder deliberately discards `link_token` and never stores the redirect URL.** The redirect URL is transient user-facing authorization data. Connected-account GET responses may contain credential state, so `lib/composio-connections.js` allow-lists only safe identity/status fields and drops `state` entirely.
+
+For Composio-managed OAuth, use `link()` / `/connected_accounts/link`. The older create/initiate path for managed OAuth was retired in 2026; do not reintroduce it.
 
 References:
-- https://docs.convex.dev/management-api/overview
-- https://docs.convex.dev/management-api/convex-management-api
-- https://docs.convex.dev/management-api/get-token-details
+- https://docs.composio.dev/reference/api-reference/connected-accounts/postConnectedAccountsLink
+- https://docs.composio.dev/docs/auth-configuration/migrating-initiate-to-link
+- https://docs.composio.dev/reference/api-reference/connected-accounts/getConnectedAccountsByNanoid
 
-### 3. Convex Cloud — project/deployment access
+## Multiple accounts
 
-Auth method: `deployment-key`
+One user may have multiple Connected Accounts for the same toolkit. Keep SI-Coder labels simple (`Default GitHub`, `Work GitHub`, `Client A GitHub`) and store source/owner/provider separately rather than encoding them into labels.
+
+Execution rule:
 
 ```text
-Scheme: API_KEY
-Scope : deployment
-Fields:
-  CONVEX_DEPLOYMENT_NAME
-  CONVEX_DEPLOY_KEY
+Agent asks SI-Coder which connection to use
+→ source=sc       : use the selected direct SC connection
+→ source=composio : use toolkit + connectedAccountId/alias directly with Composio
+→ source=native-mcp: use the provider-native MCP account/session
 ```
 
-Typical labels:
+SI-Coder is the resolver/control plane. It should not wrap every Composio tool execution when the agent can execute against Composio directly.
+
+## GitHub
+
+### Direct
 
 ```text
-production-api
-preview-pr-123
-client-a-prod
+source = sc
 ```
 
-The deployment name identifies the target deployment (`acoustic-panther-728`, for example). The deploy key is created for that deployment and may be `prod:`, `preview:`, or `dev:`. Use the smallest permission set required; deployment pipelines need `deployment:deploy`, while an agent that inspects logs/data/env may need additional explicit role actions.
+Preferred choices:
 
-References:
-- https://docs.convex.dev/management-api/create-deploy-key
-- https://docs.convex.dev/deployment-platform-api
-- https://docs.convex.dev/team-management/role-actions
+- `fine-grained-pat` — recommended when its repository/permission model covers the required operation.
+- `classic-pat` — compatibility/broad repository automation path.
 
-## Composio project vs organization credentials
+The method-specific guidance points to the correct GitHub creation page. Both use `GITHUB_TOKEN`; the connection method determines the acquisition guidance.
 
-These are also different connections:
+### Composio
 
 ```text
+source = composio
+auth   = OAUTH2
+```
+
+The GitHub OAuth token stays in the Composio Connected Account. SI-Coder keeps only the toolkit/account/auth-config references and status.
+
+## Convex Cloud
+
+Keep account and deployment direct credentials distinct:
+
+```text
+Convex Admin
+source = sc
+auth   = personal-access-token
+scheme = BEARER_TOKEN
+scope  = account
+field  = CONVEX_PERSONAL_ACCESS_TOKEN
+
+Play Together Dev
+source = sc
+auth   = deployment-key
+scheme = API_KEY
+scope  = deployment
+fields = CONVEX_DEPLOYMENT_NAME + CONVEX_DEPLOY_KEY
+```
+
+A Composio-backed Convex connection is a separate `source=composio` connection; it must not overwrite or reinterpret these direct connections.
+
+## Composio itself as a provider
+
+This is a separate role from Composio being a backend for GitHub/Gmail/etc.:
+
+```text
+Provider = composio
+
 Project connection
-  COMPOSIO_API_KEY
-  header: x-api-key
-  scope: one project
+  source = sc
+  auth   = project-api-key
+  field  = COMPOSIO_API_KEY
+  header = x-api-key
 
 Organization connection
-  COMPOSIO_ORG_API_KEY
-  header: x-org-api-key
-  scope: every project in the organization
+  source = sc
+  auth   = organization-token
+  field  = COMPOSIO_ORG_API_KEY
+  header = x-org-api-key
 ```
 
-A scoped project API key is preferred when an agent needs only selected project resources/actions.
+Connected-account lifecycle requires a project API connection because v3.1 Auth Config and Connected Account endpoints use `x-api-key`.
 
-References:
-- https://docs.composio.dev/reference/authenticating-to-composio
-- https://docs.composio.dev/reference/authenticating-to-composio/project-api-key-permissions
-- https://docs.composio.dev/reference/api-reference/projects
+## Metadata migration v1 → v2
 
-## Managed connection handoff for agents
-
-When the selected auth method is external/OAuth, an SI-Coder tool call should return authorization metadata instead of accepting a provider token in JSON. For Composio-backed flows the intended pattern is:
+Old connection metadata overloaded `source` with provenance (`legacy-profile`) and encoded some external systems as auth methods. v2 separates:
 
 ```text
-user + toolkit + connection alias
-→ session.authorize(toolkit, alias=...)
-→ show redirect/auth link to the human
-→ wait for ACTIVE connection
-→ execute with that alias/account explicitly when multiple accounts exist
+source = sc | composio | native-mcp
+origin = legacy-profile | ...   # provenance only
 ```
 
-`COMPOSIO_MANAGE_CONNECTIONS` remains useful for checking/initiating missing connections in a Tool Router session, but multi-account execution should use explicit aliases/account selection rather than a fuzzy account name.
-
-References:
-- https://docs.composio.dev/docs/authentication/managing-multiple-connected-accounts
-- https://docs.composio.dev/toolkits/meta-tools/manage_connections
+Migration rules are normalized read-only first, then persisted explicitly with a `0600` backup. Legacy external OAuth placeholders without a real Connected Account id become `needs-authorization`; they are never promoted to ACTIVE implicitly.

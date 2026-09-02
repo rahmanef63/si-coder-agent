@@ -114,11 +114,16 @@ test('SRC-12: every built-in dashboard URL has click-by-click navigation metadat
 test('SRC-13: credential guide returns reference URL plus navigation, or a local generation path', () => {
   const { credentialGuide, humanGuideLines } = require('../lib/credential-guidance');
   const github = credentialGuide('GITHUB_TOKEN', { user: 'alpha' });
-  assert.strictEqual(github.referenceUrl, 'https://github.com/settings/tokens/new');
+  assert.strictEqual(github.referenceUrl, 'https://github.com/settings/personal-access-tokens/new');
   assert.ok(github.navigation.length >= 3);
-  assert.match(github.navigationText, /repo scope/i);
+  assert.match(github.navigationText, /repositories SI-Coder should access/i);
   assert.match(github.userCard.navigationText, /Generate token/i);
   assert.match(humanGuideLines('GITHUB_TOKEN', { user: 'alpha' }).join('\n'), /Navigate\s+:/);
+  const githubProvider = require('../lib/providers').PROVIDERS.find(p => p.id === 'github');
+  const classic = githubProvider.auth.find(a => a.id === 'classic-pat');
+  const classicGuide = credentialGuide('GITHUB_TOKEN', { user: 'alpha', override: classic.guidance.GITHUB_TOKEN });
+  assert.strictEqual(classicGuide.referenceUrl, 'https://github.com/settings/tokens/new');
+  assert.match(classicGuide.navigationText, /repo scope/i);
 
   const webhook = credentialGuide('SC_GIT_WEBHOOK_SECRET', { user: 'alpha' });
   assert.strictEqual(webhook.referenceUrl, null);
@@ -131,7 +136,7 @@ test('SRC-14: Convex Cloud exposes separate account PAT and deployment-key conne
   const { PROVIDERS } = require('../lib/providers');
   const convex = PROVIDERS.find(p => p.id === 'convex-cloud');
   assert.ok(convex);
-  assert.deepStrictEqual(convex.composio.authSchemes, ['BEARER_TOKEN', 'API_KEY']);
+  assert.deepStrictEqual(convex.sources.composio.authSchemes, ['BEARER_TOKEN', 'API_KEY']);
   const pat = convex.auth.find(a => a.id === 'personal-access-token');
   const deployment = convex.auth.find(a => a.id === 'deployment-key');
   assert.strictEqual(pat.scheme, 'BEARER_TOKEN');
@@ -145,15 +150,18 @@ test('SRC-14: Convex Cloud exposes separate account PAT and deployment-key conne
   assert.ok(require('../lib/providers').VALIDATORS.CONVEX_DEPLOY_KEY('dev:acoustic-panther-728|' + 'x'.repeat(40)));
 });
 
-test('SRC-15: Composio-inspired provider auth metadata distinguishes OAuth, API key, and MCP OAuth', () => {
+test('SRC-15: provider source/backend metadata keeps Composio and native MCP separate from direct auth', () => {
   const { PROVIDERS } = require('../lib/providers');
+  const { sourceOptions, authOptions } = require('../lib/connections');
   const row = id => PROVIDERS.find(p => p.id === id);
-  assert.ok(row('github').auth.some(a => a.scheme === 'OAUTH2' && a.external));
-  assert.ok(row('supabase').auth.some(a => a.scheme === 'OAUTH2' && a.external));
-  assert.ok(row('stripe').auth.some(a => a.scheme === 'OAUTH2' && a.external));
-  assert.ok(row('cloudflare') || row('cf'));
-  assert.ok(row('cf').auth.some(a => a.scheme === 'API_KEY'));
-  assert.ok(row('resend').auth.some(a => a.scheme === 'API_KEY'));
-  assert.ok(row('vercel').auth.some(a => a.scheme === 'DCR_OAUTH' && a.external));
-  assert.strictEqual(row('vercel').composio.mcpToolkit, 'vercel_mcp');
+  assert.deepStrictEqual(sourceOptions(row('github')).map(x => x.id), ['sc', 'composio']);
+  assert.deepStrictEqual(authOptions(row('github'), 'sc').map(x => x.id), ['fine-grained-pat', 'classic-pat']);
+  assert.deepStrictEqual(authOptions(row('github'), 'composio').map(x => x.scheme), ['OAUTH2']);
+  assert.ok(row('supabase').sources.composio);
+  assert.ok(row('stripe').sources.composio);
+  assert.ok(row('cf').sources.composio);
+  assert.ok(row('resend').sources.composio);
+  assert.deepStrictEqual(sourceOptions(row('vercel')).map(x => x.id), ['sc', 'composio', 'native-mcp']);
+  assert.strictEqual(authOptions(row('vercel'), 'native-mcp')[0].scheme, 'DCR_OAUTH');
+  assert.ok(!row('github').auth.some(a => a.scheme === 'OAUTH2'), 'Composio OAuth must not be a direct auth method');
 });

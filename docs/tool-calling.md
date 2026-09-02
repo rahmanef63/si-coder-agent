@@ -81,19 +81,21 @@ Then create a named connection with `sc.user.connection.manage`.
 
 ## OAuth / externally managed authorization
 
-If an auth method is marked `external`, SI-Coder stores only local connection identity metadata. It must **not** request/copy OAuth access or refresh tokens into SC.
+If a connection has `source=composio` or `source=native-mcp`, SI-Coder stores only safe routing/lifecycle metadata. It must **not** request/copy OAuth access or refresh tokens into SC.
 
-For a Composio-backed toolkit, `sc.user.connection.request` returns a `managedConnectionAction` describing the toolkit and alias. The intended pattern is:
+For a Composio-backed connection, `sc.user.connection.request` returns an `externalConnectionAction` with toolkit, alias, connected-account/auth-config references, status, and the `composio-connect-link` strategy. The intended pattern is:
 
 ```text
-user + toolkit + unique connection alias
-→ session.authorize(toolkit, alias=...)
-→ show the returned authorization URL to the human
-→ wait for ACTIVE
-→ explicitly select that alias/account when multiple accounts exist
+user + provider + connection(source=composio)
+→ create/reuse the appropriate Composio Auth Config
+→ POST /api/v3.1/connected_accounts/link
+→ show the transient redirect URL to the human
+→ persist only connected_account_id/auth_config_id/alias/status
+→ wait/poll for ACTIVE
+→ explicitly select that connected account/alias for execution
 ```
 
-`COMPOSIO_MANAGE_CONNECTIONS` can check/initiate missing Tool Router connections. Multi-account execution should still select an alias/account explicitly instead of relying on a fuzzy account name.
+The Connect Link `link_token` and provider credential state are never persisted by SI-Coder. Multi-account execution must select the returned `connectedAccountId`/alias explicitly.
 
 References: `research/composio-auth-matrix.md`.
 
@@ -138,7 +140,7 @@ For local child processes SI-Coder supports one-shot account selection without c
 sc run --connection github=work,convex-cloud=client-a-production -- <command>
 ```
 
-This is the local equivalent of pinning/selecting a connected-account alias in a multi-account session.
+This is only for `source=sc`, where SI-Coder owns the local credential set. For `source=composio`, resolve the selected connection and execute directly with its `connectedAccountId`/alias; for `source=native-mcp`, use the provider-owned MCP session. `sc run` refuses external sources so a stale local token cannot silently replace the selected external identity.
 
 ## MSO
 

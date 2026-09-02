@@ -19,7 +19,7 @@ This is a broad account-level credential for the Convex Management API. It uses 
 Example:
 
 ```bash
-sc user connection-add rahmanfakhr convex-cloud "Convex Admin" --auth personal-access-token
+sc user connection-add rahmanfakhr convex-cloud "Convex Admin" --source sc --auth personal-access-token
 sc user credential-set rahmanfakhr convex-cloud CONVEX_PERSONAL_ACCESS_TOKEN --connection convex-admin
 ```
 
@@ -42,7 +42,7 @@ Deploy keys may be `prod:`, `preview:`, or `dev:`.
 Example:
 
 ```bash
-sc user connection-add rahmanfakhr convex-cloud "Client A Production" --auth deployment-key
+sc user connection-add rahmanfakhr convex-cloud "Client A Production" --source sc --auth deployment-key
 sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOYMENT_NAME --connection client-a-production
 sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-a-production
 ```

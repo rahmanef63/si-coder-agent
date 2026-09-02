@@ -64,11 +64,11 @@ User
       └─ credential fields
 ```
 
-A connection has a **label**, immutable internal id/alias, auth method, scope, default flag, and its own isolated secret file. Labels must be unique within one user+provider.
+A connection has a **label**, immutable internal id/alias, **source/backend**, auth method, scope, and default flag. Labels are unique within one user+provider. Only `source=sc` has a local credential file; external connections store safe routing/status metadata only.
 
 ```text
 ~/.config/si-coder/connections.json                         # non-secret metadata, 0600
-~/.config/si-coder/connections/<user>/<provider>/<id>.env  # one connection's values, 0600
+~/.config/si-coder/connections/<user>/<provider>/<id>.env  # source=sc values only, 0600
 ~/.config/si-coder/profiles/<user>.env                     # legacy compatibility store
 ~/.config/si-coder/profile-meta.json                       # user metadata
 ~/.config/si-coder/sc.md                                   # default user + folder → user rules
@@ -82,10 +82,10 @@ Only the selected/default connection for each provider is injected into a child 
 sc user connections rahmanfakhr convex-cloud
 
 sc user connection-add rahmanfakhr convex-cloud "Convex Admin" \
-  --auth personal-access-token --default
+  --source sc --auth personal-access-token --default
 
 sc user connection-add rahmanfakhr convex-cloud "Client A Production" \
-  --auth deployment-key
+  --source sc --auth deployment-key
 
 sc user connection-use rahmanfakhr convex-cloud client-a-production
 sc user connection-label rahmanfakhr convex-cloud client-a-production "Client A Prod"
@@ -102,7 +102,7 @@ The stored default does not have to change for one operation:
 sc run --connection github=work,convex-cloud=client-a-production -- <command>
 ```
 
-This mirrors explicit account selection in multi-account agent systems: the override is used only for that child process.
+This one-shot env injection is intentionally limited to `source=sc` connections. `source=composio` and `source=native-mcp` are resolver routes, not local credential bags: resolve them with `sc user connection-request` / machine tools and execute through the returned Connected Account or provider-native MCP session. The direct override is used only for that child process and never mutates the stored default.
 
 ## Duplicate and rename users
 
@@ -178,7 +178,7 @@ Users
 → Status / Set or Rotate / Remove
 ```
 
-OAuth/external connections intentionally have no local credential editor. Their connection menu shows an authorization guide instead.
+`source=composio` and `source=native-mcp` connections intentionally have no local credential editor. Their connection menu shows an authorization guide instead.
 
 ## Where to get each credential
 
@@ -239,7 +239,7 @@ sc user which
 
 The UI may show user names, provider names, credential key names, state, and source. It must never print credential values.
 
-Use `sc run [--connection provider=alias] -- <command>` to inject the resolved user's selected connections into a child process without exporting plaintext back into the parent terminal.
+Use `sc run [--connection provider=alias] -- <command>` to inject resolved **`source=sc`** connections into a child process without exporting plaintext back into the parent terminal. External source/backend connections are deliberately refused here; execute them through their resolved backend instead.
 
 ## Non-interactive behavior
 

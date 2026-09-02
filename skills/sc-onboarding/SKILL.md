@@ -96,12 +96,12 @@ sc user add <name>
 sc user map <folder> <name>
 sc user which
 sc user connections <name> [provider]
-sc user connection-add <name> <provider> "<label>" --auth <method>
+sc user connection-add <name> <provider> "<label>" --source <sc|composio|native-mcp> --auth <method>
 sc user connection-use <name> <provider> <connection>
 sc user connection-migrate <name> [provider]
 ```
 
-Connection metadata is private but non-secret (`~/.config/si-coder/connections.json`, mode 0600). Direct credential values live in one file per connection under `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` (0600). Legacy user profile files remain readable only for compatibility/migration.
+Connection metadata is private but non-secret (`~/.config/si-coder/connections.json`, mode 0600). Only `source=sc` credential values live in one file per connection under `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` (0600). Legacy user profile files remain readable only for compatibility/migration.
 
 **Isolation rules:**
 
@@ -143,7 +143,7 @@ The AI MUST:
    - `[ ] resend` (credential storage + live doctor) · `composio` (project API key + live doctor)
    - `[ ] cf` (Cloudflare) · `stripe` · `clerk` · `supabase` (remaining stub skills where noted)
 2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
-3. **For each missing provider connection, inspect `auth[]` first.** If several auth methods exist, choose the least-privilege method that matches the task (OAuth/managed, account Bearer/API key, or project/deployment key). For each required direct field, use the shared credential guidance from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus `navigation[]`. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
+3. **For each missing provider connection, choose `source/backend` first.** Then inspect the auth methods for that source and choose the least-privilege method matching the task. Composio/native MCP are sources, not direct auth methods. For each required direct field, use the shared credential guidance from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus `navigation[]`. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
 4. **Write only the new values** to `~/.bashrc` by piping the pairs via **stdin** so the raw secret never lands in argv (`ps aux` / `/proc/<pid>/cmdline` / shell history):
 
    ```bash
