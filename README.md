@@ -1,201 +1,90 @@
-# SI-Coder
+# SI-Coder (`sc`)
 
-> Build and publish web apps from plain-language goals, without requiring the user to understand hosting, databases, DNS, deployment pipelines, or API-key plumbing.
+> A simple tool for AI coding agents to build, connect, publish, and verify web apps from plain-language goals.
 
-SI-Coder is designed for non-technical users first. The canonical skill identity is `sc`; the host product decides how that skill is invoked.
+**SC is a tool, not another platform you need to learn.**
+
+For normal use, you only need to know one thing:
+
+```text
+Tell `sc` what you want to build or change.
+```
+
+Examples:
 
 ```text
 ChatGPT Web : @sc Create a booking app for my salon.
 Claude Code : /sc Create a booking app for my salon.
-Natural use : Create a booking app for my salon.
+Natural use : Fix the mobile checkout flow and publish it.
 ```
 
-Customers should be able to request a time slot, staff should manage bookings, and SI-Coder should handle the technical defaults, publishing, domain setup, verification, and one useful next recommendation.
+SC handles the technical work behind the request: choosing sensible defaults, editing the app, connecting supported services, publishing, and verifying the result.
 
-## Use the `sc` skill first
+You do **not** need to understand SC's internal skills, provider routing, MCP functions, memory system, recipes, evidence receipts, or release checks to use it.
 
-| Surface | Main invocation |
-|---|---|
-| ChatGPT Web | automatic skill selection or `@sc` |
-| Claude Code | `/sc` |
-| Codex / other Agent Skills clients | use that client's current skill-selection/invocation UX |
+## What SC does
 
-Internal skill identities are `sc-build`, `sc-all`, `sc-provider`, `sc-install`, and `sc-help`. The main `sc` skill routes to them automatically; normal users should not need to select a sub-skill or provider-specific skill themselves.
+SC gives an AI coding agent a consistent way to:
 
-A `.skill` file is the install/import package. It does **not** reserve a custom `/slash` command in ChatGPT Web; slash registration is a capability of the host UI.
+- build a new web app from a plain-language idea,
+- work on an existing app,
+- connect the accounts/services the app actually needs,
+- publish to an appropriate runtime,
+- connect a domain when requested,
+- verify the important user flow after a change,
+- keep credentials out of chat and tool payloads,
+- suggest one useful next step after a meaningful milestone.
 
-## Source format vs install package
+The default experience is intentionally product-focused. SC should ask about **what the app needs to do**, not make a normal user choose frameworks, databases, DNS records, container strategies, or deployment pipelines.
 
-SI-Coder separates the canonical Agent Skills directory format from client-specific archive transports:
-
-- `skills/<name>/SKILL.md` is the required entry point inside each canonical skill directory.
-- `dist/sc.zip` is the upload-ready ZIP for web surfaces that accept/require a ZIP; Claude Web explicitly documents this format.
-- `dist/sc.skill` is an optional ZIP-format distribution artifact for clients that explicitly support the `.skill` extension.
-
-The Agent Skills specification defines the skill as a directory containing `SKILL.md`. Archive extensions are transport choices made by individual clients, not the canonical source format.
+## The normal workflow
 
 ```text
-skills/sc/SKILL.md       # source of truth
-        ↓ package:skills
-dist/sc.zip               # upload-ready ZIP transport
-dist/sc.skill             # optional .skill-aware client transport
-```
-
-The standalone packaged bundle (`sc.zip` and byte-identical `sc.skill`) includes the core build, deploy, provider, install, and help workflows as generated references so a web user only needs to upload **one file**.
-
-## Non-technical product interview
-
-A vague idea should not turn into a requirements workshop.
-
-For example:
-
-```text
-/sc-build I need a website for my laundry business.
-```
-
-SI-Coder first infers everything it can from the message. If a real product decision is still missing, it asks **one question at a time**, with at most **three questions before the first build**.
-
-Typical questions are about the product:
-
-- What is the most important thing a user should be able to do?
-- Who will use the app?
-- Is there one thing that absolutely must work in the first version?
-
-It does **not** ask normal users to choose a framework, database, hosting provider, repository strategy, DNS record, container setup, or deployment pipeline.
-
-After three questions, SI-Coder uses sensible assumptions and builds a focused first version. The user can refine the product after seeing a working preview.
-
-## Runtime-first publishing
-
-SI-Coder chooses infrastructure internally.
-
-### Hosted chat/web agents
-
-Examples: Claude Web, ChatGPT-style hosted agents, or another environment without a normal local shell/secret store.
-
-The user does not need a VPS. SI-Coder uses secure connected accounts and performs the managed publishing flow behind the scenes.
-
-Default user-facing explanation:
-
-```text
-I will publish the app, connect the domain, and verify the main user flow.
-You do not need to prepare a server or terminal.
-```
-
-Technical routing details remain available on request.
-
-### Local coding agents
-
-Examples: Claude Code, Codex CLI, Hermes, or OpenClaw on a machine.
-
-SI-Coder inspects existing configuration first. If it genuinely cannot tell whether the user wants to use an existing server, it asks one plain-language choice:
-
-```text
-Do you want to use your own server, or should I use the easiest managed option?
-```
-
-The user should not need to know the words Dokploy, Vercel, Convex, or DNS to answer.
-
-## Safe account and credential handoff
-
-SI-Coder never asks the user to paste a password, API key, or token into chat or MCP tool JSON.
-
-When one direct/local credential is genuinely required, the handoff names the **user + provider + labeled connection**:
-
-```text
-Connection  : Client A Production (deployment scope)
-Create at   : https://provider.example/settings/api-keys
-Instructions: create the minimum-permission credential for this connection
-Save with   : sc user credential-set <user> <provider> <KEY> --connection <alias>
-Stored in   : that named SI-Coder connection, mode 0600
-Continue    : verify the same connection
-```
-
-For OAuth/external auth, SI-Coder stores only connection identity metadata and hands authorization to the secure connected-account flow instead of copying OAuth tokens into SC.
-
-For hosted agents, prefer a secure connected-account authorization link instead of asking for the underlying provider key.
-
-Machine-facing agents use `sc.user.connection.request` to choose the connection **source/backend** first (`sc`, `composio`, `native-mcp`), then auth scheme/scope; `sc.user.credential.request` is only for a specific direct field. No machine tool accepts the raw credential value.
-
-## `[rekomendasi]` next-step contract
-
-After a meaningful milestone, SI-Coder shows exactly one high-value next step instead of dumping a generic backlog:
-
-```text
-[rekomendasi]
-Next        : Add transactional email
-Why         : Password reset and invitation flows need reliable email delivery.
-Needs       : A sender domain and secure email-service access.
-If you want : I can connect it, verify the domain, and wire the app flow next.
-```
-
-The literal `[rekomendasi]` marker is intentionally stable across languages; the content should be written in the user's language.
-
-## Architecture
-
-SI-Coder separates user experience from implementation details:
-
-```text
-User goal
+Your goal
    ↓
-/sc
-   ├─ new/vague idea → /sc-build
-   ├─ existing app   → /sc-all
-   ├─ account access → /sc-provider
-   └─ advanced task  → matching /sc-* skill
-
-/sc-build
+  sc
    ↓
-minimal product discovery
+understand the product
    ↓
-first working version
+build or change it
    ↓
-/sc-all publishing flow
+connect only what is needed
    ↓
-verified public app + domain
+publish
+   ↓
+verify the real result
 ```
 
-The technical control plane contains:
+For a vague new idea, SC may ask a small number of product questions. If it can infer a reasonable default, it should continue instead of turning the request into a requirements workshop.
 
-1. **Agent Skills** — behavior/orchestration in `skills/*/SKILL.md`.
-2. **SC** — local provider registry, user + named-connection isolation, diagnostics, and local/VPS operations.
-3. **Connected provider tools** — secure hosted account connections and managed provider execution.
-4. **MCP/machine function surface** — machine-readable, secret-safe operations for agents.
+For an existing project, just describe the change you want:
 
-Tool calling is user/connection-scoped as well: agents use `sc.user.*` so ownership and account alias are explicit instead of inferred from cwd. The same `machine/functions.json` schemas are exposed through the bundled MCP server to any compatible client, including Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients. See [Tool calling](docs/tool-calling.md) and the [Composio auth model research](docs/research/composio-auth-matrix.md).
+```text
+/sc Make the dashboard responsive and fix the broken mobile navigation.
+```
 
-## Local CLI navigation and user ownership
+For deployment:
 
-Run `sc` on a TTY to open a Finder-style alternate-screen console. Navigation repaints one stable frame instead of appending lines to scrollback. The top `SECTIONS` tabs and `PATH` breadcrumb stay visible while Finder-like columns show parent/current layers side by side. `Tab`/`→` enters a deeper branch, `Enter` opens or runs the selected item, and `←`/`Esc` goes back. Finishing an action returns to the same frame instead of terminating the CLI.
+```text
+/sc Publish this app and verify the login flow.
+```
 
-The CLI is user-first and multi-account: `Users → <user> → Providers → <provider> → Connections → <label>`. Each connection records **source/backend → auth → scope**. `source=sc` connections may expose a Credentials child and store values in `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` (0600). `source=composio` / `native-mcp` store only safe external routing/status metadata in `connections.json`; provider OAuth/access/refresh tokens remain external. Legacy profile files remain a migration fallback.
+For a provider integration:
 
-When adding a connection, SI-Coder first chooses its source/backend, then auth method/scope, then shows the official/reference URL (or safe local generation command) plus click-by-click navigation before hidden input. OAuth/external connections show an authorization guide instead. The same metadata is returned to machine/MCP agents; raw values never enter tool JSON.
+```text
+/sc Connect transactional email for password reset.
+```
 
-See [Finder CLI navigation, users, and credential ownership](docs/cli.md).
-
-## Machine-facing product interview
-
-The MCP/machine tool `sc.product.interview` helps enforce the non-technical discovery policy.
-
-It accepts product facts the agent already inferred, such as:
-
-- `goal`
-- `primaryUser`
-- `primaryAction`
-- `mustHave`
-- `domain`
-- `existingProject`
-- `questionsAsked`
-
-It returns either:
-
-- `readyToBuild: true`, or
-- exactly one `nextQuestion` plus a `userFlow` presentation.
-
-The policy hard-caps the first discovery phase at three questions and explicitly forbids technology-choice questions by default.
+The main `sc` skill routes internally to the appropriate workflow. Normal users should not need to choose a sub-skill themselves.
 
 ## Installation
+
+Already have SC installed in your agent? Skip this section and just use `sc`.
+
+The canonical source is the `skills/sc/` directory containing `SKILL.md`. Different AI clients use different installation transports, so the exact install step varies by surface.
+
+<details>
+<summary><strong>Installation by client</strong></summary>
 
 <!-- INSTALL_MATRIX_GENERATED:BEGIN -->
 ### Installation format matrix
@@ -213,183 +102,176 @@ The policy hard-caps the first discovery phase at three questions and explicitly
 | Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
-If an AI is given only this repository URL and asked to install SI-Coder, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the current surface automatically.
+Detailed guides:
 
-Detailed install/onboarding guides:
-
-- [Installation matrix](docs/install/README.md)
+- [Installation overview](docs/install/README.md)
 - [Claude Code](docs/install/claude-code.md)
 - [Claude Web / claude.ai](docs/install/claude-web.md)
 - [Codex](docs/install/codex.md)
 - [ChatGPT personal Skills](docs/install/chatgpt-personal-skills.md)
 - [ChatGPT workspace marketplace](docs/install/chatgpt-workspace-marketplace.md)
 - [Generic local Agent Skills](docs/install/generic-local.md)
-- [First-run account onboarding](docs/install/first-run-onboarding.md)
-- [Composio multi-account/auth research](docs/research/composio-auth-matrix.md)
-- [OpenAI Plugin Directory publication status](docs/publishing/openai-plugin-directory.md)
 
-### Claude Code — repository/plugin install
+If an AI agent is given only this repository URL and asked to install SC, it should read [`AI_INSTALL.md`](AI_INSTALL.md) and choose the appropriate path automatically.
 
-Preferred full install:
+</details>
+
+### Claude Code
 
 ```text
 /plugin marketplace add rahmanef63/si-coder-agent
 /plugin install si-coder@si-coder-marketplace
 ```
 
-The repository now contains `.claude-plugin/marketplace.json`, so the repo itself is a Claude Code marketplace. After installation, use:
+Then:
 
 ```text
 /sc Create a booking app for my salon.
 ```
 
-A local developer can still use `claude --plugin-dir /path/to/si-coder-agent`. Anthropic also supports skill-only GitHub installs; the full plugin path is preferred here because SI-Coder includes multiple skills plus MCP support.
-
-### Codex — ask the built-in skill installer
-
-Codex has a built-in `$skill-installer` that supports GitHub repository paths. Ask Codex:
-
-```text
-Install SI-Coder from https://github.com/rahmanef63/si-coder-agent
-Follow AI_INSTALL.md and install the core SI-Coder skills.
-```
-
-The core paths are `skills/sc`, `skills/sc-build`, `skills/sc-all`, `skills/sc-provider`, and `skills/sc-install`. Codex uses its own current skill-selection/invocation UX; do not assume Claude's `/sc` syntax there.
-
-### Claude.ai / Claude Web — one-file upload
-
-Use the release `sc.zip`. Anthropic currently documents Claude Web custom-skill upload as a ZIP containing the skill folder.
-
-Direct downloads from `main`:
-
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.zip`
-
-Current Claude web flow is **Customize → Skills → + → Create skill → Upload a skill**. The uploaded package is self-contained; no VPS or local SI-Coder installation is required for the hosted route. Claude automatically uses relevant skills. Slash availability can vary by Claude surface, so only Claude Code's `/sc` is treated as a guaranteed slash contract here.
-
-### ChatGPT Web — repository marketplace or personal Skill
-
-For a managed workspace, the closest match to “install this GitHub repo” is now native: a workspace admin can go to **Workspace settings → Plugins → Add → Import marketplace**, enter `https://github.com/rahmanef63/si-coder-agent`, and leave Path empty. OpenAI supports `.agents/plugins/marketplace.json` and automatically syncs imported GitHub marketplaces daily. SI-Coder ships a separate **skill-only** OpenAI plugin under `plugins/si-coder/` so the web plugin does not inherit the repository's local MCP server and become Desktop-only.
-
-For personal Skills, OpenAI documents a `SKILL.md`-based skill and an Upload from your computer flow, but does not currently require the `.skill` extension. SI-Coder recommends the complete `sc.zip` package.
-
-Direct download: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.zip`
-
-After installation, ChatGPT can use the skill automatically. OpenAI documents explicit Skill selection by **@ mention**; SI-Coder registers the OpenAI display name `sc`, so use `@sc`, not `/sc`. SI-Coder does not pretend ChatGPT has a slash command when the current OpenAI surface does not document one.
-
-### Other local Agent Skills runtimes
+### Local Agent Skills runtimes
 
 ```bash
 bash install.sh --agent claude
 bash install.sh --agent codex
 bash install.sh --agent hermes
 bash install.sh --agent openclaw
-bash install.sh --agent all
 ```
 
-Add `--with-mcp` when the local runtime should also register the bundled SI-Coder MCP server.
+Use `--with-mcp` only when the local runtime should also register SC's bundled MCP server.
 
-### Rebuild install artifacts
+## Accounts and credentials
 
-```bash
-npm run package:skills
-```
+SC should never ask you to paste a password, API key, or access token into chat or machine-tool JSON.
 
-This regenerates `dist/sc.skill`, `dist/sc.zip`, `dist/sc-build.skill`, and `dist/manifest.json` from the canonical source.
+When account access is required, SC should tell you:
 
-## Advanced CLI
+1. which service/account is needed,
+2. why it is needed,
+3. the safest supported way to connect it,
+4. how SC will verify the connection.
 
-The CLI exists for local operators and agents. Non-technical users normally interact through the main `sc` skill using the invocation supported by their current surface.
+Hosted agents should prefer secure connected-account authorization. Local direct credentials are stored through SC's protected local connection flow rather than printed back to the agent.
 
-```bash
-# User-oriented publish plan
-sc deploy plan
+See [first-run account onboarding](docs/install/first-run-onboarding.md) for the detailed model.
 
-# Optional technical diagnostics
-sc deploy plan --technical
-sc deploy plan --json
+## One recommendation, not a backlog dump
 
-# User + named provider connections
-sc user connections <user>
-sc user connection-add <user> convex-cloud "Client A Production" --source sc --auth deployment-key
-sc user credentials <user> convex-cloud --connection client-a-production
-
-# Consume a selected direct (source=sc) account without printing it or changing defaults
-sc run --connection convex-cloud=client-a-production -- <command>
-# Composio/native-MCP connections are resolved by SC but executed through their external backend.
-
-# Legacy global secret commands remain CLI compatibility only
-sc secret list
-sc doctor
-```
-
-Secret values are never returned by `sc secret get`. `sc env` remains disabled because plaintext export is unsafe for an agent-facing control plane.
-
-## Portable skill layout
+After a meaningful milestone, SC may return one next step:
 
 ```text
-.
-├── .claude-plugin/plugin.json
-├── .mcp.json
-├── machine/functions.json
-├── SKILL.md                    # umbrella skill
-├── skills/
-│   ├── sc/SKILL.md             # /sc
-│   ├── sc-build/SKILL.md       # /sc-build
-│   ├── sc-all/SKILL.md
-│   ├── sc-provider/SKILL.md
-│   ├── sc-install/SKILL.md
-│   └── sc-*/SKILL.md
-├── lib/
-│   ├── product-interview.js
-│   ├── user-facing.js
-│   ├── deploy-route.js
-│   └── credential-guidance.js
-├── scripts/sc-agent.js
-├── scripts/sc-mcp.js
-└── bin/sc.js
+[rekomendasi]
+Next : Add transactional email
+Why  : Password reset needs reliable delivery.
 ```
 
-## Standalone agent workflow and repo-local memory
+The point is to keep the workflow moving without overwhelming the user with an internal engineering backlog.
 
-SI-Coder owns its agent workflow locally; no sibling project or external orchestrator is required. The machine-function SSOT is `machine/functions.json`, exposed over standard MCP by `scripts/sc-mcp.js`.
+## Advanced usage
+
+Everything below is optional for normal SC users.
+
+<details>
+<summary><strong>Local CLI and provider connections</strong></summary>
+
+Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly.
 
 ```bash
-sc risk "change provider auth routing"
+sc doctor
+sc deploy plan
+sc deploy plan --technical
+sc user connections <user>
+```
+
+Direct local connections are user/account scoped. External OAuth or connected-account backends keep their provider tokens outside SC and store only safe routing metadata locally.
+
+See [CLI navigation and account ownership](docs/cli.md).
+
+</details>
+
+<details>
+<summary><strong>MCP and machine tools</strong></summary>
+
+SC exposes a machine-readable tool surface for compatible agents through the bundled MCP server.
+
+- Machine-function SSOT: `machine/functions.json`
+- MCP server: `scripts/sc-mcp.js`
+- Tool documentation: [docs/tool-calling.md](docs/tool-calling.md)
+
+This is an integration surface for agents. A normal user does not need to call these functions manually.
+
+</details>
+
+<details>
+<summary><strong>Agent memory, evidence, recipes, and verification</strong></summary>
+
+SC also contains repo-local engineering safeguards used while maintaining SC itself:
+
+```bash
 sc task prepare "change provider auth routing" --json
-sc memory query "github auth" --json
+sc memory query "provider auth" --json
 sc skill verify --strict
 sc verify
 npm run verify:release
 ```
 
-`sc task prepare` skips memory for light work and retrieves only ranked relevant memory/recipes for medium/high-risk tasks. Canonical task/debug/test/decision/failure memory, recipes, and evidence live under `.agent/`; writes reject secret-shaped content before persistence. `sc verify` records a compact Evidence Receipt and Test Memory by default.
+These features help an engineering agent reuse relevant past debugging/test knowledge, classify risky maintenance work, keep compact verification evidence, and promote repeated maintenance work into verified recipes/scripts.
 
-See [Standalone agent workflow, memory, evidence, recipes, and skill verification](docs/agent-workflow.md).
+They are **maintenance infrastructure**, not concepts a normal SC user needs to learn before using the tool.
 
-## Development and verification
+See [agent workflow and repo-local memory](docs/agent-workflow.md).
+
+</details>
+
+## Design principles
+
+SC should remain:
+
+- **Simple at the surface** — one main tool/skill for normal use.
+- **Product-first** — ask about desired behavior before infrastructure choices.
+- **Agent-friendly** — technical capabilities are machine-readable when an agent needs them.
+- **Safe with credentials** — secrets do not travel through chat/tool payloads.
+- **Verifiable** — completion means the important result was actually checked.
+- **Standalone** — this repository owns its runtime contracts and does not require another local project or orchestrator to function.
+- **Progressively disclosed** — advanced internals stay available without dominating the main user experience.
+
+## Repository map
+
+Only the major surfaces are shown here:
+
+```text
+skills/sc/               main user-facing skill
+skills/sc-*/             internal/specialized workflows
+bin/sc.js                local CLI
+machine/functions.json   machine-tool contract
+scripts/sc-mcp.js        MCP server
+docs/                    detailed documentation
+.agent/                  repo-maintenance memory/evidence/recipes
+```
+
+## Development
+
+For contributors and maintainers:
 
 ```bash
+npm test
+npm run docs:check
 node bin/sc.js skill verify --strict
-node bin/sc.js verify
 npm run verify:release
-claude plugin validate .
 npm pack --dry-run
 ```
 
-Release gates include:
+Release checks cover regression tests, skill validation, secret-safety guards, portable package contents, documentation consistency, and deterministic generated artifacts.
 
-- full regression tests,
-- plugin validation,
-- secret-schema guards,
-- portable package contents,
-- non-technical user-facing jargon guards,
-- slash-skill discovery/install tests,
-- clean and synchronized `main` branch.
+## Documentation
 
-## Security principles
+- [Installation](docs/install/README.md)
+- [CLI](docs/cli.md)
+- [Tool calling / MCP](docs/tool-calling.md)
+- [Agent workflow and memory](docs/agent-workflow.md)
 
-- Never put raw secrets in chat, MCP JSON, CLI argv, logs, or generated documentation.
-- Prefer secure connected accounts on hosted agents.
-- Store local secrets only through SI-Coder's protected local path.
-- Keep technical diagnostics available but opt-in for normal users.
-- Never claim a deployment is complete until the public result has been verified.
+If you only want to **use SC**, you can ignore those internals and start with:
+
+```text
+@sc Build or change the app I describe, publish it when needed, and verify the result.
+```
