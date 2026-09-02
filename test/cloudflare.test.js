@@ -29,6 +29,7 @@
 //  SCF-17 a restore that itself fails still returns (never throws) and reports restored:false.
 //  SCF-18 the unfiltered record listing pages, so a record past row 100 is not invisible.
 //  SCF-19 makeClient's configureDns* keep the never-throws contract when the token is missing.
+//  SCF-20 high-level DNS progress logging is injectable; a supplied logger never falls back to global console.
 //
 // WHY the negative assertions carry the weight here: lib/hostinger.js GETs a whole zone,
 // mutates the array and PUTs it back, so any bug there wipes every record in the domain.
@@ -125,7 +126,11 @@ const zoneProbe = (url) => (qs(url).get('name') === ZONE ? cfOk([{ id: ZONE_ID, 
 
 // Fast settings for every call: no post-write settle sleep, and a timeout small enough that
 // the abort branch fires immediately instead of holding the suite for 15s.
-const FAST = { settleMs: 0, timeoutMs: 200 };
+const SILENT_LOGGER = Object.freeze({ log() {}, warn() {}, error() {} });
+// Node test-runner child IPC on runtimes without nodejs/node#64706 can intermittently corrupt
+// serialized frames when multibyte CLI progress output shares the child's stdout (#64061).
+// Inject a sink here instead of changing production output or weakening test isolation.
+const FAST = { settleMs: 0, timeoutMs: 200, logger: SILENT_LOGGER };
 
 // ---------------------------------------------------------------------------
 // resolveZone — longest suffix, pagination, and the never-throws error channel
@@ -506,7 +511,7 @@ test('configureDnsRecord (SCF-12): a hung request is bounded by the timeout, not
   try {
     const res = await configureDnsRecord({
       fullDomain: SUB, type: 'A', target: VPS_IP, cloudflareToken: TOKEN,
-      settleMs: 0,
+      settleMs: 0, logger: SILENT_LOGGER,
       timeoutMs: 20, // tiny so the abort fires immediately and the suite stays fast
     });
     assert.equal(res.skipped, true, 'a bounded failure, returned rather than thrown');
@@ -534,7 +539,7 @@ test('configureDnsRecord (SCF-12): headers-then-stalled-body is bounded by the s
   });
   try {
     const res = await configureDnsRecord({
-      fullDomain: SUB, type: 'A', target: VPS_IP, cloudflareToken: TOKEN, settleMs: 0, timeoutMs: 20,
+      fullDomain: SUB, type: 'A', target: VPS_IP, cloudflareToken: TOKEN, settleMs: 0, timeoutMs: 20, logger: SILENT_LOGGER,
     });
     assert.equal(res.skipped, true);
     assert.match(res.reason, /timeout after 20ms/, 'the body read is inside the timeout window, not outside it');
@@ -836,4 +841,43 @@ test('makeClient (SCF-19): configureDns* keep the never-throws contract when the
     // exactly why the two configureDns* methods above must not share that wrapper.
     assert.throws(() => cf.listRecords({ zoneId: ZONE_ID }), /needs CLOUDFLARE_API_TOKEN/);
   } finally { global.fetch = orig; }
+});
+
+test('configureDnsRecord (SCF-20): injected logger owns progress output without global console fallback', async () => {
+  const origFetch = global.fetch;
+  const origLog = console.log;
+  const origWarn = console.warn;
+  const origError = console.error;
+  const lines = [];
+  const logger = {
+    log: (...args) => lines.push(['log', ...args.map(String)]),
+    warn: (...args) => lines.push(['warn', ...args.map(String)]),
+    error: (...args) => lines.push(['error', ...args.map(String)]),
+  };
+  const m = mockFetch((url) => {
+    if (isZoneProbe(url)) return zoneProbe(url);
+    if (isRecordList(url)) return cfOk([{
+      id: REC_ID, type: 'A', name: SUB, content: VPS_IP, proxied: false, ttl: 1,
+    }]);
+    return null;
+  });
+  global.fetch = m.fetch;
+  console.log = () => { throw new Error('global console.log must not be used when logger is injected'); };
+  console.warn = () => { throw new Error('global console.warn must not be used when logger is injected'); };
+  console.error = () => { throw new Error('global console.error must not be used when logger is injected'); };
+  try {
+    const res = await configureDnsRecord({
+      fullDomain: SUB, type: 'A', target: VPS_IP, cloudflareToken: TOKEN,
+      settleMs: 0, timeoutMs: 200, logger,
+    });
+    assert.equal(res.skipped, false);
+    assert.equal(res.alreadyExists, true);
+    assert.ok(lines.some(row => row.join(' ').includes('Cloudflare DNS: ensure')), 'progress reaches the injected logger');
+    assert.ok(lines.some(row => row.join(' ').includes('already correct')), 'success output reaches the injected logger');
+  } finally {
+    console.log = origLog;
+    console.warn = origWarn;
+    console.error = origError;
+    global.fetch = origFetch;
+  }
 });
