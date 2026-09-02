@@ -36,7 +36,11 @@ def add_tree(zipf: zipfile.ZipFile, skill_dir: Path) -> None:
         rel = path.relative_to(parent).as_posix()
         info = zipfile.ZipInfo(rel, date_time=FIXED_ZIP_TIME)
         info.create_system = 3
-        mode = stat.S_IMODE(path.stat().st_mode)
+        # ZIP metadata must be independent from the checkout umask/group-write policy.
+        # Preserve only the semantic executable bit; canonicalize regular files to 0644
+        # and executables to 0755 so CI/local packaging is byte-for-byte identical.
+        source_mode = stat.S_IMODE(path.stat().st_mode)
+        mode = 0o755 if source_mode & 0o111 else 0o644
         info.external_attr = (stat.S_IFREG | mode) << 16
         info.compress_type = zipfile.ZIP_DEFLATED
         zipf.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)

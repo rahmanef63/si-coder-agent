@@ -156,6 +156,26 @@ test('DIST-8: packaged .skill artifacts are reproducible for unchanged source', 
 });
 
 
+test('DIST-8b: packaged skill bytes are independent from source group-write permissions', () => {
+  const script = path.join(ROOT, 'scripts/package-web-skill.py');
+  const py = [
+    'import importlib.util, os, pathlib, sys, tempfile',
+    'spec=importlib.util.spec_from_file_location(\"pkg\", sys.argv[1])',
+    'm=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)',
+    'with tempfile.TemporaryDirectory() as td:',
+    '  root=pathlib.Path(td)',
+    '  a=root/\"a\"/\"skill\"; b=root/\"b\"/\"skill\"',
+    '  a.mkdir(parents=True); b.mkdir(parents=True)',
+    '  (a/\"SKILL.md\").write_text(\"---\\nname: fixture\\n---\\n\")',
+    '  (b/\"SKILL.md\").write_text(\"---\\nname: fixture\\n---\\n\")',
+    '  os.chmod(a/\"SKILL.md\", 0o644); os.chmod(b/\"SKILL.md\", 0o664)',
+    '  oa=root/\"a.skill\"; ob=root/\"b.skill\"',
+    '  m.package(a, oa); m.package(b, ob)',
+    '  assert oa.read_bytes()==ob.read_bytes(), \"source permission drift changed archive bytes\"',
+  ].join('\n');
+  execFileSync('python3', ['-c', py, script], { cwd: ROOT, stdio: 'pipe' });
+});
+
 test('DIST-10: install links match each surface transport contract', () => {
   const pkg = readJson('package.json');
   const version = pkg.version.replaceAll('.', '\\.');
