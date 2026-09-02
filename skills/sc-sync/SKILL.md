@@ -1,6 +1,12 @@
 ---
 name: sc-sync
 description: "rsync gitignored files between a VPS and a local machine over Tailscale, for a repo checked out (mirrored path) on both. Two directions: vps-local and local-vps, selected by SYNC_ROLE crossed with the requested direction (never by sniffing hostname). Always dry-run first, --apply to actually copy. Trigger on /sc-sync, 'sync vps to local', 'sync local to vps', 'tailscale sync', 'gitignored files between machines'."
+use_when: "Use when the task matches this skill scope: rsync gitignored files between a VPS and a local machine over Tailscale, for a repo checked out (mirrored path) on both. Two directions: vps-local and local-vps, selected by SYNC_ROLE crossed with the requested direction (never by sniffing hostname). Always dry-run first, --apply to actually copy. Trigger on /sc-sync, 'sync vps to local', 'sync local to vps', 'tailscale sync', 'gitignored files between machines'."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-sync — Gitignored-file sync over Tailscale

@@ -1,6 +1,12 @@
 ---
 name: sc-all
 description: "Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, and expose technical details only when needed or requested."
+use_when: "Use when the task matches this skill scope: Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, and expose technical details only when needed or requested."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-all — runtime first, then deployment route

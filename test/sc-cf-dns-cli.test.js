@@ -14,7 +14,7 @@
 //  SCC-4 --allow-apex is still the documented escape hatch, under a pin as well.
 //  SCC-5 `create` still warns when the name resolves to the apex under a pin.
 //
-// The zone fixture mirrors the real antinrml.com: its apex A points at a live Shopify
+// The zone fixture mirrors the real example.com: its apex A points at a live Shopify
 // storefront (23.227.38.65). Every assertion below is ultimately about that one row.
 
 const { test } = require('node:test');
@@ -26,7 +26,7 @@ const path = require('node:path');
 
 const CLI = path.resolve(__dirname, '../skills/sc-cf/scripts/dns.js');
 
-const ZONE = 'antinrml.com';
+const ZONE = 'example.com';
 const ZONE_ID = 'zonepinned00000000000000000pin';
 const APEX_ID = 'recapex00000000000000000000apex';
 const SUB_ID = 'recsub0000000000000000000000sub';

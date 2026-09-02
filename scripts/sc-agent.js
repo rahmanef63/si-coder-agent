@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// sc-agent.js — machine-facing adapter for MSO/agent function calling.
+// sc-agent.js — machine-facing adapter for bounded SI-Coder function calling.
 //
 // This surface intentionally has NO operation that accepts a plaintext credential value.
 // Agents can CRUD provider metadata, inspect secret status, delete credentials, run doctors,
@@ -13,6 +13,7 @@ const { PROVIDERS } = require('../lib/providers');
 const UC = require('../lib/user-control');
 const CC = require('../lib/composio-connections');
 const { credentialGuide } = require('../lib/credential-guidance');
+const AgentActions = require('../lib/agent/actions');
 
 const SC = path.resolve(__dirname, '../bin/sc.js');
 const ACTION = process.argv[2];
@@ -75,6 +76,59 @@ async function main() {
   inspect(input);
 
   switch (ACTION) {
+    case 'task.risk': {
+      process.stdout.write(`${JSON.stringify(AgentActions.taskRiskAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'task.prepare': {
+      process.stdout.write(`${JSON.stringify(AgentActions.taskPrepareAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'memory.query': {
+      process.stdout.write(`${JSON.stringify(AgentActions.memoryQueryAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'memory.record': {
+      process.stdout.write(`${JSON.stringify(AgentActions.memoryRecordAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'memory.status': {
+      if (input.confirm !== true) throw new Error('confirm=true is required');
+      process.stdout.write(`${JSON.stringify(AgentActions.memoryStatusAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'evidence.record': {
+      process.stdout.write(`${JSON.stringify(AgentActions.evidenceRecordAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'skill.verify': {
+      const out = AgentActions.skillVerifyAction(input);
+      process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+      process.exitCode = out.ok ? 0 : 1;
+      return;
+    }
+    case 'recipe.list': {
+      process.stdout.write(`${JSON.stringify(AgentActions.recipeListAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'recipe.observe': {
+      process.stdout.write(`${JSON.stringify(AgentActions.recipeObserveAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'recipe.verify': {
+      process.stdout.write(`${JSON.stringify(AgentActions.recipeVerifyAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'recipe.promote': {
+      process.stdout.write(`${JSON.stringify(AgentActions.recipePromoteAction(input), null, 2)}\n`);
+      return;
+    }
+    case 'verify': {
+      const out = AgentActions.repositoryVerifyAction(input);
+      process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+      process.exitCode = out.ok ? 0 : 1;
+      return;
+    }
     case 'product.interview': {
       const { productInterview } = require('../lib/product-interview');
       process.stdout.write(`${JSON.stringify(productInterview(input), null, 2)}\n`);

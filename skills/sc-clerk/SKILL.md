@@ -1,6 +1,12 @@
 ---
 name: sc-clerk
 description: "(STUB / NOT IMPLEMENTED YET) Clerk auth setup for projects that explicitly use Clerk instead of @convex-dev/auth. Configures instance, sets allowed origins, creates JWT template for Convex integration. Pairs with Clerk MCP (clerk @ mcp.clerk.com/mcp) for SDK snippet generation."
+use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Clerk auth setup for projects that explicitly use Clerk instead of @convex-dev/auth. Configures instance, sets allowed origins, creates JWT template for Convex integration. Pairs with Clerk MCP (clerk @ mcp.clerk.com/mcp) for SDK snippet generation."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-clerk — Clerk auth (STUB)

@@ -189,7 +189,7 @@ scheme = BEARER_TOKEN
 scope  = account
 field  = CONVEX_PERSONAL_ACCESS_TOKEN
 
-Play Together Dev
+Example App Dev
 source = sc
 auth   = deployment-key
 scheme = API_KEY

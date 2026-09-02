@@ -94,7 +94,7 @@ async function main() {
   console.log('🔐 env vars set (CONVEX_DEPLOY_KEY -> production, encrypted)');
 
   // 5. Build command. Respect the repository's vercel.json contract first
-  // (Baton uses `bun run build:auto`, which gates tests, provisions Auth, deploys
+  // (a project uses `bun run build:auto`, which gates tests, provisions Auth, deploys
   // Convex, and builds Next). Only synthesize a package-manager-aware command
   // when the repo has no buildCommand. --decoupled always remains frontend-only.
   const buildPlan = resolveBuildCommand({

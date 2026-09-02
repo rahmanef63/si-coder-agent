@@ -1,6 +1,12 @@
 ---
 name: sc-convex-cloud
 description: "Convex Cloud (managed) deploy operations. Run 'npx convex deploy' against a Cloud deployment using CONVEX_DEPLOY_KEY, output the injected NEXT_PUBLIC_CONVEX_URL, and probe the deployment (/version on *.convex.cloud + JWKS on *.convex.site). The online-path counterpart to /sc-convex (self-hosted on Dokploy)."
+use_when: "Use when the task matches this skill scope: Convex Cloud (managed) deploy operations. Run 'npx convex deploy' against a Cloud deployment using CONVEX_DEPLOY_KEY, output the injected NEXT_PUBLIC_CONVEX_URL, and probe the deployment (/version on *.convex.cloud + JWKS on *.convex.site). The online-path counterpart to /sc-convex (self-hosted on Dokploy)."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-convex-cloud — Convex Cloud (managed)

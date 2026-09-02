@@ -1,6 +1,12 @@
 ---
 name: sc-build
 description: "Build a web app from a plain-language idea for a non-technical user. Ask at most three short business/product questions one at a time, infer everything already stated, choose technical defaults automatically, create a first working version, gather product feedback, then publish through /sc-all."
+use_when: "Use when the task matches this skill scope: Build a web app from a plain-language idea for a non-technical user. Ask at most three short business/product questions one at a time, infer everything already stated, choose technical defaults automatically, create a first working version, gather product feedback, then publish through /sc-all."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-build — idea to working web app

@@ -58,11 +58,11 @@ process.on('exit', () => {
 // The live zone under test. Its apex A points at a real Shopify storefront, so a mutating
 // request that names it would take down a production store — several tests assert that
 // neither the apex name, its content, nor its record id ever reaches the wire.
-const ZONE = 'antinrml.com';
+const ZONE = 'example.com';
 const ZONE_ID = 'zonedeadbeefdeadbeefdeadbeefdead';
 const APEX_A_CONTENT = '23.227.38.65';
 const APEX_REC_ID = 'recapex00000000000000000000apex';
-const SUB = 'be.antinrml.com';
+const SUB = 'be.example.com';
 const VPS_IP = '203.0.113.10';
 const REC_ID = 'reccafebabecafebabecafebabecafe';
 const TOKEN = 'cf_super_secret_token_abcdef1234567890';
@@ -138,16 +138,16 @@ test('resolveZone (SCF-1): picks the LONGEST matching zone suffix, not the first
   const m = mockFetch((url) => {
     if (!isZoneProbe(url)) return null;
     const name = qs(url).get('name');
-    if (name === 'sub.antinrml.com') return cfOk([{ id: 'zone_sub', name: 'sub.antinrml.com' }]);
+    if (name === 'sub.example.com') return cfOk([{ id: 'zone_sub', name: 'sub.example.com' }]);
     if (name === ZONE) return cfOk([{ id: ZONE_ID, name: ZONE }]);
     return cfOk([]);
   });
   global.fetch = m.fetch;
   try {
-    const r = await resolveZone('x.sub.antinrml.com', TOKEN, { timeoutMs: 200 });
+    const r = await resolveZone('x.sub.example.com', TOKEN, { timeoutMs: 200 });
     assert.equal(r.zoneId, 'zone_sub', 'the delegated child zone wins over its parent');
-    assert.equal(r.zoneName, 'sub.antinrml.com');
-    assert.equal(r.recordName, 'x.sub.antinrml.com', 'recordName is the full FQDN, never an @ sentinel');
+    assert.equal(r.zoneName, 'sub.example.com');
+    assert.equal(r.recordName, 'x.sub.example.com', 'recordName is the full FQDN, never an @ sentinel');
     assert.equal(m.calls().length, 2, 'probing longest-first stops at the first hit — the parent is never queried');
   } finally { global.fetch = orig; }
 });
@@ -166,12 +166,12 @@ test('resolveZone (SCF-2): pages through a multi-page GET /zones and still takes
     const page = Number(qs(url).get('page'));
     const info = { page, per_page: 50, count: 50, total_count: 51, total_pages: 2 };
     if (page === 1) return cfOk(page1, info);
-    if (page === 2) return cfOk([{ id: 'zone_sub', name: 'sub.antinrml.com' }], { ...info, count: 1 });
+    if (page === 2) return cfOk([{ id: 'zone_sub', name: 'sub.example.com' }], { ...info, count: 1 });
     return cfOk([], { ...info, count: 0 });
   });
   global.fetch = m.fetch;
   try {
-    const r = await resolveZone('x.sub.antinrml.com', TOKEN, { timeoutMs: 200 });
+    const r = await resolveZone('x.sub.example.com', TOKEN, { timeoutMs: 200 });
     assert.equal(r.zoneId, 'zone_sub', 'a zone that only appears on page 2 is still found');
     const pages = m.calls().filter(c => isZoneList(c.url)).map(c => qs(c.url).get('page'));
     assert.deepEqual(pages, ['1', '2'], 'both pages are fetched, and the walk stops at total_pages');
@@ -661,7 +661,7 @@ test('configureDnsRecord (SCF-15): a hostname passed as an A target is refused w
     // Refusing before the zone lookup is what keeps it from costing the CNAME that the clash
     // path would otherwise have deleted to make room for a create that cannot succeed.
     const res = await configureDnsRecord({
-      fullDomain: 'www.antinrml.com', type: 'A', target: 'shops.myshopify.com', cloudflareToken: TOKEN, ...FAST,
+      fullDomain: 'www.example.com', type: 'A', target: 'shops.myshopify.com', cloudflareToken: TOKEN, ...FAST,
     });
     assert.equal(res.skipped, true, 'pure refusal — nothing was written');
     assert.match(res.reason, /not a valid A target/, 'the reason names the shape problem, not a Cloudflare code');

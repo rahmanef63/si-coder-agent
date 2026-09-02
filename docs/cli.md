@@ -207,9 +207,44 @@ sc user rm old-user
 
 Machine/tool calling requires an explicit `confirm: true` on `sc.user.delete`.
 
+## Agent workflow commands
+
+For repository work, classify risk before broad changes and retrieve memory only when it can help:
+
+```bash
+sc risk "change auth provider routing"
+sc task prepare "change auth provider routing" --json
+```
+
+Repo-local memory and repeated-work automation:
+
+```bash
+sc memory init
+sc memory query "github auth" --limit 5 --json
+sc memory record debug --title "GitHub routing" --issue "..." --root-cause "..." --fix "..."
+sc memory status <id> confirmed
+
+sc recipe list
+sc recipe observe release-candidate-check --steps "syntax|tests|docs|skills|secret scan"
+sc recipe verify release-candidate-check --yes
+sc recipe promote release-candidate-check --script scripts/release-candidate-check.js --yes
+```
+
+Quality and verification:
+
+```bash
+sc skill verify --strict
+sc verify
+npm run verify:release
+```
+
+`sc verify` writes a compact Evidence Receipt + Test Memory unless `--no-record` is given. Long-form memory should use `--body-file`, not `--body`, so the content is not copied into shell history.
+
+See [`agent-workflow.md`](agent-workflow.md) for lifecycle, freshness, security, and action/service details.
+
 ## Tool calling
 
-The Finder hierarchy has a matching secret-safe machine surface. MSO reads `.mso/functions.json`; the bundled `scripts/sc-mcp.js` exposes the same tools to Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
+The Finder hierarchy has a matching secret-safe machine surface. The bundled `scripts/sc-mcp.js` exposes the same tools to Claude Code, Codex, Hermes, OpenClaw, and generic MCP clients.
 
 Prefer `sc.user.*` tools so ownership is always explicit. Agents use `sc.user.connections.list`, `sc.user.connection.manage`, and `sc.user.connection.request` for labeled accounts; credential creation/rotation uses `sc.user.credential.request` with an optional `connection`. No MCP/function accepts a raw token/key/password value.
 

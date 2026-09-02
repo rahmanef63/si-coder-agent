@@ -4,9 +4,8 @@ Owner-selectable output styles for the si-coder agent — they trim how much the
 *says*, never what a skill *does*. Deploy behaviour, idempotency, and the "secrets via
 env only" rules are untouched.
 
-Ported from the **MSO** project (`rahmanef63/mso`, `OsConfig.tokenSaver` in
-`app/api/assistant/route.ts`), which appends the same instructions to its assistant's
-system prompt. Here the selector is an environment variable the agent reads.
+These output styles are maintained locally by SI-Coder. The selector is an environment
+variable the agent reads; no external project or orchestration runtime is required.
 
 ## Selecting a style
 

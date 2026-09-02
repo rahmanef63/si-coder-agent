@@ -43,8 +43,8 @@ test('SCINT-4: existing project skips discovery', () => {
   assert.match(p.userFlow.message, /existing app/i);
 });
 
-test('SCINT-5: MSO manifest exposes the product interview without secret-shaped inputs', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
+test('SCINT-5: machine manifest exposes the product interview without secret-shaped inputs', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'machine/functions.json'), 'utf8'));
   const fn = manifest.functions.find(x => x.name === 'sc.product.interview');
   assert.ok(fn);
   assert.strictEqual(fn.command.at(-1), 'product.interview');

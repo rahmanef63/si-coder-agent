@@ -1013,16 +1013,658 @@
       "timeoutMs": 10000
     },
     {
-      "name": "sc.verify",
-      "description": "Run the si-coder repository test suite without changing provider credentials.",
+      "name": "sc.task.risk",
+      "description": "Classify a requested SI-Coder repository change as LOW, MEDIUM, or HIGH risk and return isolation plus verification policy. No repository write is performed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "areas": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "maxItems": 50
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "intent"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "task.risk"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.task.prepare",
+      "description": "Classify a task and, only for MEDIUM/HIGH risk, retrieve a compact ranked set of relevant repo-local memories plus applicable verified/executable recipes. LOW-risk tasks skip memory retrieval.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "areas": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "maxItems": 50
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 32
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "maxChars": {
+            "type": "integer",
+            "minimum": 200,
+            "maximum": 12000
+          },
+          "staleAfterDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "freshOnly": {
+            "type": "boolean"
+          },
+          "recipeLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "intent"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "task.prepare"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.memory.query",
+      "description": "Retrieve only relevant compact repo-local agent memories, filtered and ranked for the current task. Returns summaries rather than the whole memory bank.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "task",
+              "debug",
+              "test",
+              "decision",
+              "failure"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "confirmed",
+              "superseded",
+              "archived"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 32
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "maxChars": {
+            "type": "integer",
+            "minimum": 200,
+            "maximum": 12000
+          },
+          "includeArchived": {
+            "type": "boolean"
+          },
+          "staleAfterDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "freshOnly": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "memory.query"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.memory.record",
+      "description": "Persist one secret-rejected repo-local task/debug/test/decision/failure memory as Markdown plus frontmatter. Raw credentials, tokens, passwords, API keys, and private keys are refused.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "task",
+              "debug",
+              "test",
+              "decision",
+              "failure"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 16000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "confirmed",
+              "superseded",
+              "archived"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 32
+          },
+          "supersedes": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "environment": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 100
+          },
+          "expected": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "actual": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "result": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "relatedAreas": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 32
+          },
+          "lastVerified": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "issue": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "rootCause": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "fix": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "decision": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 50
+          },
+          "failedAttempts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 50
+          },
+          "verification": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 50
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "memory.record"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.memory.status",
+      "description": "Change one repo-local memory lifecycle state. Requires explicit confirmation; does not delete the record.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "confirmed",
+              "superseded",
+              "archived"
+            ]
+          },
+          "supersedes": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "lastVerified": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "confirm"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "memory.status"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.evidence.record",
+      "description": "Persist a secret-rejected structured evidence receipt for a verified CLI/provider/migration/debug action. Stores contracts and assertions, never raw secret values.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 100
+          },
+          "exitCode": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 255
+          },
+          "assertions": {
+            "type": "object"
+          },
+          "checks": {
+            "type": "object"
+          },
+          "stdoutContract": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "stderrContract": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "filesystemAssertions": {
+            "type": "object"
+          },
+          "metadataAssertions": {
+            "type": "object"
+          },
+          "permissions": {
+            "type": "object"
+          },
+          "secretRedaction": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "migration": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "target"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "evidence.record"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.skill.verify",
+      "description": "Validate SI-Coder skills for required metadata, explicit trigger quality, references, declared tools, secret safety, duplicated instructions, and compatibility metadata. Strict mode upgrades missing trigger fields to errors.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "strict": {
+            "type": "boolean"
+          },
+          "supportedTools": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "skill.verify"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.recipe.list",
+      "description": "List repo-local repeated-work recipes and their promotion state without executing them.",
       "inputSchema": {
         "type": "object",
         "properties": {},
         "additionalProperties": false
       },
       "command": [
-        "npm",
-        "test"
+        "node",
+        "scripts/sc-agent.js",
+        "recipe.list"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.recipe.observe",
+      "description": "Record one observation of a repeated deterministic workflow. Repeated observations promote the recipe from observed to repeated to candidate.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 32
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 100
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 12000
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "recipe.observe"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.recipe.verify",
+      "description": "Mark one repeated/candidate recipe verified after explicit confirmation. It does not execute or create a script.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "confirm"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "recipe.verify"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.recipe.promote",
+      "description": "Bind one verified recipe to an existing deterministic repository-local script after explicit confirmation. The script path cannot escape the repository.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "script": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "script",
+          "confirm"
+        ]
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "recipe.promote"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.verify",
+      "description": "Run repository syntax, full regression, docs, skill-quality, and repo-local memory/evidence secret checks. By default writes a compact evidence receipt and Test Memory instead of returning raw test logs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "boolean"
+          },
+          "strictSkills": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "verify"
       ],
       "timeoutMs": 30000
     }

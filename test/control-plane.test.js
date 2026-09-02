@@ -97,8 +97,8 @@ test('SCCP-4: sc run injects a stored secret into child env without sc printing 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('SCCP-5: MSO agent adapter has no plaintext secret input and returns only secret status/handoff', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
+test('SCCP-5: machine agent adapter has no plaintext secret input and returns only secret status/handoff', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'machine/functions.json'), 'utf8'));
   const forbidden = /^(value|secret|secretValue|token|tokenValue|password|apiKey|apiKeyValue)$/i;
   for (const fn of manifest.functions) {
     const props = Object.keys(fn.inputSchema?.properties || {});
@@ -244,13 +244,14 @@ test('SCCP-10: user-scoped agent tools duplicate/read/delete credentials without
 });
 
 test('SCCP-11: MCP lists user-scoped tools and rejects secret-shaped nested agent input', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'machine/functions.json'), 'utf8'));
   const names = new Set(manifest.functions.map(f => f.name));
   for (const name of [
     'sc.user.list', 'sc.user.show', 'sc.user.which', 'sc.user.create', 'sc.user.duplicate',
     'sc.user.rename', 'sc.user.default', 'sc.user.map', 'sc.user.delete',
     'sc.user.providers.list', 'sc.user.provider.verify', 'sc.user.credentials.status',
     'sc.user.credential.status', 'sc.user.credential.request', 'sc.user.credential.delete',
+    'sc.task.prepare', 'sc.memory.query', 'sc.memory.record', 'sc.evidence.record', 'sc.skill.verify', 'sc.verify',
   ]) assert.ok(names.has(name), `${name} missing from tool manifest`);
   assert.ok(![...names].some(n => /^sc\.user\.credential\.(set|put|rotate)$/.test(n)), 'MCP must never accept credential values');
 
@@ -263,6 +264,8 @@ test('SCCP-11: MCP lists user-scoped tools and rejects secret-shaped nested agen
   const listed = JSON.parse(mcp.stdout.trim()).result.tools.map(t => t.name);
   assert.ok(listed.includes('sc.user.credential.request'));
   assert.ok(listed.includes('sc.user.duplicate'));
+  assert.ok(listed.includes('sc.task.prepare'));
+  assert.ok(listed.includes('sc.verify'));
 
   const bad = spawnSync(process.execPath, [AGENT, 'user.list'], {
     cwd: ROOT,

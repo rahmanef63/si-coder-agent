@@ -20,7 +20,7 @@ function pkgScripts(cwd) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')).scripts || {}; } catch { return {}; }
 }
 
-// Heavy steps saturate a shared VPS. When this hook fires inside a control-room
+// Heavy steps saturate a shared VPS. When this hook fires inside a shared automation runner
 // terminal pane, the build is charged to the agent's cgroup and lags every
 // terminal (observed 2026-05-28: a single next build → 84% memory-stall). Run
 // build/test at low CPU+IO priority so they yield to interactive work.

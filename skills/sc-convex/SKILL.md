@@ -1,6 +1,12 @@
 ---
 name: sc-convex
 description: "Convex self-hosted operations on Dokploy. Deploy compose template, rotate admin key, push schema, configure @convex-dev/auth (JWT_PRIVATE_KEY + JWKS), and probe the three backend subdomains (api-, site-, dash-)."
+use_when: "Use when the task matches this skill scope: Convex self-hosted operations on Dokploy. Deploy compose template, rotate admin key, push schema, configure @convex-dev/auth (JWT_PRIVATE_KEY + JWKS), and probe the three backend subdomains (api-, site-, dash-)."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-convex — Convex on Dokploy

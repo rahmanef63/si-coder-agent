@@ -397,18 +397,18 @@ test('SCC-7d: deep provider navigation keeps Providers + selected provider ancho
     col('providers', 'Providers'),
     col('provider:convex-cloud', 'convex-cloud'),
     col('connections', 'Connections'),
-    col('connection:play-together-dev', 'Play Together Dev'),
+    col('connection:example-app-dev', 'Example App Dev'),
     col('credentials', 'Credentials'),
   ];
   assert.deepStrictEqual(
     chooseVisibleColumns(columns, 4).map(c => c.nodeId),
-    ['providers', 'provider:convex-cloud', 'connection:play-together-dev', 'credentials'],
+    ['providers', 'provider:convex-cloud', 'connection:example-app-dev', 'credentials'],
     'deep credentials view must not drop the Providers column',
   );
   const credentialAction = [...columns, col('credential:CONVEX_DEPLOY_KEY', 'CONVEX_DEPLOY_KEY')];
   assert.deepStrictEqual(
     chooseVisibleColumns(credentialAction, 4).map(c => c.nodeId),
-    ['providers', 'provider:convex-cloud', 'connection:play-together-dev', 'credential:CONVEX_DEPLOY_KEY'],
+    ['providers', 'provider:convex-cloud', 'connection:example-app-dev', 'credential:CONVEX_DEPLOY_KEY'],
     'credential action should keep provider + connection context and skip structural bridge columns',
   );
   assert.deepStrictEqual(

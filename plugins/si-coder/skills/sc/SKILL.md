@@ -1,6 +1,12 @@
 ---
 name: sc
 description: "Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product and publish it. Route automatically to product discovery, implementation, deployment, account connection, or advanced provider skills while keeping technical details optional."
+use_when: "Use when the task matches this skill scope: Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product and publish it. Route automatically to product discovery, implementation, deployment, account connection, or advanced provider skills while keeping technical details optional."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # sc — the main SI-Coder entry point

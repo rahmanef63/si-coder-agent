@@ -1,6 +1,12 @@
 ---
 name: sc-cf
 description: "Cloudflare DNS automation — idempotent per-record A/AAAA/CNAME/TXT writes via the Cloudflare v4 API, DNS-only (grey cloud) by default so Let's Encrypt works. Use this provider whenever the domain's nameservers actually delegate to Cloudflare; it mirrors the lib/hostinger.js contract so /sc-all can swap providers. Workers/Pages/R2/tunnel still stubs."
+use_when: "Use when the task matches this skill scope: Cloudflare DNS automation — idempotent per-record A/AAAA/CNAME/TXT writes via the Cloudflare v4 API, DNS-only (grey cloud) by default so Let's Encrypt works. Use this provider whenever the domain's nameservers actually delegate to Cloudflare; it mirrors the lib/hostinger.js contract so /sc-all can swap providers. Workers/Pages/R2/tunnel still stubs."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-cf — Cloudflare

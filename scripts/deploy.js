@@ -550,9 +550,9 @@ async function run() {
   const hostingerToken = process.env.HOSTINGER_API_TOKEN;
 
   // M1 DRY: Hostinger A-record via lib/hostinger.configureDnsRecord.
-  // Two guards, both learned the hard way (see the antinrml.com audit, 2026-08-19):
+  // Two guards, both learned the hard way (learned from a production DNS audit):
   //   1. lib/hostinger is hardcoded here, so this writes to the Hostinger zone whether or not
-  //      the domain is actually delegated there. antinrml.com is on Cloudflare -- the write
+  //      the domain is actually delegated there. example.com is on Cloudflare -- the write
   //      returns 200 against an INERT zone and nothing ever resolves. Check NS first and stop.
   //   2. serverIp used to come from lookup(new URL(apiUrl).hostname). With the normal local
   //      DOKPLOY_API_URL=http://127.0.0.1:3000/api that yields 127.0.0.1, i.e. an A record

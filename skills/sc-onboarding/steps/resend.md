@@ -17,22 +17,22 @@ The verified sending domain (e.g. `mail.example.com`).
 **Validator**: contains a dot.
 
 
-## First-party `*.rahmanef.com` sender convention
+## Sender convention
 
-For Rahmanef-owned subdomain apps, do not create a per-subdomain From address.
-Use the verified shared identity `official@rahmanef.com`, with the application
-name as the display name and no reply-to by default. Examples:
+Do not assume a repository-global sender domain. Use the verified Resend domain chosen
+for the current project/account and keep sender address, display name, optional tag, and
+optional reply-to separate when possible:
 
 ```text
-Play Together <official@rahmanef.com>
-Baton <official@rahmanef.com>
+EMAIL_FROM_ADDRESS=transactional@example.com
+EMAIL_PROJECT_NAME=<Project Name>
+EMAIL_PROJECT_TAG=<project-slug>
+EMAIL_REPLY_TO=
 ```
 
-Project code should keep the address and project identity separate when
-possible (`EMAIL_FROM_ADDRESS`, `EMAIL_PROJECT_NAME`, `EMAIL_PROJECT_TAG`,
-optional `EMAIL_REPLY_TO`) and build the visible header at send time. A
-framework-specific combined variable such as Baton's `AUTH_EMAIL_FROM` may be
-used as an adapter, not as a second source of truth.
+A framework-specific combined variable may be used as an adapter, not as a second source
+of truth. Never derive the sender address automatically from the app subdomain unless the
+user's verified email configuration explicitly says to do so.
 
 ## Verify the stored credential
 

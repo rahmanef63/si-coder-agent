@@ -35,6 +35,7 @@ const { audit, readAudit } = require(path.resolve(__dirname, '../lib/audit'));
 const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/update'));
 const { planDeploy } = require(path.resolve(__dirname, '../lib/deploy-route'));
 const { credentialGuide, humanGuideLines, looksLikeExternalCredential, recommendation } = require(path.resolve(__dirname, '../lib/credential-guidance'));
+const AgentActions = require(path.resolve(__dirname, '../lib/agent/actions'));
 const PKG = require(path.resolve(__dirname, '../package.json'));
 
 const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
@@ -1945,6 +1946,153 @@ async function cmdMenu() {
 }
 
 // ---------------------------------------------------------------------------
+// standalone agent workflow — policy, memory, recipes, skill quality, verification
+// ---------------------------------------------------------------------------
+function listArg(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  return value.split(/[|,]/).map(x => x.trim()).filter(Boolean);
+}
+
+function printJsonOr(value, args, human) {
+  if (args.json) return console.log(JSON.stringify(value, null, 2));
+  return human(value);
+}
+
+function cmdTaskRisk(args) {
+  const intent = typeof args.intent === 'string' ? args.intent : args._.slice(1).join(' ');
+  if (!intent) die('usage: sc risk <task description> [--json]');
+  const out = AgentActions.taskRiskAction({ intent, areas: listArg(args.areas) });
+  return printJsonOr(out, args, row => {
+    console.log(`risk: ${row.risk}`);
+    console.log(`isolation: ${row.isolationRequired ? 'required' : row.isolationRecommended ? 'recommended' : 'not required'}`);
+    console.log(`why: ${row.reasons.join(' · ')}`);
+    console.log(`verify: ${row.verification.join(' → ')}`);
+  });
+}
+
+function cmdTask(sub, arg, args) {
+  if (sub !== 'prepare') return die('usage: sc task prepare <task description> [--json]');
+  const intent = typeof args.intent === 'string' ? args.intent : args._.slice(2).join(' ');
+  if (!intent) die('usage: sc task prepare <task description> [--json]');
+  const out = AgentActions.taskPrepareAction({
+    intent, scope: args.scope || null, tags: listArg(args.tags),
+    limit: args.limit ? Number(args.limit) : undefined,
+    maxChars: args['max-chars'] ? Number(args['max-chars']) : undefined,
+    staleAfterDays: args['stale-after-days'] ? Number(args['stale-after-days']) : undefined,
+    freshOnly: Boolean(args['fresh-only']),
+  });
+  return printJsonOr(out, args, row => {
+    console.log(`risk: ${row.policy.risk}`);
+    console.log(`memory: ${row.retrieval.used ? `${row.retrieval.count} relevant record(s)` : 'skipped for light task'}`);
+    if (row.retrieval.context) console.log(`context:\n${row.retrieval.context}`);
+    if (row.recipes.length) console.log(`recipes: ${row.recipes.map(x => `${x.id}:${x.status}`).join(' · ')}`);
+  });
+}
+
+function cmdMemory(sub, arg, args) {
+  if (!sub || sub === 'query' || sub === 'search') {
+    const query = typeof args.query === 'string' ? args.query : args._.slice(sub ? 2 : 1).join(' ');
+    const out = AgentActions.memoryQueryAction({
+      query, type: args.type || null, status: args.status || null, scope: args.scope || null,
+      tags: listArg(args.tags), limit: args.limit ? Number(args.limit) : undefined,
+      maxChars: args['max-chars'] ? Number(args['max-chars']) : undefined,
+      includeArchived: Boolean(args.archived),
+    });
+    return printJsonOr(out, args, row => {
+      if (!row.memories.length) return console.log('(no matching memory)');
+      for (const m of row.memories) console.log(`${m.id}  [${m.type}/${m.status}]  ${m.title}${m.excerpt ? ` — ${m.excerpt}` : ''}`);
+    });
+  }
+  if (sub === 'init') {
+    const out = AgentActions.memoryInitAction({});
+    return printJsonOr(out, args, row => console.log(`✅ agent memory ready: ${path.relative(process.cwd(), row.agentDir) || '.agent'}`));
+  }
+  if (sub === 'record' || sub === 'add') {
+    const type = arg;
+    if (!type) die('usage: sc memory record <task|debug|test|decision|failure> --title "..." [metadata]');
+    if (args.body) die('refusing --body in argv; use --body-file PATH so long-form memory does not enter shell history');
+    const body = typeof args['body-file'] === 'string' ? fs.readFileSync(path.resolve(args['body-file']), 'utf8') : '';
+    const input = {
+      type, id: args.id, title: args.title, body, status: args.status, confidence: args.confidence,
+      scope: args.scope, tags: listArg(args.tags), supersedes: args.supersedes,
+      target: args.target, source: args.source, environment: args.environment,
+      steps: listArg(args.steps), expected: args.expected, actual: args.actual, result: args.result,
+      relatedAreas: listArg(args['related-areas']), lastVerified: args['last-verified'],
+      issue: args.issue, rootCause: args['root-cause'], fix: args.fix, decision: args.decision,
+      symptoms: args.symptoms ? listArg(args.symptoms) : undefined,
+      failedAttempts: args['failed-attempts'] ? listArg(args['failed-attempts']) : undefined,
+      verification: args.verification ? listArg(args.verification) : undefined,
+    };
+    const out = AgentActions.memoryRecordAction(input);
+    return printJsonOr(out, args, row => console.log(`✅ memory ${row.id} → ${row.relativePath}`));
+  }
+  if (sub === 'status') {
+    const id = arg;
+    const status = args._[3];
+    if (!id || !status) die('usage: sc memory status <id> <active|confirmed|superseded|archived>');
+    const out = AgentActions.memoryStatusAction({ id, status, supersedes: args.supersedes, lastVerified: args['last-verified'] });
+    return printJsonOr(out, args, row => console.log(`✅ ${row.id}: ${row.status}`));
+  }
+  return die(`unknown: memory ${sub}`);
+}
+
+function cmdRecipe(sub, arg, args) {
+  if (!sub || sub === 'list') {
+    const out = AgentActions.recipeListAction({});
+    return printJsonOr(out, args, row => {
+      if (!row.recipes.length) return console.log('(no recipes)');
+      for (const r of row.recipes) console.log(`${r.id}  ${r.status}  observed=${r.observedCount}${r.script ? `  script=${r.script}` : ''}`);
+    });
+  }
+  if (sub === 'observe') {
+    if (!arg) die('usage: sc recipe observe <name> [--steps "a|b|c"]');
+    const out = AgentActions.recipeObserveAction({ name: arg, scope: args.scope, tags: listArg(args.tags), steps: listArg(args.steps) });
+    return printJsonOr(out, args, row => console.log(`✅ recipe ${row.id}: ${row.status} (${row.observedCount} observation(s))`));
+  }
+  if (sub === 'verify') {
+    if (!arg) die('usage: sc recipe verify <id> --yes');
+    if (!args.yes) die('recipe verification requires --yes');
+    const out = AgentActions.recipeVerifyAction({ id: arg, confirm: true });
+    return printJsonOr(out, args, row => console.log(`✅ recipe ${row.id}: ${row.status}`));
+  }
+  if (sub === 'promote') {
+    if (!arg || typeof args.script !== 'string') die('usage: sc recipe promote <id> --script scripts/name.js --yes');
+    if (!args.yes) die('recipe promotion requires --yes');
+    const out = AgentActions.recipePromoteAction({ id: arg, script: args.script, confirm: true });
+    return printJsonOr(out, args, row => console.log(`✅ recipe ${row.id}: executable → ${row.script}`));
+  }
+  return die(`unknown: recipe ${sub}`);
+}
+
+function cmdSkill(sub, args) {
+  if (!sub || sub === 'verify') {
+    const out = AgentActions.skillVerifyAction({ strict: Boolean(args.strict) });
+    return printJsonOr(out, args, row => {
+      console.log(`${row.ok ? '✅' : '❌'} ${row.skillCount} skill(s) · ${row.errorCount} error(s) · ${row.warningCount} warning(s)`);
+      for (const skill of row.skills.filter(x => x.errors.length || x.warnings.length)) {
+        console.log(`  ${skill.relativePath}`);
+        for (const e of skill.errors) console.log(`    ERROR: ${e}`);
+        for (const w of skill.warnings) console.log(`    warn: ${w}`);
+      }
+      if (!row.ok) process.exitCode = 1;
+    });
+  }
+  return die(`unknown: skill ${sub}`);
+}
+
+function cmdVerify(args) {
+  const out = AgentActions.repositoryVerifyAction({ record: !args['no-record'], strictSkills: Boolean(args.strict) });
+  return printJsonOr(out, args, row => {
+    console.log(`${row.ok ? '✅' : '❌'} repository verification`);
+    for (const [name, state] of Object.entries(row.checks)) console.log(`  ${name}: ${state}`);
+    if (row.evidence) console.log(`  evidence: ${row.evidence.path}`);
+    if (row.memory) console.log(`  test memory: ${row.memory.path}`);
+    if (!row.ok) process.exitCode = 1;
+  });
+}
+
+// ---------------------------------------------------------------------------
 function usage() {
   console.log(`
 sc — SI-Coder interactive console + secret control plane
@@ -1986,6 +2134,22 @@ sc — SI-Coder interactive console + secret control plane
   sc preflight --target <dokploy|hybrid|vercel>
                                       gate used by /sc-all
   sc audit [--limit N] [--json]       metadata-only lifecycle audit trail
+
+  sc risk <task description> [--json] classify LOW/MEDIUM/HIGH change risk + isolation policy
+  sc task prepare <task description>     load compact relevant memory/recipes only when risk warrants it
+  sc memory init                       create portable repo-local .agent memory foundation
+  sc memory query [text] [--type ...] [--tags a,b] [--json]
+                                      retrieve only relevant compact memory context
+  sc memory record <type> --title ... [--body-file PATH] [metadata]
+                                      persist secret-rejected task/debug/test/decision/failure memory
+  sc memory status <id> <active|confirmed|superseded|archived>
+  sc recipe [list]                     inspect repeated-work recipes
+  sc recipe observe <name> [--steps "a|b|c"]
+  sc recipe verify <id> --yes          mark a repeated recipe verified
+  sc recipe promote <id> --script scripts/name.js --yes
+                                      bind a verified recipe to a deterministic executable script
+  sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets
+  sc verify [--json] [--no-record]    full regression/docs/skills/secret verification + evidence/test memory
 
   sc user                             list users + credential counts + current resolution
   sc user which                       why this directory resolves to that user
@@ -2062,6 +2226,12 @@ async function main() {
     case 'update':    return cmdUpdate(args);
     case 'version':   return cmdVersion(args);
     case 'audit':     return cmdAudit(args);
+    case 'risk':      return cmdTaskRisk(args);
+    case 'task':      return cmdTask(sub, arg, args);
+    case 'memory':    return cmdMemory(sub, arg, args);
+    case 'recipe':    return cmdRecipe(sub, arg, args);
+    case 'skill':     return cmdSkill(sub, args);
+    case 'verify':    return cmdVerify(args);
     case 'user':      return cmdUser(sub, arg, args._[3], args);
     case 'env':       return cmdEnv(args);
     case 'run':       return cmdRun(args);

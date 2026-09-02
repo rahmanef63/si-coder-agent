@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Minimal dependency-free MCP stdio server for the safe SI-Coder agent surface.
-// Mirrors .mso/functions.json so MSO and MCP clients share schemas.
+// Mirrors machine/functions.json so machine clients and MCP clients share schemas.
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
-const FUNCTIONS = MANIFEST.functions.filter(f => f.name !== 'sc.verify');
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'machine/functions.json'), 'utf8'));
+const FUNCTIONS = MANIFEST.functions;
 const BY_NAME = new Map(FUNCTIONS.map(f => [f.name, f]));
 
 function write(msg) { process.stdout.write(`${JSON.stringify(msg)}\n`); }
@@ -23,6 +23,7 @@ function execute(fn, args) {
     encoding: 'utf8',
     input: JSON.stringify(args || {}),
     maxBuffer: 1024 * 1024,
+    timeout: Math.max(1000, Number(fn.timeoutMs) || 30000),
   });
   const stdout = (r.stdout || '').trim();
   const stderr = (r.stderr || '').trim();

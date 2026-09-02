@@ -1,6 +1,12 @@
 ---
 name: sc-provider
 description: "SI-Coder provider + connection control plane for humans and agents. Manage user-scoped labeled provider connections, auth methods/scopes, custom provider metadata, secret-safe credential status/handoffs, injected execution, audits, and safe updates without putting provider secrets in chat/tool JSON."
+use_when: "Use when the task matches this skill scope: SI-Coder provider + connection control plane for humans and agents. Manage user-scoped labeled provider connections, auth methods/scopes, custom provider metadata, secret-safe credential status/handoffs, injected execution, audits, and safe updates without putting provider secrets in chat/tool JSON."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-provider — provider + secret control plane
@@ -180,9 +186,9 @@ This gives two independent isolation levels:
 
 For backward compatibility, machines may still contain legacy profile or managed-shell values. Use `sc user connection-migrate <user>` to move recognized legacy values into named connections without printing them.
 
-## Agent / MSO / MCP function surface
+## Agent / MCP function surface
 
-`.mso/functions.json` is the machine-tool SSOT. MSO reads it directly and `scripts/sc-mcp.js` exposes the same functions to Claude Code, Codex, Hermes, OpenClaw, or another MCP client.
+`machine/functions.json` is the machine-tool SSOT. `scripts/sc-mcp.js` reads it directly and exposes the same functions to Claude Code, Codex, Hermes, OpenClaw, or another MCP client.
 
 Prefer explicit user/connection tools:
 

@@ -1,6 +1,12 @@
 ---
 name: sc-help
 description: "Quick reference for SI-Coder route selection, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which deploy route', or 'list si-coder commands'."
+use_when: "Use when the task matches this skill scope: Quick reference for SI-Coder route selection, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which deploy route', or 'list si-coder commands'."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # sc-help
@@ -93,7 +99,7 @@ sc user which
 
 Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. One user can own several isolated provider connections with unique labels, source/backends, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
 
-For AI agents, prefer the matching `sc.user.*` MCP/MSO tools from `.mso/functions.json`. Use `sc.user.connection.request/manage/list` for account/auth selection and `sc.user.credential.request` for direct create/rotate handoff because machine JSON never accepts raw secret values.
+For AI agents, prefer the matching `sc.user.*` MCP/machine tools from `machine/functions.json`. Use `sc.user.connection.request/manage/list` for account/auth selection and `sc.user.credential.request` for direct create/rotate handoff because machine JSON never accepts raw secret values.
 
 ## Secret-safe commands
 

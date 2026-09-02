@@ -1,6 +1,12 @@
 ---
 name: sc-git
 description: "GitHub repo CRUD + Actions cost reduction. Audit workflow burn rate, disable noisy YAML (workflow_dispatch-only with backup), run CI locally instead of cloud minutes, install pre-push hook, install self-hosted runner at VPS, POST commit statuses, register VPS crontab. Replaces GitHub Actions cloud minutes with local/VPS execution. Trigger on /sc-git, 'reduce github actions', 'github actions usage', 'audit workflows', 'self-hosted runner', 'disable workflow', 'pre-push hook ci'."
+use_when: "Use when the task matches this skill scope: GitHub repo CRUD + Actions cost reduction. Audit workflow burn rate, disable noisy YAML (workflow_dispatch-only with backup), run CI locally instead of cloud minutes, install pre-push hook, install self-hosted runner at VPS, POST commit statuses, register VPS crontab. Replaces GitHub Actions cloud minutes with local/VPS execution. Trigger on /sc-git, 'reduce github actions', 'github actions usage', 'audit workflows', 'self-hosted runner', 'disable workflow', 'pre-push hook ci'."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-git — GitHub Actions Replacement & Repo CRUD

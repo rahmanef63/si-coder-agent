@@ -1,6 +1,20 @@
 # SI-Coder tool calling
 
-SI-Coder exposes one secret-safe machine surface for local AI agents. MSO and MCP clients use the same schemas from `.mso/functions.json`; `scripts/sc-agent.js` executes them and `scripts/sc-mcp.js` exposes them over MCP stdio.
+SI-Coder exposes one secret-safe machine surface for local AI agents. Machine clients use the schemas from `machine/functions.json`; `scripts/sc-agent.js` executes them and `scripts/sc-mcp.js` exposes them over MCP stdio.
+
+## Agent workflow tools
+
+The standalone agent workflow adds bounded task/memory/evidence/recipe/skill surfaces:
+
+- `sc.task.risk` — classify change risk.
+- `sc.task.prepare` — skip memory for LOW risk; retrieve compact relevant memory/recipes for MEDIUM/HIGH risk.
+- `sc.memory.query` / `sc.memory.record` / `sc.memory.status` — repo-local memory retrieval and lifecycle.
+- `sc.evidence.record` — structured secret-safe verification receipt.
+- `sc.recipe.list` / `observe` / `verify` / `promote` — repeated-work promotion.
+- `sc.skill.verify` — skill quality/trigger/security validation.
+- `sc.verify` — repository verification with compact evidence/test-memory recording.
+
+The recursive secret-shaped input guard runs before dispatch, so adding nested JSON does not create a credential transport path.
 
 ## Identity model
 
@@ -142,9 +156,9 @@ sc run --connection github=work,convex-cloud=client-a-production -- <command>
 
 This is only for `source=sc`, where SI-Coder owns the local credential set. For `source=composio`, resolve the selected connection and execute directly with its `connectedAccountId`/alias; for `source=native-mcp`, use the provider-owned MCP session. `sc run` refuses external sources so a stale local token cannot silently replace the selected external identity.
 
-## MSO
+## Standalone machine contract
 
-MSO reads `.mso/functions.json` directly. No second function manifest is maintained.
+`machine/functions.json` is SI-Coder's own machine-function SSOT. The bundled MCP adapter reads it directly, so no separate orchestrator or host-specific function manifest is required.
 
 ## MCP server
 
@@ -166,7 +180,7 @@ Generic MCP configuration:
 }
 ```
 
-`tools/list` is generated from `.mso/functions.json`, so MCP and MSO share tool names/input schemas.
+`tools/list` is generated from `machine/functions.json`, so MCP and machine clients share tool names/input schemas.
 
 ## Claude Code
 

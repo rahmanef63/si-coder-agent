@@ -135,8 +135,8 @@ test('SCPORT-10: portable installer targets local Agent Skills runtimes from one
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('SCPORT-11: MSO deploy-plan schema exposes runtime but no secret-value fields', () => {
-  const m = JSON.parse(fs.readFileSync(path.join(ROOT, '.mso/functions.json'), 'utf8'));
+test('SCPORT-11: machine deploy-plan schema exposes runtime but no secret-value fields', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'machine/functions.json'), 'utf8'));
   const fn = m.functions.find(x => x.name === 'sc.deploy.plan');
   assert.ok(fn);
   assert.deepStrictEqual(fn.inputSchema.properties.runtime.enum, ['auto', 'hosted', 'local']);

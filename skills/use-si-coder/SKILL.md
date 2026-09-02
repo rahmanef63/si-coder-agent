@@ -1,6 +1,12 @@
 ---
 name: use-si-coder
 description: "Legacy one-shot full-stack auto-deploy monolith. Runs scripts/deploy.js to create a GitHub repo, push local code via SSH, set up a Dokploy project, configure self-hosted Convex (Docker Compose) + Next.js, wire Hostinger DNS, and trigger + poll the deployment — zero human steps. Superseded by the modular /sc-* skills (/sc-all) but kept fully functional."
+use_when: "Use when the task matches this skill scope: Legacy one-shot full-stack auto-deploy monolith. Runs scripts/deploy.js to create a GitHub repo, push local code via SSH, set up a Dokploy project, configure self-hosted Convex (Docker Compose) + Next.js, wire Hostinger DNS, and trigger + poll the deployment — zero human steps. Superseded by the modular /sc-* skills (/sc-all) but kept fully functional."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # SI Coder Auto Deploy (legacy `/use-si-coder`)

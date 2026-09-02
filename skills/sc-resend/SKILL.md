@@ -1,6 +1,12 @@
 ---
 name: sc-resend
 description: "(STUB / NOT IMPLEMENTED YET) Transactional email via Resend — verify sender domain DNS (DKIM/SPF/DMARC), create API keys, send template-based emails. Pairs with sc-cf or lib/hostinger.js for the DNS record creation step."
+use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Transactional email via Resend — verify sender domain DNS (DKIM/SPF/DMARC), create API keys, send template-based emails. Pairs with sc-cf or lib/hostinger.js for the DNS record creation step."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-resend — Resend (STUB)
@@ -15,38 +21,31 @@ description: "(STUB / NOT IMPLEMENTED YET) Transactional email via Resend — ve
 - **Smoke send** to a verified recipient to confirm DNS propagation.
 
 
-## Rahmanef sender policy
+## Sender identity policy
 
-For first-party apps hosted on `*.rahmanef.com`, use one verified transactional
-identity and vary only the project display name:
+Sender identity is project configuration, not repository-global policy. Use one explicitly
+verified Resend domain/account selected by the user and keep the visible project name
+separate from the sender address:
 
 ```text
-From: <Project Name> <official@rahmanef.com>
-Reply-To: (unset by default)
+From: <Project Name> <transactional@example.com>
+Reply-To: <optional monitored mailbox>
 ```
 
-Do not derive the sender address from the app subdomain. For example,
-`baton.rahmanef.com` sends as `Baton <official@rahmanef.com>`, not
-`official@baton.rahmanef.com`. Preserve the existing verified Resend/DNS
-configuration for `rahmanef.com`; a transport or return-path hostname such as
-`send.rahmanef.com` is infrastructure, not the visible From identity.
-
-Recommended project-local env contract:
+Do not infer a sender address from the application hostname. A project hosted at
+`app.example.com` may legitimately send from a different verified domain. Keep the
+project-local contract explicit:
 
 ```text
-EMAIL_FROM_ADDRESS=official@rahmanef.com
+EMAIL_FROM_ADDRESS=transactional@example.com
 EMAIL_PROJECT_NAME=<Project Name>
 EMAIL_PROJECT_TAG=<project-slug>
 EMAIL_REPLY_TO=
 ```
 
-Framework adapters may map that SSOT into their native variable names. Example:
-Baton uses `AUTH_EMAIL_FROM="Baton <official@rahmanef.com>"`; Play Together
-builds the same header from `EMAIL_PROJECT_NAME` + `EMAIL_FROM_ADDRESS`. Keep
-reply-to absent unless the project has a distinct monitored mailbox. Future
-HTML templates should take the same project identity object for header, footer,
-subject prefix/tagging, and plaintext fallback rather than forking templates per
-application.
+Framework adapters may map these values into native variables, but the selected project
+configuration remains the source of truth. Never bake another project's domain, sender,
+or display name into this skill.
 
 ## Env vars
 

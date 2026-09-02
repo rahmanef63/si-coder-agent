@@ -1,6 +1,12 @@
 ---
 name: sc-stripe
 description: "(STUB / NOT IMPLEMENTED YET) Stripe payments setup — create products/prices, webhook endpoint registration, customer portal config, restricted API keys. Pairs with sc-convex for `payments` table mutations and HTTP webhook routes."
+use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Stripe payments setup — create products/prices, webhook endpoint registration, customer portal config, restricted API keys. Pairs with sc-convex for `payments` table mutations and HTTP webhook routes."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-stripe — Stripe (STUB)

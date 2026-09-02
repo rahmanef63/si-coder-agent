@@ -1,6 +1,12 @@
 ---
 name: sc-vercel
 description: "Vercel deploy as online frontend host. Create project bound to a GitHub repo, set CONVEX_DEPLOY_KEY, set build command to couple Convex Cloud deploy + Next.js build (injects NEXT_PUBLIC_CONVEX_URL), add a custom domain or subdomain, configure Hostinger DNS (CNAME for subdomain / A for apex) from Vercel's required config, trigger + poll deploy. Pairs with /sc-convex-cloud for the Convex Cloud backend."
+use_when: "Use when the task matches this skill scope: Vercel deploy as online frontend host. Create project bound to a GitHub repo, set CONVEX_DEPLOY_KEY, set build command to couple Convex Cloud deploy + Next.js build (injects NEXT_PUBLIC_CONVEX_URL), add a custom domain or subdomain, configure Hostinger DNS (CNAME for subdomain / A for apex) from Vercel's required config, trigger + poll deploy. Pairs with /sc-convex-cloud for the Convex Cloud backend."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-vercel — Vercel (online frontend)
@@ -33,7 +39,7 @@ flowchart TD
 2. Resolve the GitHub repo: `--git-owner/--git-repo`, else read `origin` from the local git remote.
 3. `findOrCreateProject({ name, gitRepo, framework:'nextjs' })` — bind the repo on create.
 4. Set env vars: `CONVEX_DEPLOY_KEY` (`type:'encrypted'`, **Production only** — it's a prod key). Do **not** set `NEXT_PUBLIC_CONVEX_URL` (injected by the build).
-5. Resolve the build command without overriding the repo: explicit `--build-command` → repo `vercel.json` → Bun/npm-aware Convex fallback. This lets repos such as Baton keep their own gated `bun run build:auto` contract.
+5. Resolve the build command without overriding the repo: explicit `--build-command` → repo `vercel.json` → Bun/npm-aware Convex fallback. This lets repositories can keep their own gated `bun run build:auto` contract.
 6. Add the custom domain/subdomain (tolerate 409 already-assigned).
 7. Read the exact required DNS from Vercel's domain config.
 8. Configure Hostinger DNS (TXT ownership challenge first if unverified, then the A/CNAME pointing record), or print the records to add manually if no `HOSTINGER_API_TOKEN`.

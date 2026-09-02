@@ -1,6 +1,12 @@
 ---
 name: si-coder
 description: "SI-Coder umbrella skill. Build and publish web apps from plain-language goals for non-technical users. Route through the sc, sc-build, sc-all, sc-provider, or provider-specific skills while keeping technical choices and secrets behind a safe abstraction layer."
+use_when: "Use when the task matches this skill scope: SI-Coder umbrella skill. Build and publish web apps from plain-language goals for non-technical users. Route through the sc, sc-build, sc-all, sc-provider, or provider-specific skills while keeping technical choices and secrets behind a safe abstraction layer."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # SI-Coder umbrella

@@ -1,6 +1,12 @@
 ---
 name: sc-supabase
 description: "(STUB / NOT IMPLEMENTED YET) Supabase backend as an alternative to self-hosted Convex. Create project, apply migrations from supabase/migrations, deploy Edge Functions, generate types. For projects where Postgres + Row-Level-Security is a better fit than Convex's reactive query model."
+use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Supabase backend as an alternative to self-hosted Convex. Create project, apply migrations from supabase/migrations, deploy Edge Functions, generate types. For projects where Postgres + Row-Level-Security is a better fit than Convex's reactive query model."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # /sc-supabase — Supabase (STUB)

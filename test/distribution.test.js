@@ -71,6 +71,8 @@ test('DIST-5: version and package file list include distributable skill artifact
   assert.ok(pkg.files.includes('dist/'));
   assert.ok(pkg.files.includes('AI_INSTALL.md'));
   assert.ok(pkg.files.includes('.agents/'));
+  assert.ok(pkg.files.includes('machine/'));
+  assert.ok(!pkg.files.includes('.mso/'));
   assert.ok(pkg.files.includes('plugins/'));
   assert.strictEqual(pkg.scripts['package:skills'], 'python3 scripts/package-web-skill.py');
 });

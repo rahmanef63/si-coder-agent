@@ -1,6 +1,12 @@
 ---
 name: sc-install
 description: "Install or share SI-Coder across Claude Code, Claude.ai, ChatGPT, Codex, Hermes, OpenClaw, or another Agent Skills-compatible runtime. Use the canonical skill directory containing SKILL.md for local/repository installs. Use ZIP for web upload surfaces that document ZIP. Treat .skill as optional only when the target client explicitly supports that extension. Choose the install path by surface and never promise an invocation syntax the product does not support."
+use_when: "Use when the task matches this skill scope: Install or share SI-Coder across Claude Code, Claude.ai, ChatGPT, Codex, Hermes, OpenClaw, or another Agent Skills-compatible runtime. Use the canonical skill directory containing SKILL.md for local/repository installs. Use ZIP for web upload surfaces that document ZIP. Treat .skill as optional only when the target client explicitly supports that extension. Choose the install path by surface and never promise an invocation syntax the product does not support."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+required_tools: []
+security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
+references: []
+compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
 # sc-install — install SI-Coder on the current AI surface
@@ -87,7 +93,7 @@ bash install.sh --agent hermes --with-mcp
 bash install.sh --agent openclaw --with-mcp
 ```
 
-The installer registers the same `scripts/sc-mcp.js` server used by the `.mso/functions.json` tool SSOT. Hermes uses `hermes mcp add`; OpenClaw uses `openclaw mcp add`. The MCP surface is user/connection-scoped (`sc.user.*`) and never accepts plaintext credential values. Use `sc.user.connection.request/manage/list` for labeled account/auth selection and `sc.user.credential.request` for direct credential create/rotate handoff; values are entered only through hidden local terminal input or another explicitly secure credential channel.
+The installer registers the same `scripts/sc-mcp.js` server used by the `machine/functions.json` tool SSOT. Hermes uses `hermes mcp add`; OpenClaw uses `openclaw mcp add`. The MCP surface is user/connection-scoped (`sc.user.*`) and never accepts plaintext credential values. Use `sc.user.connection.request/manage/list` for labeled account/auth selection and `sc.user.credential.request` for direct credential create/rotate handoff; values are entered only through hidden local terminal input or another explicitly secure credential channel.
 
 ## Package contract
 
