@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "sc": { "lifecycle": "active", "installByDefault": true },
+    "sc-build": { "lifecycle": "active", "installByDefault": true },
+    "sc-all": { "lifecycle": "active", "installByDefault": true },
+    "sc-provider": { "lifecycle": "active", "installByDefault": true },
+    "sc-install": { "lifecycle": "active", "installByDefault": true },
+    "sc-help": { "lifecycle": "active", "installByDefault": true },
+    "sc-git": { "lifecycle": "active", "installByDefault": true },
+    "sc-dokploy": { "lifecycle": "active", "installByDefault": true },
+    "sc-convex": { "lifecycle": "active", "installByDefault": true },
+    "sc-convex-cloud": { "lifecycle": "active", "installByDefault": true },
+    "sc-vercel": { "lifecycle": "active", "installByDefault": true },
+    "sc-cf": { "lifecycle": "active", "installByDefault": true },
+    "sc-onboarding": { "lifecycle": "active", "installByDefault": true },
+    "sc-sync": { "lifecycle": "active", "installByDefault": true },
+    "sc-n8n": { "lifecycle": "active", "installByDefault": true },
+    "sc-resend": { "lifecycle": "stub", "installByDefault": false, "note": "Credential status/doctor exists in sc-provider, but dedicated Resend provisioning automation is unfinished." },
+    "sc-stripe": { "lifecycle": "stub", "installByDefault": false },
+    "sc-clerk": { "lifecycle": "stub", "installByDefault": false },
+    "sc-supabase": { "lifecycle": "stub", "installByDefault": false },
+    "use-si-coder": { "lifecycle": "legacy", "installByDefault": false, "note": "Kept for backward compatibility; normal routing uses modular sc workflows." }
+  }
+}

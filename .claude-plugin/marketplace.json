@@ -24,10 +24,7 @@
         "./skills/sc-convex-cloud",
         "./skills/sc-vercel",
         "./skills/sc-cf",
-        "./skills/sc-resend",
-        "./skills/sc-stripe",
-        "./skills/sc-clerk",
-        "./skills/sc-supabase",
+        "./skills/sc-onboarding",
         "./skills/sc-sync",
         "./skills/sc-n8n"
       ]

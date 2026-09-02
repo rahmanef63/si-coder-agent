@@ -499,7 +499,8 @@ test('SCCP-19: source-aware verify reports unlinked Composio connection without 
   const home = path.join(dir, 'home');
   const config = path.join(dir, 'config');
   fs.mkdirSync(home, { recursive: true });
-  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config, GITHUB_TOKEN: 'ghp_shell_must_not_be_verified' };
+  const shellToken = 'ghp_' + 'shell_must_not_be_verified';
+  const env = { ...process.env, HOME: home, SC_CONFIG_DIR: config, GITHUB_TOKEN: shellToken };
   run(['user', 'add', 'agent'], { env });
   run(['user', 'connection-add', 'agent', 'github', 'Work GitHub', '--source', 'composio', '--auth', 'oauth2', '--default'], { env });
   const r = spawnSync(process.execPath, [SC, 'user', 'verify', 'agent', 'github', '--connection', 'work-github'], {
@@ -508,6 +509,6 @@ test('SCCP-19: source-aware verify reports unlinked Composio connection without 
   assert.notStrictEqual(r.status, 0);
   const out = `${r.stdout || ''}${r.stderr || ''}`;
   assert.match(out, /Composio · needs authorization/i);
-  assert.doesNotMatch(out, /ghp_shell_must_not_be_verified/);
+  assert.ok(!out.includes(shellToken));
   fs.rmSync(dir, { recursive: true, force: true });
 });

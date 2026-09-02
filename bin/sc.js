@@ -11,6 +11,7 @@
 // perfectly well-formed and still be revoked, expired, or belong to the wrong account —
 // only the second question catches that, and it is the one that used to go unasked.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const {
   PROVIDERS, BUILTIN_PROVIDER_IDS, BUILTIN_PROVIDER_KEYS, TARGET_PROVIDERS, VALIDATORS,
@@ -373,11 +374,11 @@ async function promptForVar(v, { user, connection, store } = {}) {
   console.log(`  ${v.key}${v.required ? '' : '  (optional — press Enter to skip)'}`);
   printCredentialGuide(v.key, '    ', { user, connection, store });
   if (isSecret(v.key)) console.log('    ↳ input is hidden (not echoed)');
-  if (MENU_MODE) console.log('    ↳ Esc cancels this input and returns to the previous SI-Coder screen');
+  if (isInteractive()) console.log('    ↳ Esc cancels this input without leaving SI-Coder');
   while (true) {
-    const inputOptions = MENU_MODE ? { escapeCancels: true } : {};
+    const inputOptions = isInteractive() ? { escapeCancels: true } : {};
     const value = isSecret(v.key) ? await askHidden('    value: ', inputOptions) : await askVisible('    value: ', inputOptions);
-    if (value === null && MENU_MODE) return INPUT_CANCELLED;
+    if (value === null) return INPUT_CANCELLED;
     if (!value && !v.required) return null;
     if (!value && v.required) { console.log(`    ❌ ${v.key} is required`); continue; }
     const validator = VALIDATORS[v.key];
@@ -438,25 +439,164 @@ function persist(updates) {
   return t;
 }
 
+function defaultSetupUserName() {
+  let raw = 'local';
+  try { raw = os.userInfo().username || raw; } catch { /* container/minimal OS */ }
+  const cleaned = String(raw).trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  return cleaned && /^[A-Za-z0-9]/.test(cleaned) ? cleaned : 'local';
+}
+
+function activateSetupUser(name) {
+  const st = ensureScMd();
+  if (st.active !== name) P.writeScMd({ active: name, mappings: st.mappings });
+  invalidateEnvCache();
+}
+
+async function ensureSetupUser(args = {}) {
+  const resolved = P.resolveProfile();
+  if (resolved.profile && P.profileExists(resolved.profile)) return resolved.profile;
+
+  let name = typeof args.user === 'string' ? args.user : null;
+  const profiles = P.listProfiles();
+  if (!name && profiles.length === 1) name = profiles[0];
+  if (!name && profiles.length > 1) {
+    const picked = await selectOne('Which SI-Coder user should own these connections?', [
+      ...profiles.map(id => ({ id, label: id, hint: `${P.profileOwner(id)} · existing user` })),
+      { id: '__new__', label: 'Create new user', hint: 'new isolated connection store' },
+    ]);
+    if (!picked) return null;
+    if (picked !== '__new__') name = picked;
+  }
+  if (!name) {
+    const suggested = defaultSetupUserName();
+    const answer = await askVisible(`SI-Coder user [${suggested}]: `, MENU_MODE ? { escapeCancels: true } : {});
+    if (answer === null && MENU_MODE) return null;
+    name = String(answer || suggested).trim();
+  }
+  P.assertName(name);
+  if (!P.profileExists(name)) {
+    // The profile file remains as the user identity anchor, but fresh setup intentionally
+    // stores ZERO provider credentials in it. Secrets go straight to named connections.
+    P.writeProfile(name, {});
+    P.setProfileOwner(name, name);
+    audit('profile.create', { profile: name, owner: name, importedKeys: 0, source: 'setup' });
+    console.log(`✅ created SI-Coder user "${name}" (provider credentials stay connection-scoped)`);
+  }
+  activateSetupUser(name);
+  return name;
+}
+
+async function setupDirectConnection(user, providerId, { force = false } = {}) {
+  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  if (p.status === 'stub') {
+    die(`${providerId} automation is not implemented yet; SC will not collect credentials for an unavailable capability during normal setup`);
+  }
+
+  // If this user still has old profile-scoped values, migrate only this provider before
+  // asking for anything new. The value never leaves local private storage or gets printed.
+  if (!C.list(user, providerId).length) {
+    const legacy = P.readProfile(user);
+    if (p.vars.some(v => legacy[v.key] !== undefined)) {
+      const migrated = C.migrateLegacy(user, legacy, [p], { removeLegacy: keys => P.removeFromProfile(user, keys) });
+      if (migrated.created.length) {
+        audit('connection.migrate-legacy', { profile:user, providers:[providerId], keyNames:migrated.migratedKeys, source:'setup' });
+        console.log(`  ✅ migrated existing ${providerId} values into a named connection; values hidden`);
+      }
+    }
+  }
+
+  let conn = C.selected(user, providerId);
+  let created = false;
+  if (conn && (conn.source || 'sc') !== 'sc') {
+    console.log(`  ℹ️ ${providerId}: selected connection "${conn.label}" uses ${conn.source}; authorize it through its external connection flow instead of entering a local credential.`);
+    return { provider: providerId, connection: conn.id, external: true, changed: false };
+  }
+
+  if (!conn) {
+    const methods = C.authOptions(p, 'sc');
+    if (!methods.length) {
+      console.log(`  ℹ️ ${providerId}: no direct local credential method; use its external/provider-owned connection flow.`);
+      return { provider: providerId, external: true, changed: false };
+    }
+    let method = methods[0];
+    if (methods.length > 1) {
+      const chosen = await selectOne(`Authentication for ${providerId}`, methods.map(m => ({
+        id: m.id, label: m.label, hint: `${m.scheme} · ${m.scope}${m.recommended ? ` · ${m.recommended}` : ''}`,
+      })));
+      if (!chosen) return { provider: providerId, cancelled: true };
+      method = C.authOption(p, 'sc', chosen);
+    }
+    conn = C.create(user, providerId, {
+      label: `Default ${p.title || providerId}`,
+      source: 'sc', authMethod: method.id, scope: method.scope || 'account', setDefault: true,
+      origin: 'first-run-setup',
+    });
+    created = true;
+    console.log(`\n── ${providerId.toUpperCase()} — ${conn.label} ──`);
+    console.log(`   direct ${method.scheme} · scope ${method.scope}`);
+  } else {
+    console.log(`\n── ${providerId.toUpperCase()} — ${conn.label} ──`);
+  }
+
+  const method = C.authOption(p, 'sc', conn.authMethod);
+  const required = new Set(method.requiredFields || []);
+  const fields = C.connectionFields(p, conn).map(v => ({ ...v, required: required.has(v.key) }));
+  const existing = C.readValues(user, providerId, conn.id);
+  const todo = fields.filter(v => force || existing[v.key] === undefined || (VALIDATORS[v.key] && !VALIDATORS[v.key](existing[v.key])));
+  if (!todo.length) {
+    console.log(`   ✅ already complete — ${Object.keys(existing).length} field(s) stored in the named connection`);
+    return { provider: providerId, connection: conn.id, changed: false };
+  }
+
+  const store = `SI-Coder connection "${conn.label}" (${C.connectionPath(user, providerId, conn.id)}, mode 0600)`;
+  const updates = {};
+  for (const v of todo) {
+    const value = await promptForVar(v, { user, connection: conn.id, store });
+    if (value === INPUT_CANCELLED) {
+      if (created && !Object.keys(C.readValues(user, providerId, conn.id)).length) C.remove(user, providerId, conn.id);
+      return { provider: providerId, cancelled: true };
+    }
+    if (value !== null) updates[v.key] = value;
+  }
+  if (Object.keys(updates).length) {
+    C.writeValues(user, providerId, conn.id, updates);
+    audit('connection.credentials.set', { profile:user, provider:providerId, connection:conn.id, keyNames:Object.keys(updates), source:'setup' });
+    invalidateEnvCache();
+    console.log(`   ✅ stored ${Object.keys(updates).length} field(s) in ${providerId}/${conn.label}; values hidden`);
+  }
+  return { provider: providerId, connection: conn.id, changed: Boolean(Object.keys(updates).length) };
+}
+
 async function cmdSetup(args) {
-  if (!isInteractive()) die('sc setup needs a TTY. Non-interactive? Use:\n   printf \'KEY=VALUE\\n\' | node skills/sc-onboarding/scripts/scan-env.js --write-stdin');
-  console.log('\n🚀 si-coder setup\n');
+  if (!isInteractive()) die('sc setup needs a TTY. For automation, create/select a user + named connection and feed one credential through `sc user credential-set ... --stdin`; raw secret values must not enter argv.');
+  console.log('\n🚀 si-coder setup — named connections\n');
+  const user = await ensureSetupUser(args);
+  if (!user) { console.log('cancelled'); return 'cancel'; }
+  console.log(`   user: ${user}`);
+  console.log('   storage: user → provider → named connection (0600); ~/.bashrc is not modified by first-run setup\n');
+
   let ids = resolveIds(args);
-  if (!ids) {
-    const items = providerItems();
-    // Do not pre-check unrelated providers. A highlighted row must never look like the
-    // provider the user is about to configure while hidden defaults point somewhere else.
-    // With no boxes checked, Enter selects the highlighted provider; Space remains the
-    // explicit multi-select control.
-    ids = await selectMany('Which providers do you want to set up?', items, [], PROVIDER_TABS);
-    if (ids === null) { console.log('cancelled'); return; }
+  if (ids) {
+    for (const id of ids) {
+      const p = byId.get(id) || die(`unknown provider "${id}"`);
+      if (p.status === 'stub') die(`${id} is not an active capability yet; normal setup refuses stub providers`);
+    }
+  } else {
+    const items = providerItemsForUser(user).filter(item => !item.stub);
+    ids = await selectMany('Which providers do you want to connect?', items, [], PROVIDER_TABS.filter(tab => tab.id !== 'stub'));
+    if (ids === null) { console.log('cancelled'); return 'cancel'; }
     if (ids.length === 0) { console.log('Nothing selected.'); return; }
   }
-  const updates = await collect(ids, { force: Boolean(args.force) });
-  if (updates === INPUT_CANCELLED) return MENU_MODE ? 'cancel' : undefined;
-  if (Object.keys(updates).length === 0) { console.log('\n✅ Nothing to write — everything asked for is already set.'); return; }
-  persist(updates);
-  printRecommendation(recommendation({ next: 'verifikasi provider yang baru diset', why: 'format key saja tidak membuktikan key masih valid', action: 'sc doctor' }));
+
+  let changed = 0;
+  for (const id of ids) {
+    const result = await setupDirectConnection(user, id, { force: Boolean(args.force) });
+    if (result?.cancelled) return MENU_MODE ? 'cancel' : undefined;
+    if (result?.changed) changed++;
+  }
+  console.log(`\n✅ setup complete for ${user}: ${ids.length} provider(s), ${changed} connection(s) updated; no provider secret was written to ~/.bashrc.`);
+  printRecommendation(recommendation({ next: 'verifikasi connection yang baru diset', why: 'format credential saja tidak membuktikan akses provider benar-benar usable', action: `sc user verify ${user}` }));
+  return { user, providers: ids, changed };
 }
 
 async function cmdProvidersSet(id) {
@@ -1463,7 +1603,8 @@ async function cmdDoctor(args) {
 async function cmdPreflight(args) {
   const target = args.target || 'dokploy';
   const ids = TARGET_PROVIDERS[target] || die(`unknown --target "${target}"`);
-  const env = currentEnv();
+  const full = currentEnvFull();
+  const env = full.env;
 
   const missing = [];
   for (const id of ids) {
@@ -1491,19 +1632,19 @@ async function cmdPreflight(args) {
     process.exit(1);
   }
   console.log('');
-  if (!await confirm('Enter them now?')) die('aborted — deploy not started', 1);
-  const updates = await collect(ids);
-  if (updates === INPUT_CANCELLED) return MENU_MODE ? 'cancel' : undefined;
-  if (Object.keys(updates).length) {
-    appendExportToShellRc(updates);
-    console.log(`\n✅ Wrote ${Object.keys(updates).length} export(s) to ~/.bashrc`);
-    // The parent shell cannot be mutated from here, so the caller must re-source before the
-    // deploy reads process.env. Say so explicitly rather than letting it fail one step later.
-    console.log('\n⚠️ Run `source ~/.bashrc` and re-run /sc-all — this process cannot change the parent shell.');
-    if (MENU_MODE) return;
-    process.exit(2);
+  if (!await confirm('Connect them now?')) die('aborted — deploy not started', 1);
+  const setup = await cmdSetup({ ...args, providers: ids.join(','), user: full.profile || args.user });
+  if (setup === 'cancel') return MENU_MODE ? 'cancel' : undefined;
+  const refreshed = currentEnv();
+  const stillMissing = [];
+  for (const id of ids) {
+    for (const v of byId.get(id).vars) if (v.required && !refreshed[v.key]) stillMissing.push({ id, key: v.key });
   }
-  die('still missing required credentials', 1);
+  if (!stillMissing.length) {
+    console.log(`\n✅ preflight ok for --target ${target} after named-connection setup`);
+    return;
+  }
+  die(`still missing required credentials: ${stillMissing.map(x => x.key).join(', ')}`, 1);
 }
 
 
@@ -2133,15 +2274,15 @@ sc — SI-Coder interactive console + secret control plane
 
   sc secret list [provider] [--json]  credential state/source only; NO plaintext
   sc secret get <provider> [KEY]      safe read: state/source; plaintext read is disabled
-  sc secret set <provider> [KEY]      hidden TTY entry; with KEY also supports:
+  sc secret set <provider> [KEY]      legacy/profile-compatible hidden entry; prefer \`sc user credential-set ... --connection\`
       --stdin | --from-env NAME | --from-file PATH
                                       secret never belongs in argv/chat
   sc secret rm <provider> [KEY] [--yes]
   sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
                                       consume one user's selected named connections without changing defaults
 
-  sc setup [--providers a,b] [--target t] [--force]
-                                      interactive setup wizard
+  sc setup [--providers a,b] [--target t] [--user name] [--force]
+                                      user-first named-connection setup; fresh setup never writes provider secrets to ~/.bashrc
   sc doctor [--providers a,b] [--target t]
                                       LIVE provider verification
   sc preflight --target <dokploy|hybrid|vercel>

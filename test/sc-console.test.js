@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const { EventEmitter } = require('events');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -186,7 +186,7 @@ test('SCC-2: setup refuses without a TTY and names the non-interactive path', ()
   } catch (e) { out = `${e.stdout || ''}${e.stderr || ''}`; code = e.status; }
   assert.strictEqual(code, 1);
   assert.match(out, /needs a TTY/);
-  assert.match(out, /--write-stdin/, 'must point at the scriptable path');
+  assert.match(out, /credential-set.*--stdin/, 'must point at the named-connection scriptable path');
 });
 
 test('SCC-3: unknown target and unknown provider are rejected, not guessed', () => {
@@ -228,13 +228,17 @@ test('SCC-6: the pickers are exported and take the documented shape', () => {
   assert.match(selectMany.toString(), /^function selectMany\(\s*title,\s*items,\s*preselected/,
     'selectMany must accept (title, items, preselected)');
   const sc = fs.readFileSync(path.join(ROOT, 'bin/sc.js'), 'utf8');
-  assert.match(sc, /selectMany\('Which providers do you want to set up\?', items, \[\], PROVIDER_TABS\)/,
-    'generic setup must start with no implicit provider selection');
+  assert.match(sc, /selectMany\('Which providers do you want to connect\?', items, \[\], PROVIDER_TABS\.filter/,
+    'generic setup must start with no implicit provider selection and hide stub capabilities');
   const prompt = fs.readFileSync(path.join(ROOT, 'lib/prompt.js'), 'utf8');
   assert.match(prompt, /multi && selected\.size === 0 && cur\[cursor\].*selected\.add/,
     'Enter with no toggled boxes must choose the highlighted provider');
-  assert.match(sc, /!env\[v\.key\] \|\| varState\(v, env\) === 'INVALID'/,
-    'setup must re-prompt malformed values instead of treating their mere presence as complete');
+  assert.match(sc, /existing\[v\.key\] === undefined \|\| \(VALIDATORS\[v\.key\] && !VALIDATORS\[v\.key\]\(existing\[v\.key\]\)\)/,
+    'named-connection setup must re-prompt malformed values instead of treating presence as complete');
+  assert.match(sc, /~\/.bashrc is not modified by first-run setup/, 'fresh setup must explicitly remain connection-scoped');
+  const preflight = sc.slice(sc.indexOf('async function cmdPreflight'), sc.indexOf('function renderUserPlan'));
+  assert.match(preflight, /const full = currentEnvFull\(\);[\s\S]*const env = full\.env;/,
+    'interactive preflight must retain the resolved user when it hands off to named-connection setup');
 });
 
 test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appending prompt loop', () => {
@@ -290,6 +294,46 @@ test('SCC-7a: Esc cancels credential line input without exiting the surrounding 
   assert.strictEqual(await visible, null);
   assert.match(output.text, /example-owner/, 'non-secret credential metadata may echo normally');
   assert.strictEqual(input.isRaw, false);
+});
+
+test('SCC-7a2: raw prompt preserves pasted bytes after Enter for the next raw prompt, but Esc discards its escape-sequence tail', async () => {
+  const { askHidden, askVisible } = require(path.join(ROOT, 'lib/prompt'));
+  const fakeInput = () => {
+    const input = new EventEmitter();
+    input.isTTY = true;
+    input.isRaw = false;
+    input.setRawMode = value => { input.isRaw = Boolean(value); };
+    input.resume = () => {};
+    input.pause = () => {};
+    return input;
+  };
+  const fakeOutput = () => ({ text: '', write(chunk) { this.text += String(chunk); } });
+
+  let input = fakeInput();
+  const hiddenOut = fakeOutput();
+  const first = askHidden('token: ', { escapeCancels: true, input, output: hiddenOut });
+  input.emit('data', Buffer.from('first-secret\r\nsecond-owner\r\n'));
+  assert.strictEqual(await first, 'first-secret');
+  assert.doesNotMatch(hiddenOut.text, /first-secret|second-owner/, 'hidden prompt must not echo the pasted secret or pending bytes');
+  assert.strictEqual(input.isRaw, false);
+
+  const visibleOut = fakeOutput();
+  const second = askVisible('owner: ', { escapeCancels: true, input, output: visibleOut });
+  assert.strictEqual(await second, 'second-owner');
+  assert.match(visibleOut.text, /second-owner/, 'pending non-secret bytes should belong to the next raw prompt');
+  assert.strictEqual(input.isRaw, false);
+
+  input = fakeInput();
+  const cancelOut = fakeOutput();
+  const cancelled = askVisible('owner: ', { escapeCancels: true, input, output: cancelOut });
+  input.emit('data', Buffer.from('\x1b[A'));
+  assert.strictEqual(await cancelled, null);
+  assert.strictEqual(input.isRaw, false);
+  const nextOut = fakeOutput();
+  const next = askVisible('next: ', { escapeCancels: true, input, output: nextOut });
+  input.emit('data', Buffer.from('clean\r'));
+  assert.strictEqual(await next, 'clean');
+  assert.doesNotMatch(nextOut.text, /\[A/, 'Esc sequence tail must not leak into the next prompt');
 });
 
 function finderCupRows(raw) {
@@ -454,6 +498,41 @@ test('SCC-7d: deep provider navigation keeps Providers + selected provider ancho
   );
 });
 
+test('SCC-7e: fresh TTY setup stores GitHub access in a 0600 named connection and never writes ~/.bashrc', { skip: process.platform === 'win32' }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-fresh-setup-'));
+  const home = path.join(dir, 'home');
+  const config = path.join(dir, 'config');
+  fs.mkdirSync(home, { recursive: true });
+  const token = 'ghp_' + 'a'.repeat(40);
+  try {
+    const child = `${process.execPath} ${path.join(ROOT, 'bin/sc.js')} setup --providers github --user freshuser`;
+    const feeder = `(printf '%s\\n' "$SC_TEST_TOKEN"; sleep 0.15; printf '\\n'; sleep 0.15) | script -qfec ${JSON.stringify(child)} /dev/null`;
+    const r = spawnSync('bash', ['-lc', feeder], {
+      cwd: ROOT,
+      env: { ...process.env, HOME: home, SC_CONFIG_DIR: config, SC_TEST_TOKEN: token },
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    assert.strictEqual(r.status, 0, r.stderr);
+    assert.ok(!fs.existsSync(path.join(home, '.bashrc')), 'fresh setup must not create or mutate ~/.bashrc');
+    const file = path.join(config, 'connections', 'freshuser', 'github', 'default-github.env');
+    assert.ok(fs.existsSync(file), 'fresh setup must create a named direct connection file');
+    assert.strictEqual(fs.statSync(file).mode & 0o777, 0o600);
+    assert.ok(fs.readFileSync(file, 'utf8').includes(token), 'credential should be stored only in the private connection file');
+    const metadata = [
+      fs.readFileSync(path.join(config, 'connections.json'), 'utf8'),
+      fs.readFileSync(path.join(config, 'profile-meta.json'), 'utf8'),
+      fs.readFileSync(path.join(config, 'sc.md'), 'utf8'),
+    ].join('\n');
+    assert.ok(!metadata.includes(token), 'credential bytes must never enter metadata');
+    const connections = JSON.parse(fs.readFileSync(path.join(config, 'connections.json'), 'utf8'));
+    const github = connections.users.freshuser.providers.github;
+    assert.strictEqual(github.default, 'default-github');
+    assert.strictEqual(github.connections['default-github'].authMethod, 'classic-pat');
+    assert.strictEqual(github.connections['default-github'].source, 'sc');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('SCC-8: profile ownership is configurable from the CLI without exposing credentials', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-owner-cli-'));
   const env = { ...process.env, SC_CONFIG_DIR: dir };
@@ -515,6 +594,35 @@ test('SCP-11: Composio doctor distinguishes organization token x-org-api-key fro
     assert.strictEqual(seen.url, 'https://backend.composio.dev/api/v3.1/org/project/list');
     assert.strictEqual(seen.options.headers['x-org-api-key'], 'organization-token-value-1234');
     assert.ok(!('x-api-key' in seen.options.headers));
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+test('SCP-12: GitHub classic-PAT doctor distinguishes usable repo scope, public-only scope, missing scope, and SAML SSO blocks', async () => {
+  const github = PROVIDERS.find(p => p.id === 'github');
+  const originalFetch = global.fetch;
+  const token = 'ghp_' + 'scopecheck'.repeat(5);
+  try {
+    global.fetch = async () => new Response(JSON.stringify({ login: 'octocat' }), { status: 200, headers: { 'content-type': 'application/json', 'x-oauth-scopes': 'repo, workflow' } });
+    const repo = await github.check({ GITHUB_TOKEN: token });
+    assert.strictEqual(repo.ok, true);
+    assert.match(repo.detail, /private\+public repository automation/);
+
+    global.fetch = async () => new Response(JSON.stringify({ login: 'octocat' }), { status: 200, headers: { 'content-type': 'application/json', 'x-oauth-scopes': 'public_repo' } });
+    const publicOnly = await github.check({ GITHUB_TOKEN: token, GH_OWNER: 'example-org' });
+    assert.strictEqual(publicOnly.ok, true);
+    assert.match(publicOnly.detail, /public repositories only/);
+    assert.match(publicOnly.detail, /organization PAT policy\/SAML SSO/);
+
+    global.fetch = async () => new Response(JSON.stringify({ login: 'octocat' }), { status: 200, headers: { 'content-type': 'application/json', 'x-oauth-scopes': 'gist' } });
+    const insufficient = await github.check({ GITHUB_TOKEN: token });
+    assert.strictEqual(insufficient.ok, false);
+    assert.match(insufficient.detail, /lacks repo\/public_repo scope/);
+
+    global.fetch = async () => new Response(JSON.stringify({ message: 'Resource protected by organization SAML enforcement' }), { status: 403, headers: { 'content-type': 'application/json', 'x-github-sso': 'required; url=https://github.com/orgs/example/sso' } });
+    const sso = await github.check({ GITHUB_TOKEN: token });
+    assert.strictEqual(sso.ok, false);
+    assert.match(sso.detail, /SAML SSO/);
   } finally {
     global.fetch = originalFetch;
   }

@@ -1,8 +1,8 @@
 ---
 name: sc-resend
 description: "(STUB / NOT IMPLEMENTED YET) Transactional email via Resend — verify sender domain DNS (DKIM/SPF/DMARC), create API keys, send template-based emails. Pairs with sc-cf or lib/hostinger.js for the DNS record creation step."
-use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Transactional email via Resend — verify sender domain DNS (DKIM/SPF/DMARC), create API keys, send template-based emails. Pairs with sc-cf or lib/hostinger.js for the DNS record creation step."
-do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+use_when: "Use only when maintaining or implementing the unfinished dedicated Resend automation itself. Credential storage and live verification belong to sc-provider until this skill is implemented."
+do_not_use_when: "Do not route normal user-facing Resend provisioning/email tasks here; the dedicated automation is not implemented yet. Keep credential work in sc-provider and explain the current limitation."
 required_tools: []
 security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
 references: []

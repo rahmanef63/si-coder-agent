@@ -4,13 +4,13 @@
   "artifacts": [
     {
       "file": "sc.skill",
-      "sha256": "a65553d34cadfc5b5f4cb5434e32fc974a96369ef93f1b2f18f73fda4115950f",
-      "bytes": 29533
+      "sha256": "2eedc6b998bacab94348b59d6ff4867e35a110801886ecf9c088ba92dbf6bbe7",
+      "bytes": 30432
     },
     {
       "file": "sc.zip",
-      "sha256": "a65553d34cadfc5b5f4cb5434e32fc974a96369ef93f1b2f18f73fda4115950f",
-      "bytes": 29533
+      "sha256": "2eedc6b998bacab94348b59d6ff4867e35a110801886ecf9c088ba92dbf6bbe7",
+      "bytes": 30432
     },
     {
       "file": "sc-build.skill",

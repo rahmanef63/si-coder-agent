@@ -4,35 +4,55 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* tag to publish/re-publish after external availability is restored
+        required: true
+        type: string
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout exact release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install dependencies from lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Verify tag matches package version
+      - name: Verify tag, package version, release note, and main ancestry
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p \"require('./package.json').version\")"
-          test "${GITHUB_REF_NAME}" = "v${version}"
+          version="$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "v${version}"
           test -f "docs/releases/v${version}.md"
+          git fetch --quiet origin main --tags
+          tag_commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+          test "$tag_commit" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$tag_commit" origin/main
 
-      - name: Verify documentation SSOT
-        run: npm run docs:check
+      - name: Run full deterministic release gate
+        run: npm run verify:release
 
       - name: Rebuild release assets
         run: npm run package:skills
@@ -43,17 +63,60 @@ jobs:
       - name: Verify archive relationship
         run: cmp --silent dist/sc.zip dist/sc.skill
 
-      - name: Publish GitHub Release
+      # npm is intentionally independent from GitHub public visibility. If a GitHub
+      # account/repository is temporarily hidden, a configured NPM_TOKEN can still
+      # publish the already-verified package as a fallback distribution channel.
+      - name: Publish npm fallback when NPM_TOKEN is configured
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN not configured; npm fallback publication skipped."
+            exit 0
+          fi
+          if npm view "si-coder-agent@${version}" version >/dev/null 2>&1; then
+            echo "si-coder-agent@${version} already exists; skipping duplicate publication."
+            exit 0
+          fi
+          npm publish --access public --provenance
+
+      - name: Verify public repository and tagged source are reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 2 --output /dev/null "https://github.com/${GITHUB_REPOSITORY}"
+          curl --fail --silent --show-error --location --retry 2 --output /dev/null "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${RELEASE_TAG}/README.md"
+
+      - name: Publish or repair GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p \"require('./package.json').version\")"
-          gh release create "v${version}" \
-            dist/sc.zip \
-            dist/sc.skill \
-            dist/sc-build.skill \
-            dist/manifest.json \
-            --title "SI-Coder v${version}" \
-            --notes-file "docs/releases/v${version}.md"
+          version="$(node -p "require('./package.json').version")"
+          assets=(dist/sc.zip dist/sc.skill dist/sc-build.skill dist/manifest.json)
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            gh release edit "$RELEASE_TAG" --title "SI-Coder v${version}" --notes-file "docs/releases/v${version}.md"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --title "SI-Coder v${version}" --notes-file "docs/releases/v${version}.md"
+          fi
+
+      - name: Attest release artifacts
+        if: ${{ github.event.repository.private == false }}
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/sc.zip
+            dist/sc.skill
+            dist/sc-build.skill
+            dist/manifest.json
+
+      - name: Verify published GitHub release asset is reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 2 --output /dev/null "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/sc.zip"

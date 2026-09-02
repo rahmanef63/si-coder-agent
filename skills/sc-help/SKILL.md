@@ -132,7 +132,7 @@ claude --plugin-dir /path/to/si-coder-agent
 
 ## Skills
 
-`/sc-all`, `/sc-provider`, `/sc-install`, `/sc-git`, `/sc-dokploy`, `/sc-convex`, `/sc-convex-cloud`, `/sc-vercel`, `/sc-cf`, `/sc-onboarding`, `/sc-sync`, `/sc-n8n` are active surfaces. Provider-specific Resend/Stripe/Clerk/Supabase automation may still be partial, while their credential schemas can be managed by SC.
+`/sc-all`, `/sc-provider`, `/sc-install`, `/sc-git`, `/sc-dokploy`, `/sc-convex`, `/sc-convex-cloud`, `/sc-vercel`, `/sc-cf`, `/sc-onboarding`, `/sc-sync`, `/sc-n8n` are active surfaces. Dedicated Resend/Stripe/Clerk/Supabase automation is not installed/routed by default while unfinished. Their credential schemas may still be prepared or inspected through `sc-provider`; Cloudflare DNS is active.
 
 ## After completing a task
 

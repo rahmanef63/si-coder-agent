@@ -64,10 +64,21 @@ These need `CLOUDFLARE_ACCOUNT_ID` and account-scoped token permissions. DNS nee
 | `CLOUDFLARE_ACCOUNT_ID` | **not needed for DNS** | Only for the unimplemented Workers/Pages/R2 surface. `dns.js` deliberately does not require it |
 
 ```bash
-node bin/onboard.js --domains cf   # then: source ~/.bashrc
+sc setup --providers cf
 ```
 
-`CLOUDFLARE_ZONE_ID` is not part of the onboarding registry — export it by hand if you want the tighter single-permission token.
+`CLOUDFLARE_ZONE_ID` is an optional direct-connection field. Store it in the same named Cloudflare connection when you want a pinned zone and tighter token permissions.
+
+## Connection-safe local execution
+
+Store Cloudflare access with `sc setup --providers cf` or an explicit named connection. Then run DNS commands through `sc run -- ...` so the token exists only in that child process:
+
+```bash
+sc run -- node skills/sc-cf/scripts/dns.js zones
+sc run -- node skills/sc-cf/scripts/dns.js list --zone example.com
+```
+
+The plain `node skills/sc-cf/scripts/dns.js ...` forms below document the script interface for an already-provisioned environment; they are not a recommendation to export the token globally.
 
 ## Minting the API token
 
@@ -81,7 +92,7 @@ node bin/onboard.js --domains cf   # then: source ~/.bashrc
 
 > **The template gap that costs an hour:** "Edit zone DNS" grants `Zone:DNS:Edit` but **not** `Zone:Read`. Without `Zone:Read`, `GET /zones` answers `200 { success: true, result: [] }` — an empty list, *not* a 403 — so zone resolution reports "root zone not in account" for a zone that plainly exists. Either add the `Zone:Read` row, or set `CLOUDFLARE_ZONE_ID` and skip lookup. `node skills/sc-cf/scripts/dns.js zones` prints this exact diagnosis when it sees an empty list.
 
-**Use a scoped token, never the Global API Key.** The Global Key is root-equivalent across every zone on the account. Auth here is `Authorization: Bearer <token>` only — no `X-Auth-Email` / `X-Auth-Key`. A token pasted into `~/.bashrc` keeps its trailing newline and Cloudflare answers `6111 Invalid format for Authorization header`, which reads like a bad token; the client `.trim()`s it for you.
+**Use a scoped token, never the Global API Key.** The Global Key is root-equivalent across every zone on the account. Auth here is `Authorization: Bearer <token>` only — no `X-Auth-Email` / `X-Auth-Key`. A legacy environment value with trailing whitespace can make Cloudflare answer `6111 Invalid format for Authorization header`; the client `.trim()`s the token before use. Fresh SC setup keeps it in the named connection instead of `~/.bashrc`.
 
 ## `proxied` — why it defaults to **false**
 
@@ -166,9 +177,7 @@ node skills/sc-cf/scripts/dns.js <command> [flags]
 Create the A record a Dokploy panel needs so Traefik can get a Let's Encrypt cert at `https://be.example.com`:
 
 ```bash
-export CLOUDFLARE_API_TOKEN=...   # never pass a token as a flag
-
-node skills/sc-cf/scripts/dns.js set \
+sc run -- node skills/sc-cf/scripts/dns.js set \
   --domain be.example.com --type A --target 203.0.113.10
 ```
 

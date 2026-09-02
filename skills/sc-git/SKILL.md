@@ -13,6 +13,10 @@ compatibility: "Standalone SI-Coder; host invocation syntax and available tools 
 
 Use when user wants to **stop GitHub Actions cloud minutes burn**, audit workflow files across your repos, migrate CI/CD to pre-push hooks + VPS, or do generic repo/workflow CRUD via `gh` API.
 
+## Connection-safe provider execution
+
+Git/GitHub operations that need the selected SI-Coder GitHub credential should run through `sc run -- ...` when using a direct named connection. Credential-free local audits/CI helpers may run directly. Never export the PAT globally just to make a helper work.
+
 ## Pre-requisites
 - `gh` CLI authed with `repo` + `workflow` + `admin:repo_hook` scopes
 - Local clones live in `~/projects/<repo>` (override with `PROJECTS_DIR`) (some repos remote-only — skill handles both)

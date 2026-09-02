@@ -16,6 +16,12 @@ test('DIST-1: Anthropic marketplace exposes the full SI-Coder plugin from this r
   assert.strictEqual(plugin.source, './');
   assert.ok(plugin.skills.includes('./skills/sc'));
   assert.ok(plugin.skills.includes('./skills/sc-build'));
+  const catalog = readJson('skills/catalog.json').skills;
+  const expected = Object.entries(catalog).filter(([, row]) => row.lifecycle === 'active' && row.installByDefault).map(([name]) => `./skills/${name}`);
+  assert.deepStrictEqual(plugin.skills, expected, 'Claude marketplace must expose only active/default skills from the catalog');
+  for (const name of ['sc-resend', 'sc-stripe', 'sc-clerk', 'sc-supabase', 'use-si-coder']) {
+    assert.ok(!plugin.skills.includes(`./skills/${name}`), `${name} must not be a default installed capability`);
+  }
 });
 
 test('DIST-2: web skill package is a ZIP-format .skill with one self-contained sc skill', () => {
@@ -74,7 +80,19 @@ test('DIST-5: version and package file list include distributable skill artifact
   assert.ok(pkg.files.includes('machine/'));
   assert.ok(!pkg.files.includes('.mso/'));
   assert.ok(pkg.files.includes('plugins/'));
+  assert.ok(pkg.files.includes('SECURITY.md'));
+  assert.strictEqual(pkg.engines.node, '>=22');
   assert.strictEqual(pkg.scripts['package:skills'], 'python3 scripts/package-web-skill.py');
+  assert.strictEqual(pkg.scripts['catalog:check'], 'node scripts/check-skill-catalog.js');
+  assert.ok(!pkg.scripts.preversion, 'npm version must not be an alternate release gate');
+  assert.ok(!pkg.scripts.postversion, 'npm version must never auto-push main/tags');
+  assert.ok(fs.existsSync(path.join(ROOT, 'package-lock.json')), 'release CI must have a lockfile for npm ci');
+  assert.strictEqual(pkg.bin['si-coder-onboard'], 'bin/onboard.js');
+  const onboard = fs.readFileSync(path.join(ROOT, 'bin/onboard.js'), 'utf8');
+  assert.match(onboard, /sc\.js/);
+  assert.match(onboard, /\['setup'\]/);
+  assert.doesNotMatch(onboard, /appendExportToShellRc|writeFileSync|appendFileSync/, 'default onboard binary must never own credential persistence itself');
+  assert.ok(fs.existsSync(path.join(ROOT, 'bin/onboard-legacy.js')), 'legacy shell wizard remains explicit compatibility only');
 });
 
 
@@ -219,18 +237,39 @@ test('DIST-11: install documentation is SSOT-generated and CI-enforced', () => {
   assert.match(source, /`sc\.zip` does not contain `sc\.skill`/i);
 
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/verify.yml'), 'utf8');
-  assert.match(workflow, /npm test/);
-  assert.match(workflow, /npm run docs:check/);
+  assert.match(workflow, /npm ci --ignore-scripts/);
+  assert.match(workflow, /npm run verify:release/);
+  assert.match(workflow, /node:\s*\[24, 26\]/);
   assert.match(workflow, /npm run package:skills/);
   assert.match(workflow, /git diff --exit-code -- dist plugins\/si-coder/);
   assert.match(workflow, /cmp --silent dist\/sc\.zip dist\/sc\.skill/);
+  assert.doesNotMatch(workflow, /actions\/(?:checkout|setup-node)@v\d/, 'GitHub Actions must be pinned to immutable SHAs');
 
   const releaseWorkflow = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
   assert.match(releaseWorkflow, /tags:/);
+  assert.match(releaseWorkflow, /workflow_dispatch:/);
   assert.match(releaseWorkflow, /permissions:[\s\S]*contents: write/);
-  assert.match(releaseWorkflow, /npm run docs:check/);
+  assert.match(releaseWorkflow, /npm ci --ignore-scripts/);
+  assert.match(releaseWorkflow, /git merge-base --is-ancestor.*origin\/main/);
+  assert.match(releaseWorkflow, /npm run verify:release/);
   assert.match(releaseWorkflow, /npm run package:skills/);
-  assert.match(releaseWorkflow, /gh release create/);
+  assert.match(releaseWorkflow, /raw\.githubusercontent\.com/);
+  assert.match(releaseWorkflow, /gh release (?:create|upload)/);
+  assert.match(releaseWorkflow, /npm publish --access public --provenance/);
+  assert.match(releaseWorkflow, /id-token: write/);
+  assert.match(releaseWorkflow, /attestations: write/);
+  assert.match(releaseWorkflow, /actions\/attest@[0-9a-f]{40}/, 'release artifacts should have pinned provenance attestation');
+  assert.match(releaseWorkflow, /releases\/download\/\$\{RELEASE_TAG\}\/sc\.zip/, 'release health must verify the actual downloadable asset');
+  const npmStep = releaseWorkflow.indexOf('- name: Publish npm fallback when NPM_TOKEN is configured');
+  const publicSourceStep = releaseWorkflow.indexOf('- name: Verify public repository and tagged source are reachable');
+  const githubReleaseStep = releaseWorkflow.indexOf('- name: Publish or repair GitHub Release');
+  const attestStep = releaseWorkflow.indexOf('- name: Attest release artifacts');
+  const publicAssetStep = releaseWorkflow.indexOf('- name: Verify published GitHub release asset is reachable');
+  assert.ok(npmStep >= 0 && publicSourceStep > npmStep, 'npm fallback must not be blocked by an external GitHub visibility failure');
+  assert.ok(githubReleaseStep > publicSourceStep, 'GitHub Release must not be created until repo + tagged source are public');
+  assert.ok(attestStep > githubReleaseStep, 'artifact attestation belongs to the verified GitHub release path');
+  assert.ok(publicAssetStep > attestStep, 'downloadable release-asset reachability must be the final publication assertion');
   assert.match(releaseWorkflow, /dist\/sc\.zip/);
   assert.match(releaseWorkflow, /dist\/sc\.skill/);
+  assert.doesNotMatch(releaseWorkflow, /actions\/(?:checkout|setup-node|attest)@v\d/, 'release Actions must be pinned to immutable SHAs');
 });

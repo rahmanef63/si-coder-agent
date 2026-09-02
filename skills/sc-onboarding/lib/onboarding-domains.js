@@ -5,7 +5,7 @@
 // side by side and had drifted in BOTH directions (vars read by code but never collected;
 // vars collected but read by nothing). They are derived now, so that class of drift is gone.
 //
-// Every export here keeps its original name and shape — scan-env.js, bin/onboard.js, the
+// Every export here keeps its original name and shape — scan-env.js, bin/onboard-legacy.js, the
 // wizard, and test/onboarding-sources.test.js all keep working unchanged.
 const path = require('path');
 const { readShellRc, parseEnvString } = require(path.resolve(__dirname, '../../../lib/env'));

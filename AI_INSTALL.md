@@ -23,7 +23,7 @@ For a skill-only install, Anthropic also documents the `skills` installer patter
 
 ### Codex CLI / Codex app
 
-Use the built-in `$skill-installer`. Install these repository paths from `main`:
+For the repository-local CLI/installer path, require **Node.js 22+**. Use the built-in `$skill-installer`. Install these repository paths from `main`:
 
 - `skills/sc`
 - `skills/sc-build`
@@ -37,7 +37,7 @@ The installer can accept GitHub repo paths and install them into the Codex skill
 
 Anthropic currently documents **ZIP upload** for custom Skills. Use:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip`
 
 Do not default to the `.skill` filename on Claude Web; the official web instructions say to upload a ZIP containing the skill folder.
 
@@ -47,7 +47,7 @@ Do not default to the `.skill` filename on Claude Web; the official web instruct
 
 **Uploaded Skill (eligible workspace):** OpenAI currently documents Skills for eligible ChatGPT Business, Enterprise, Healthcare, and Edu workspaces, subject to workspace settings and product availability. When **Plugins → Skills → Create → Upload from your computer** is available, use the complete ZIP package. OpenAI does not currently require a `.skill` extension:
 
-- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip`
+- `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip`
 
 The optional `.skill` archive is only for clients that explicitly accept that extension.
 
@@ -55,8 +55,13 @@ OpenAI Skills follow the Agent Skills standard. ChatGPT can automatically use an
 
 ### Other Agent Skills clients
 
-Prefer the canonical `skills/sc/` directory containing `SKILL.md`. Use an archive only when the client explicitly asks for a packaged skill; use `.skill` only when that client explicitly supports the extension.
+Prefer the canonical `skills/sc/` directory containing `SKILL.md`. Local full installs use `skills/catalog.json` so only active/default capabilities are installed; unfinished and legacy skills are not normal routing targets. Use an archive only when the client explicitly asks for a packaged skill; use `.skill` only when that client explicitly supports the extension.
 
 ## Security
 
-Never copy provider secrets out of their secure stores just to complete installation. Installing SI-Coder installs workflow instructions and local tooling only; provider authorization remains a separate secure connection step. Local agents should model access as `user → provider → named connection`; OAuth/external connections remain external, while direct keys are entered only into the selected connection's hidden local store.
+Never copy provider secrets out of their secure stores just to complete installation. Installing SI-Coder installs workflow instructions and local tooling only; provider authorization remains a separate secure connection step. Local agents should model access as `user → provider → named connection`; fresh `sc setup` writes direct keys only into the selected `0600` connection store, never the global shell. OAuth/external connections remain external.
+
+
+## Public-availability check
+
+A Git tag and a publicly installable release are different facts. Before telling a remote user that a GitHub/raw/release link works, verify it without relying on an authenticated maintainer session. SI-Coder release automation refuses GitHub Release publication when the repository/tag is not publicly reachable and can be rerun for the existing tag after visibility is restored.

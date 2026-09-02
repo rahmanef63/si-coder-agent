@@ -12,12 +12,12 @@ The Plugin Directory is visible more broadly, but whether a plugin or Skill can 
 
 OpenAI defines a Skill around a **`SKILL.md` file inside a skill directory** and documents uploading a Skill from the computer. The current Help Center does **not** specify that a `.skill` filename is required. SI-Coder therefore recommends the ordinary ZIP package because it keeps the complete `sc/` directory and resources together.
 
-[Download SI-Coder Skill v0.9.1 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip)
+[Download SI-Coder Skill v0.9.2 (`sc.zip`)](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip)
 
 For inspection, the canonical source is:
 
-- [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc)
-- [raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.1/skills/sc/SKILL.md)
+- [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc)
+- [raw `SKILL.md`](https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.2/skills/sc/SKILL.md)
 
 Do not upload only the raw Markdown file when supporting files are needed; use the complete packaged Skill.
 
@@ -25,14 +25,14 @@ Do not upload only the raw Markdown file when supporting files are needed; use t
 
 ## Install
 
-1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip).
+1. Download [`sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip).
 2. In ChatGPT, open **Plugins** in the sidebar.
 3. Open the **Skills** tab.
 4. Select **Create → Upload from your computer**.
 5. Upload `sc.zip` and complete ChatGPT's scan/review flow.
 6. Ensure the Skill is installed/enabled.
 
-SI-Coder also publishes an optional [`sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.skill) archive for clients that explicitly accept `.skill`; OpenAI's current ChatGPT Help Center does not require that extension, so it is not the default ChatGPT link.
+SI-Coder also publishes an optional [`sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.skill) archive for clients that explicitly accept `.skill`; OpenAI's current ChatGPT Help Center does not require that extension, so it is not the default ChatGPT link.
 
 ## Use it
 

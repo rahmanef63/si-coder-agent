@@ -1,7 +1,7 @@
 ---
 name: sc-onboarding
-description: "Onboard SI-Coder provider credentials safely. Scans what is configured, asks only for missing pieces, prefers profile-scoped 0600 storage with managed ~/.bashrc fallback, and routes agents through /sc-provider so plaintext secrets never need to enter chat/tool JSON. One-shot CLI fallback: bin/onboard.js."
-use_when: "Use when the task matches this skill scope: Onboard SI-Coder provider credentials safely. Scans what is configured, asks only for missing pieces, prefers profile-scoped 0600 storage with managed ~/.bashrc fallback, and routes agents through /sc-provider so plaintext secrets never need to enter chat/tool JSON. One-shot CLI fallback: bin/onboard.js."
+description: "Onboard SI-Coder provider access safely. Fresh local setup resolves a user, creates named provider connections, and stores direct credentials only in 0600 connection files; OAuth stays external. Legacy profile/~/.bashrc tooling is migration-only. Agents route through /sc-provider so plaintext secrets never enter chat/tool JSON."
+use_when: "Use for first-run or provider-access onboarding when SI-Coder must create/select a user and connect one or more active providers without exposing plaintext secrets."
 do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
 required_tools: []
 security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
@@ -128,92 +128,69 @@ and `note`) inline. `DOMAIN_VARS` / `VALIDATORS` / `SECRET_SOURCES` are derived 
 tool handoffs. `steps/<domain>.md` may add longer human context, but must not become a second
 source of truth for where/how to obtain a credential.
 
-## Two modes
+## Current onboarding paths
 
-### Mode A — AI-driven (default, interactive)
+### Mode A — agent-driven / Finder default
 
-Triggered when the user runs `/sc-onboarding` from Claude / OpenClaw / Gemini.
+This is the canonical path. The agent MUST:
 
-The AI MUST:
-1. **Ask which domains they want.** Present a checklist (core deploy domains shown;
-   see the "Required vars per domain" table below or `skills/sc-onboarding/lib/onboarding-domains.js`
-   `DOMAIN_VARS` for the full list, including the stub domains):
-   - `[ ] github` (always required for any deploy)
-   - `[ ] dokploy` (Dokploy CRUD + deploy targets)
-   - `[ ] convex` (Convex self-hosted)
-   - `[ ] hostinger` (optional DNS automation)
-   - `[ ] vercel` (Vercel online frontend)
-   - `[ ] convex-cloud` (Convex Cloud backend)
-   - `[ ] sync` (Tailscale rsync of gitignored files between VPS and local)
-   - `[ ] resend` (credential storage + live doctor) · `composio` (project API key + live doctor)
-   - `[ ] cf` (Cloudflare) · `stripe` · `clerk` · `supabase` (remaining stub skills where noted)
-2. **Run `scripts/scan-env.js --domains <list>`** to detect which required vars are already set in the user's environment (via `process.env` + `~/.bashrc` parse).
-3. **For each missing provider connection, choose `source/backend` first.** GitHub direct (`source=sc`) has one supported local auth method: `classic-pat`, created at `https://github.com/settings/tokens/new`; Composio GitHub is a separate OAuth source. Then inspect the auth methods for that source and choose the least-privilege method matching the task. Composio/native MCP are sources, not direct auth methods. For each required direct field, use the shared credential guidance from `lib/providers.js` / `credentialGuide()` to show the official reference URL or local command plus `navigation[]`. `steps/<domain>.md` is extended reference only. NEVER ask for vars that are already set unless the user says "reset" or "rotate".
-4. **Write only the new values** to `~/.bashrc` by piping the pairs via **stdin** so the raw secret never lands in argv (`ps aux` / `/proc/<pid>/cmdline` / shell history):
+1. Resolve or create the SI-Coder **user** that owns the work. Do not start from global environment variables.
+2. Inspect `user → provider → named connection` state with `sc.user.*` tools / `/sc-provider`.
+3. Route only to an **active** capability. `skills/catalog.json` is the lifecycle SSOT; stub/legacy skills are not normal routing targets.
+4. Choose the provider **source/backend** first. External OAuth/MCP sources keep credentials in that provider. Direct `source=sc` creates a named connection.
+5. For a missing direct field, surface the provider SSOT guidance (`referenceUrl`/`createCommand`, `navigation[]`, scope) and hand the user to:
 
    ```bash
-   printf 'KEY=VALUE\nKEY2=VALUE2\n' | node scripts/scan-env.js --write-stdin
+   sc user credential-set <user> <provider> <KEY> --connection <alias>
    ```
 
-   Each `KEY=VALUE` is validated against the shared `VALIDATORS` (same source of truth as the CLI wizard) before anything is written; on the first failure it prints `KEY failed validation` and exits 1 **without writing any pair** (all-or-nothing). A legacy argv form (`scripts/scan-env.js --write KEY=VALUE [KEY=VALUE...]`, pairs positional before or after the boolean `--write`) still exists for non-secret keys only — **never pass secrets as argv**. Both paths append an idempotent managed block delimited by `# --- si-coder onboarding ---` / `# --- end si-coder onboarding ---`; keys are deduped on each run and existing exports outside the block are not edited.
-5. **Confirm**: `source ~/.bashrc` + tell the user which `/sc-*` skill they can now use.
+   The secret is entered in the hidden local terminal. The agent never receives it.
+6. Verify the selected identity/connection with `sc user verify <user> [provider]` / `sc doctor`. A format-valid credential is not considered ready until the provider check is meaningful for that provider.
 
-NEVER ask the user to paste a value if it is already exported. Never log the value back to the user — confirm with a capped preview only (≤4 leading chars + `…[len=N]`).
-
-## Flow
+Fresh onboarding MUST NOT write provider secrets to `~/.bashrc`.
 
 ```mermaid
 flowchart TD
-    A([/sc-onboarding]) --> B[Pick domains<br/>ticked checklist]
-    B --> C[Scan sources:<br/>process.env + ~/.bashrc]
-    C --> D[Resolve DOMAIN_VARS<br/>required + optional<br/>per ticked domain]
-    D --> E{For each var:<br/>already set in<br/>env or ~/.bashrc?}
-    E -- yes --> F[Skip<br/>never re-prompt]
-    E -- no --> G{required?}
-    G -- required --> H[Prompt for value<br/>missing required]
-    G -- optional --> I[Prompt for value<br/>missing optional<br/>blank = skip]
-    H --> J[Validate against VALIDATORS]
+    A([onboard]) --> B[Resolve/create SI-Coder user]
+    B --> C[Choose active provider]
+    C --> D[Choose source/backend]
+    D -->|external| E[Authorize provider/Composio/MCP connection]
+    D -->|source=sc| F[Create/select named connection]
+    F --> G[Show authoritative credential guidance]
+    G --> H[Hidden local credential input]
+    H --> I[Write connection .env 0600]
+    E --> J[Verify selected connection]
     I --> J
-    J -- fail --> H
-    J -- pass --> K[Collect into updates]
-    F --> L
-    K --> L{any updates<br/>to write?}
-    L -- no --> M([Done — nothing to write])
-    L -- yes --> N[Merge into managed block<br/># --- si-coder onboarding --- ... end<br/>dedup keys, single-quote escape]
-    N --> O[Write ~/.bashrc<br/>chmod 0600]
-    O --> P([source ~/.bashrc])
+    J --> K([Continue task])
 ```
 
-### Mode B — One-shot CLI (non-AI)
-
-For users who clone the repo and want a scripted setup:
+### Mode B — direct local CLI
 
 ```bash
-bash install.sh                        # symlink skills, then OFFER the wizard (interactive TTY only)
-bash install.sh --no-onboard           # symlink only; never prompt (CI / curl | bash)
-node bin/onboard.js                    # run the interactive wizard on its own
-node bin/onboard.js --domains convex,dokploy,github   # non-interactive checklist
+bash install.sh                        # active skills only; offers `sc setup` on a TTY
+bash install.sh --no-onboard           # install only; no prompt
+sc setup                               # user → provider → named connection
+sc setup --target dokploy              # same model, scoped to one deploy route
+sc doctor
 ```
 
-`install.sh` chains into the wizard when run in an interactive terminal, so a fresh
-clone goes from install to configured in one flow. It auto-skips when stdin/stdout
-is not a TTY (piped installs), or with `--no-onboard`, so `curl … | bash` never hangs.
+On a fresh machine `sc setup` creates/selects a local SI-Coder user, creates a named direct connection for each selected active provider, and stores values under `~/.config/si-coder/connections/<user>/<provider>/<connection>.env` with mode `0600`. It does not require `source ~/.bashrc`.
 
-The legacy one-shot wizard remains field-oriented for compatibility. The Finder/agent path is connection-oriented. For each missing legacy field the wizard:
+If old profile-scoped values for that provider exist, setup migrates them locally into a named connection before asking for new values.
 
-1. **Prints where to get it** — the dashboard URL (or a local command, e.g. `tailscale status`)
-   plus a one-line hint (required scope, path within the dashboard, "leave blank"). These come
-   from the `SECRET_SOURCES` registry in `skills/sc-onboarding/lib/onboarding-domains.js` — the
-   single source of truth that `scripts/scan-env.js` also prints next to each MISSING var.
-2. **Reads secrets without echoing them** — token-shaped values (`isSecret(key)`) are read in
-   raw mode with no terminal echo, so nothing lands in scrollback. Public values (URLs, publishable
-   keys, ids) stay visible. New vars default to hidden until registered (fail-closed).
-3. **Validates** against the `VALIDATORS` registry (same file) before writing.
-4. **Writes** only new values into the managed `~/.bashrc` block. Nothing is ever passed via argv,
-   so no secret reaches `ps` / `/proc/<pid>/cmdline` / shell history.
+### Legacy compatibility — explicit only
 
-The `SECRET_SOURCES` ↔ `DOMAIN_VARS` registries are kept in lockstep by
-`test/onboarding-sources.test.js` — adding a var without a source (or vice versa) fails the suite.
+The old field-oriented helpers remain for migrations and old automation:
+
+```bash
+node bin/onboard-legacy.js
+node bin/onboard-legacy.js --domains convex,dokploy,github
+node skills/sc-onboarding/scripts/scan-env.js --domains github
+```
+
+Those helpers can read/write the historical managed `~/.bashrc` block. They are **not** the fresh-install path and must not be recommended when named connections are available. `sc user connection-migrate <user> [provider]` moves legacy profile values into named connections without printing them.
+
+The `SECRET_SOURCES` ↔ `DOMAIN_VARS` registries remain in lockstep for compatibility and credential guidance. `scripts/scan-env.js --write-stdin` is retained only for trusted legacy automation; never pass a secret through argv.
 
 ## Required vars per domain
 
@@ -228,20 +205,21 @@ Mirrors `skills/sc-onboarding/lib/onboarding-domains.js` `DOMAIN_VARS` (the sing
 | vercel | `VERCEL_TOKEN` | `VERCEL_TEAM_ID` |
 | convex-cloud | `CONVEX_DEPLOY_KEY` | `CONVEX_DEPLOYMENT` |
 | sync | `SYNC_ROLE`, `SYNC_VPS_TS_ADDR`, `SYNC_LOCAL_TS_ADDR` | `SYNC_REMOTE_USER`, `SYNC_REMOTE_PATH` |
-| cf (stub) | — | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+| cf (Cloudflare DNS active) | — | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
 | stripe (stub) | — | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | clerk (stub) | — | `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` |
 | supabase (stub) | — | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_ORG_ID` |
 | resend | — | `RESEND_API_KEY`, `RESEND_FROM_DOMAIN` |
 | composio | — | `COMPOSIO_API_KEY` |
 
-Stub domains pre-register vars so `/sc-onboarding` can collect them; their `/sc-*` skills are not implemented yet. Resend and Composio credential setup/doctor are implemented directly in the `sc` provider console even though full provider-specific automation may remain separate. See `steps/*.md` for how to obtain each value.
+Unfinished provider automations may keep credential schemas for explicit preparation, but normal setup/routing does not present them as working capabilities. Cloudflare DNS is implemented. Resend and Composio credential setup/doctor are implemented directly in the `sc` provider console even though dedicated Resend provisioning automation remains unfinished. See `steps/*.md` for how to obtain each value.
 
 ## Safety
 
 - Never echo secrets back to the user — confirm with a capped preview only (at most the first ~25% of the value, max 4 chars) plus `…[len=N]`.
-- Never overwrite an existing export silently. Detect existing values, ask before rotating.
-- The append block is a fixed, dedup-managed block delimited by `# --- si-coder onboarding ---` / `# --- end si-coder onboarding ---`, so the user can audit/remove it later.
+- Never overwrite an existing named-connection credential silently. Detect existing values and rotate only when requested.
+- Legacy shell exports are migration inputs, not the canonical destination for new credentials.
+- Keep unfinished provider schemas available for explicit preparation, but never present a stub automation as working.
 
 
 ## Relationship to Composio

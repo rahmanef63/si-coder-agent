@@ -22,6 +22,16 @@ flowchart LR
     E --> F["ready ✅"]
 ```
 
+## Connection-safe local execution
+
+For a direct Convex Cloud `source=sc` named connection, execute credential-dependent helpers through `sc run -- ...`, for example:
+
+```bash
+sc run -- node skills/sc-convex-cloud/scripts/deploy-cloud.js --help
+```
+
+The plain `node scripts/...` examples below describe the script interface. Do not export `CONVEX_DEPLOY_KEY` globally merely to satisfy them. Composio-backed connections execute through Composio rather than `sc run`.
+
 ## NEVER ask the user to run Convex CLI by hand
 
 All Convex Cloud deploys go through `scripts/deploy-cloud.js`. **Do not** instruct the user to run `npx convex deploy` interactively, nor to hand-set `NEXT_PUBLIC_CONVEX_URL`. The deploy key is passed via the script's `env` and never echoed. If a deploy fails, debug it with `scripts/check-cloud.js` and fix root cause — do not punt the Convex CLI call to the user.

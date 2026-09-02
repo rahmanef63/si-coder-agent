@@ -25,6 +25,16 @@ flowchart TD
     H --> I["live URL ✅<br/>NEXT_PUBLIC_CONVEX_URL injected at build"]
 ```
 
+## Connection-safe local execution
+
+When `VERCEL_TOKEN` is stored in a direct SI-Coder named connection, run this skill's credential-dependent helper through `sc run -- ...`:
+
+```bash
+sc run -- node skills/sc-vercel/scripts/deploy.js --help
+```
+
+The plain `node ...` examples below are script-interface examples for callers that already supply the required environment. A Composio/native-MCP Vercel connection must execute through that external backend.
+
 ## When to use
 
 - You want Vercel's edge network for the Next.js frontend, with the Convex backend on **Convex Cloud** (managed).

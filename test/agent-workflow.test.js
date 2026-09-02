@@ -13,6 +13,7 @@ const Evidence = require('../lib/agent/evidence-store');
 const Recipes = require('../lib/agent/recipe-store');
 const Skills = require('../lib/agent/skill-verifier');
 const Actions = require('../lib/agent/actions');
+const Repo = require('../lib/agent/repo-service');
 
 const ROOT = path.resolve(__dirname, '..');
 function tempRoot() { return fs.mkdtempSync(path.join(os.tmpdir(), 'sc-agent-workflow-')); }
@@ -99,6 +100,21 @@ test('AGENT-5: memory and evidence refuse secret-shaped content before persisten
   assert.throws(() => Evidence.writeEvidence({ target: 'bad receipt', assertions: { note: `Bearer ${'B'.repeat(30)}` } }, { root }), /secret-shaped content/);
   assert.equal(fs.readdirSync(path.join(root, '.agent', 'memory', 'debug')).length, 0);
   assert.equal(fs.readdirSync(path.join(root, '.agent', 'evidence')).length, 0);
+});
+
+test('AGENT-5b: release secret scan covers repository files outside .agent', () => {
+  const root = tempRoot();
+  Memory.ensureFoundation(root);
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'safe.md'), '# safe\n');
+  let scan = Repo.scanRepositorySecrets(root);
+  assert.equal(scan.ok, true);
+  const leaked = 'ghp_' + 'Z'.repeat(32);
+  fs.writeFileSync(path.join(root, 'docs', 'accidental.md'), `temporary ${leaked}\n`);
+  scan = Repo.scanRepositorySecrets(root);
+  assert.equal(scan.ok, false);
+  assert.ok(scan.findings.some(x => x.file === 'docs/accidental.md' && x.reason === 'github-token'));
+  assert.ok(scan.filesScanned > scan.textFilesScanned - 1);
 });
 
 test('AGENT-6: evidence receipt persists structured verification without raw logs', () => {

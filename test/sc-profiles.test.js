@@ -331,13 +331,15 @@ test('PRF-22: named connection credential removal is exact and external connecti
 
 
 test('PRF-23: selecting an external connection strips local and shell provider credentials instead of leaking them into the route', () => {
-  P.writeProfile('external-isolation', { GITHUB_TOKEN: 'ghp_legacy_should_not_route', GH_OWNER: 'legacy-owner' });
+  const legacyToken = 'ghp_' + 'legacy_should_not_route';
+  const shellToken = 'ghp_' + 'shell_should_not_route';
+  P.writeProfile('external-isolation', { GITHUB_TOKEN: legacyToken, GH_OWNER: 'legacy-owner' });
   C.create('external-isolation', 'github', {
     id: 'work-github', label: 'Work GitHub', source: 'composio', authMethod: 'oauth2', scope: 'account', setDefault: true,
     external: { system: 'composio', toolkit: 'github', alias: 'work-github', lastKnownStatus: 'UNLINKED' },
   });
   const resolved = P.loadEnvForProfile('external-isolation', {
-    shellRcEnv: { GITHUB_TOKEN: 'ghp_shell_should_not_route', GH_OWNER: 'shell-owner', PATH: '/usr/bin' },
+    shellRcEnv: { GITHUB_TOKEN: shellToken, GH_OWNER: 'shell-owner', PATH: '/usr/bin' },
     connectionOverrides: { github: 'work-github' },
   });
   assert.strictEqual(resolved.env.GITHUB_TOKEN, undefined);

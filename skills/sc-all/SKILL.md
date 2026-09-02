@@ -247,7 +247,7 @@ Rules:
 2. State prerequisites before asking.
 3. Ask a simple opt-in question.
 4. Hosted runtime: use a secure connector/auth link when available; never ask for a raw key in chat.
-5. Local runtime: use connector auth or `sc secret set ...` hidden-terminal handoff.
+5. Local runtime: resolve/create a named provider connection and use the connection-scoped hidden-terminal handoff. Credential-dependent local scripts run through `sc run -- ...` so the selected connections are injected without exporting secrets globally.
 6. After completion, suggest only the next most relevant action.
 7. Never recommend something already healthy.
 
@@ -287,13 +287,14 @@ Whenever a credential/API key is missing, **never output only the variable name*
 ```text
 Buat di      : <authoritative provider URL / secure connector auth link>
 Petunjuk     : <minimum scope / exact menu when useful>
-Save with   : <sc secret set provider KEY, or provider connector>
-Stored in   : <SC profile 0600, or Composio connected account>
+Connection  : <user/provider/label + scope>
+Save with   : <sc user credential-set user provider KEY --connection alias, or provider connector>
+Stored in   : <named SC connection 0600, or external connected account>
 Lanjut       : <verification/resume action>
 ```
 
 Rules:
-- Local SC runtime: use the provider endpoint from the registry and `sc secret set <provider> <KEY>`; tell the user it lands in the active SC profile (`~/.config/si-coder/profiles/<name>.env`, mode 0600; managed `~/.bashrc` only when no profile exists).
+- Local SC runtime: resolve/create a labeled connection first, then use the provider endpoint and `sc user credential-set <user> <provider> <KEY> --connection <alias>`. Direct values live only in that connection's `0600` file; legacy profile/shell storage is migration-only.
 - Hosted Claude Web/ChatGPT-style runtime: prefer the secure Composio connection URL returned by the connector; credentials stay in the connected account. Do not ask for the raw provider key unless the connector explicitly requires an API key bootstrap.
 - If a custom API-key provider has no creation URL, do not guess one. Require its provider metadata to be updated with `--url https://...` first.
 - Never put the credential value in chat, argv, logs, recommendations, or tool JSON.

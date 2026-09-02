@@ -93,13 +93,13 @@ The canonical source is the `skills/sc/` directory containing `SKILL.md`. Differ
 
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.2/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.2/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
 Detailed guides:
@@ -131,6 +131,8 @@ Then:
 
 ### Local Agent Skills runtimes
 
+Requires **Node.js 22+**. The installer reads `skills/catalog.json` and installs active/default skills only; unfinished/legacy skills are kept out of normal routing.
+
 ```bash
 bash install.sh --agent claude
 bash install.sh --agent codex
@@ -151,7 +153,7 @@ When account access is required, SC should tell you:
 3. the safest supported way to connect it,
 4. how SC will verify the connection.
 
-Hosted agents should prefer secure connected-account authorization. Local direct credentials are stored through SC's protected local connection flow rather than printed back to the agent.
+Hosted agents should prefer secure connected-account authorization. On a fresh local install, `sc setup` creates/selects a user and named provider connection first; direct credentials are stored only in that connection's `0600` file. Fresh setup does not write provider secrets to `~/.bashrc`.
 
 See [first-run account onboarding](docs/install/first-run-onboarding.md) for the detailed model.
 
@@ -230,7 +232,7 @@ SC should remain:
 - **Simple at the surface** — one main tool/skill for normal use.
 - **Product-first** — ask about desired behavior before infrastructure choices.
 - **Agent-friendly** — technical capabilities are machine-readable when an agent needs them.
-- **Safe with credentials** — secrets do not travel through chat/tool payloads.
+- **Safe with credentials** — secrets do not travel through chat/tool payloads; fresh local setup is named-connection-scoped rather than shell-global.
 - **Verifiable** — completion means the important result was actually checked.
 - **Standalone** — this repository owns its runtime contracts and does not require another local project or orchestrator to function.
 - **Progressively disclosed** — advanced internals stay available without dominating the main user experience.
@@ -261,7 +263,7 @@ npm run verify:release
 npm pack --dry-run
 ```
 
-Release checks cover regression tests, skill validation, secret-safety guards, portable package contents, documentation consistency, and deterministic generated artifacts.
+Release checks cover regression tests, lifecycle catalog validation, repository-wide secret scanning, skill validation, portable package contents, documentation consistency, and deterministic generated artifacts. Tagged releases rerun the full gate and verify public reachability before GitHub Release publication.
 
 ## Documentation
 

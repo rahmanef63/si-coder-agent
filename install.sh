@@ -32,6 +32,16 @@ EOF
   esac
 done
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "❌ SI-Coder local install requires Node.js 22 or newer." >&2
+  exit 1
+fi
+node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
+if [[ ! "$node_major" =~ ^[0-9]+$ ]] || (( node_major < 22 )); then
+  echo "❌ SI-Coder requires Node.js >=22; found $(node --version)." >&2
+  exit 1
+fi
+
 case "$agent" in
   claude) dirs=("$HOME/.claude/skills") ;;
   codex) dirs=("$HOME/.agents/skills") ;;
@@ -55,7 +65,14 @@ link_skill() {
   echo "🔗 $dst -> $src"
 }
 
-mapfile -t skill_dirs < <(find "$REPO_DIR/skills" -mindepth 1 -maxdepth 1 -type d -print | sort)
+catalog="$REPO_DIR/skills/catalog.json"
+mapfile -t skill_names < <(node -e '
+  const fs=require("fs");
+  const rows=JSON.parse(fs.readFileSync(process.argv[1],"utf8")).skills || {};
+  for (const [name,row] of Object.entries(rows)) if (row.lifecycle === "active" && row.installByDefault) console.log(name);
+' "$catalog")
+skill_dirs=()
+for name in "${skill_names[@]}"; do skill_dirs+=("$REPO_DIR/skills/$name"); done
 for dst in "${dirs[@]}"; do
   echo "📦 Installing SI-Coder Agent Skills into $dst"
   for src in "${skill_dirs[@]}"; do
@@ -65,8 +82,21 @@ for dst in "${dirs[@]}"; do
 done
 
 # The npm link gives humans/agents the `sc` command without touching /usr/bin/sc.
-if [[ "${SC_SKIP_NPM_LINK:-0}" != "1" ]] && command -v npm >/dev/null 2>&1; then
-  (cd "$REPO_DIR" && npm link >/dev/null 2>&1) || true
+# A link failure must never be silently reported as a fully working CLI install.
+npm_link_failed=0
+if [[ "${SC_SKIP_NPM_LINK:-0}" != "1" ]]; then
+  if command -v npm >/dev/null 2>&1; then
+    if ! npm_link_output="$(cd "$REPO_DIR" && npm link 2>&1)"; then
+      npm_link_failed=1
+      echo "⚠️ Skills were installed, but npm could not link the global 'sc' command." >&2
+      echo "   npm said: $(printf '%s' "$npm_link_output" | tail -n 2 | tr '\n' ' ')" >&2
+      echo "   You can still run: node '$REPO_DIR/bin/sc.js'" >&2
+    fi
+  else
+    npm_link_failed=1
+    echo "⚠️ npm is not available, so the global 'sc' command was not linked." >&2
+    echo "   You can still run: node '$REPO_DIR/bin/sc.js'" >&2
+  fi
 fi
 
 if [[ "$with_mcp" == "1" ]]; then
@@ -115,13 +145,17 @@ if [[ "$with_mcp" == "1" ]]; then
 fi
 
 echo ""
-echo "✅ SI-Coder skills installed for: $agent"
+echo "✅ SI-Coder active skills installed for: $agent (${#skill_dirs[@]} skills; unfinished/legacy skills are not installed by default)"
 echo "   /sc          → main entry point: describe what you want in plain language"
 echo "   /sc-build    → idea → short product interview → first working version → publish"
 echo "   /sc-all      → publish an existing app end to end"
 echo "   /sc-provider → connect/manage service access safely"
 echo "   /sc-install  → portable install guidance"
-echo "   Technical CLI (optional): sc deploy plan --json"
+if [[ "$npm_link_failed" == "0" || "${SC_SKIP_NPM_LINK:-0}" == "1" ]]; then
+  echo "   Technical CLI (optional): sc deploy plan --json"
+else
+  echo "   Technical CLI: node '$REPO_DIR/bin/sc.js' deploy plan --json  (until npm link is fixed)"
+fi
 
 [[ -t 0 && -t 1 ]] || run_onboarding=0
 if [[ "$run_onboarding" == "1" ]]; then

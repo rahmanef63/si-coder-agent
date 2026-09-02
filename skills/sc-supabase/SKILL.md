@@ -1,8 +1,8 @@
 ---
 name: sc-supabase
 description: "(STUB / NOT IMPLEMENTED YET) Supabase backend as an alternative to self-hosted Convex. Create project, apply migrations from supabase/migrations, deploy Edge Functions, generate types. For projects where Postgres + Row-Level-Security is a better fit than Convex's reactive query model."
-use_when: "Use when the task matches this skill scope: (STUB / NOT IMPLEMENTED YET) Supabase backend as an alternative to self-hosted Convex. Create project, apply migrations from supabase/migrations, deploy Edge Functions, generate types. For projects where Postgres + Row-Level-Security is a better fit than Convex's reactive query model."
-do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+use_when: "Use only when maintaining or implementing the unfinished Supabase automation itself."
+do_not_use_when: "Do not route normal user-facing Supabase provisioning tasks here; the automation is not implemented yet. Keep credential preparation in sc-provider and explain the current limitation."
 required_tools: []
 security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
 references: []
@@ -50,5 +50,5 @@ sc-supabase/
 
 - API base: `https://api.supabase.com/v1`
 - Auth: `Authorization: Bearer <SUPABASE_ACCESS_TOKEN>`
-- Project creation returns a DB password ONCE — capture and write to `~/.bashrc` immediately as `SUPABASE_DB_PASSWORD_<projectref>`.
+- Project creation returns a DB password ONCE — capture it directly into the selected Supabase named connection as a private one-time credential.
 - For migrations, the `supabase` CLI may be required as a sub-process — wrap it in `lib/supabase.js` (TODO).

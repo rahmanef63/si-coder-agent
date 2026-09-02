@@ -13,6 +13,10 @@ compatibility: "Standalone SI-Coder; host invocation syntax and available tools 
 
 Use this skill when the user wants to deploy, debug, or maintain a **self-hosted Convex backend** running on Dokploy. The repo lives at `https://github.com/rahmanef63/si-coder-agent`.
 
+## Connection-safe local execution
+
+Credential-dependent local helper scripts must run through `sc run -- ...` when their Dokploy/Convex access lives in SI-Coder named connections. This lets one child process receive the selected provider connections without writing them to the parent shell. The command examples below show script arguments; prefix them with `sc run --` unless the caller already provides the required environment.
+
 ## NEVER ask the user to run Convex CLI by hand
 
 For self-hosted Convex projects the Convex CLI (v1.27+) auto-detects the backend from `.env.local` (`CONVEX_SELF_HOSTED_URL` + `CONVEX_SELF_HOSTED_ADMIN_KEY`). The schema/function push happens automatically via the sc-git pre-push hook installed by `/sc-all`. **Do not** instruct the user to run `npx convex deploy`, `pnpm convex:deploy`, `convex:push`, or any Convex CLI command interactively. If the hook is not installed, install it yourself (`node ~/.claude/skills/sc-git/scripts/hook.js install --repo <name>`) instead of asking.

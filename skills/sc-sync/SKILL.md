@@ -68,6 +68,10 @@ two tells the script whether *this* machine is pushing (source) or pulling
 | `local-vps` | `local` | SRC — pushes to vps | DST |
 | `local-vps` | `vps` | DST — pulls from local | SRC |
 
+## Connection-safe configuration
+
+`SYNC_*` values may be stored in the user's `sync` named connection. In that case run the helper through `sc run -- ...` rather than exporting the values globally. The `export` examples below are legacy/manual configuration examples only.
+
 ## Usage
 
 ```bash

@@ -119,19 +119,121 @@ test('SCPORT-9: bundled MCP returns hosted full-Composio plan', () => {
   assert.strictEqual(plan.providerRouting.find(x => x.provider === 'github').backend, 'composio');
 });
 
+test('SCPORT-9b: MCP supports 2026-07-28 server/discover and stateless tool calls without initialize', () => {
+  const meta = {
+    'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+    'io.modelcontextprotocol/clientInfo': { name: 'modern-test', version: '1' },
+    'io.modelcontextprotocol/clientCapabilities': {},
+  };
+  const requests = [
+    { jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: { _meta: meta } },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'sc.version', arguments: {}, _meta: meta } },
+  ];
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/sc-mcp.js')], {
+    cwd: ROOT, input: requests.map(x => JSON.stringify(x)).join('\n') + '\n', encoding: 'utf8', timeout: 10000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const rows = r.stdout.trim().split(/\n/).map(JSON.parse);
+  const discover = rows.find(x => x.id === 1).result;
+  assert.deepStrictEqual(discover.supportedVersions, ['2026-07-28']);
+  assert.strictEqual(discover.resultType, 'complete');
+  assert.strictEqual(discover._meta['io.modelcontextprotocol/serverInfo'].name, 'si-coder');
+  const list = rows.find(x => x.id === 2).result;
+  assert.ok(list.tools.some(x => x.name === 'sc.version'));
+  assert.strictEqual(list.resultType, 'complete');
+  assert.strictEqual(list.ttlMs, 0);
+  assert.strictEqual(list.cacheScope, 'private');
+  assert.strictEqual(list._meta['io.modelcontextprotocol/serverInfo'].name, 'si-coder');
+  const call = rows.find(x => x.id === 3).result;
+  assert.ok(call.structuredContent?.version);
+  assert.strictEqual(call.resultType, 'complete');
+  assert.strictEqual(call._meta['io.modelcontextprotocol/serverInfo'].name, 'si-coder');
+});
+
+test('SCPORT-9b2: modern MCP rejects unsupported per-request protocol with the standardized -32022 payload', () => {
+  const request = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: {
+    'io.modelcontextprotocol/protocolVersion': '2099-01-01',
+    'io.modelcontextprotocol/clientCapabilities': {},
+  } } };
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/sc-mcp.js')], {
+    cwd: ROOT, input: `${JSON.stringify(request)}\n`, encoding: 'utf8', timeout: 10000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const row = JSON.parse(r.stdout.trim());
+  assert.strictEqual(row.error.code, -32022);
+  assert.strictEqual(row.error.message, 'Unsupported protocol version');
+  assert.deepStrictEqual(row.error.data, { supported: ['2026-07-28'], requested: '2099-01-01' });
+});
+
+test('SCPORT-9c: MCP keeps 2025 initialize compatibility while modern clients use discovery', () => {
+  const requests = [
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'legacy', version: '1' } } },
+    { jsonrpc: '2.0', method: 'notifications/initialized' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+  ];
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/sc-mcp.js')], {
+    cwd: ROOT, input: requests.map(x => JSON.stringify(x)).join('\n') + '\n', encoding: 'utf8', timeout: 10000,
+  });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const rows = r.stdout.trim().split(/\n/).map(JSON.parse);
+  assert.strictEqual(rows.find(x => x.id === 1).result.protocolVersion, '2025-11-25');
+  assert.ok(rows.find(x => x.id === 2).result.tools.length > 0);
+  assert.ok(!rows.find(x => x.id === 2).result._meta, 'legacy responses should remain byte-shape compatible');
+});
+
 test('SCPORT-10: portable installer targets local Agent Skills runtimes from one SSOT', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-install-'));
   try {
     execFileSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'all', '--no-onboard'], {
       cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, SC_SKIP_NPM_LINK: '1' },
     });
+    const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills/catalog.json'), 'utf8')).skills;
+    const active = Object.entries(catalog).filter(([, row]) => row.lifecycle === 'active' && row.installByDefault).map(([name]) => name);
+    const inactive = Object.entries(catalog).filter(([, row]) => !(row.lifecycle === 'active' && row.installByDefault)).map(([name]) => name);
     for (const d of ['.claude/skills', '.agents/skills', '.hermes/skills', '.openclaw/workspace/skills']) {
-      for (const skill of ['sc', 'sc-build', 'sc-all', 'sc-provider', 'sc-install']) {
+      for (const skill of active) {
         const target = path.join(home, d, skill);
         assert.ok(fs.lstatSync(target).isSymbolicLink(), `${target} should be a symlink`);
         assert.ok(fs.existsSync(path.join(target, 'SKILL.md')));
       }
+      for (const skill of inactive) {
+        assert.ok(!fs.existsSync(path.join(home, d, skill)), `${skill} must not be installed by default`);
+      }
     }
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('SCPORT-10b: installer reports npm-link failure instead of silently claiming the CLI was linked', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-install-linkfail-'));
+  const fakeBin = path.join(home, 'bin');
+  fs.mkdirSync(fakeBin, { recursive: true });
+  const npm = path.join(fakeBin, 'npm');
+  fs.writeFileSync(npm, '#!/bin/sh\necho "simulated npm link failure" >&2\nexit 42\n', { mode: 0o755 });
+  try {
+    const r = spawnSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'codex', '--no-onboard'], {
+      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+    });
+    assert.strictEqual(r.status, 0, r.stderr);
+    assert.match(r.stderr, /could not link the global 'sc' command/i);
+    assert.match(`${r.stdout}\n${r.stderr}`, /node .*bin\/sc\.js/);
+    assert.ok(fs.existsSync(path.join(home, '.agents/skills/sc/SKILL.md')), 'skills still install even when optional npm link fails');
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('SCPORT-10c: installer fails early on Node versions below the supported floor', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-install-node20-'));
+  const fakeBin = path.join(home, 'bin');
+  fs.mkdirSync(fakeBin, { recursive: true });
+  const node = path.join(fakeBin, 'node');
+  fs.writeFileSync(node, '#!/bin/sh\nif [ "$1" = "-p" ]; then echo 20; else echo v20.99.0; fi\n', { mode: 0o755 });
+  try {
+    const r = spawnSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'codex', '--no-onboard'], {
+      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}`, SC_SKIP_NPM_LINK: '1' },
+    });
+    assert.strictEqual(r.status, 1);
+    assert.match(r.stderr, /requires Node\.js >=22/i);
+    assert.ok(!fs.existsSync(path.join(home, '.agents/skills/sc')), 'unsupported runtime must fail before installation');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 

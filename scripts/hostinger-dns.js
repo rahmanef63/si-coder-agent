@@ -69,7 +69,8 @@ async function main() {
 
   if (!token) {
     console.error('❌ HOSTINGER_API_TOKEN not set in env.');
-    console.error('   Set it first:  node bin/onboard.js --domains hostinger  (then: source ~/.bashrc)');
+    console.error('   Connect it first: sc setup --providers hostinger');
+    console.error('   Then run through the connection resolver: sc run -- node scripts/hostinger-dns.js <command> ...');
     process.exit(1);
   }
 

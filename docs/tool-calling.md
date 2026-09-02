@@ -176,6 +176,16 @@ This is only for `source=sc`, where SI-Coder owns the local credential set. For 
 node /path/to/si-coder-agent/scripts/sc-mcp.js
 ```
 
+### Protocol compatibility
+
+The stdio adapter is dual-era while the tool schema remains one SSOT:
+
+- **MCP 2026-07-28**: supports `server/discover` and stateless requests carrying `params._meta["io.modelcontextprotocol/protocolVersion"] = "2026-07-28"`. Modern responses include `_meta["io.modelcontextprotocol/serverInfo"]`. No initialize handshake is required.
+  Every modern result is wire-stamped with `resultType: "complete"` unless a future flow returns another discriminator. Cacheable list results emit conservative `ttlMs: 0` + `cacheScope: "private"` by default; discovery can advertise its own cache hint.
+- **MCP 2025-11-25**: keeps the legacy `initialize` / `notifications/initialized` path for clients that have not migrated yet.
+
+A modern stdio client may probe `server/discover`; an older client can continue directly with `initialize`. This follows the MCP hybrid migration model without duplicating `machine/functions.json`. See `https://modelcontextprotocol.io/specification/2026-07-28/server/discover`.
+
 Generic MCP configuration:
 
 ```json

@@ -55,7 +55,7 @@ Use the built-in `$skill-installer` and the GitHub repository paths listed in `A
 
 Codex skill invocation is surface-specific. Use the current Codex skill picker/invocation UX; do not rewrite it as Claude's `/sc`.
 
-Local fallback remains:
+Local fallback requires **Node.js 22+** and installs only active/default skills from `skills/catalog.json`:
 
 ```bash
 bash install.sh --agent codex
@@ -78,6 +78,8 @@ ChatGPT also has a Plugin Directory. Plugins can bundle Skills and Apps. Publish
 
 ## Hermes / OpenClaw / generic local Agent Skills
 
+Local installer requirement: **Node.js 22+**. It installs active/default skills only; stub and legacy skills are not exposed as normal capabilities.
+
 Skills only:
 
 ```bash
@@ -93,7 +95,7 @@ bash install.sh --agent hermes --with-mcp
 bash install.sh --agent openclaw --with-mcp
 ```
 
-The installer registers the same `scripts/sc-mcp.js` server used by the `machine/functions.json` tool SSOT. Hermes uses `hermes mcp add`; OpenClaw uses `openclaw mcp add`. The MCP surface is user/connection-scoped (`sc.user.*`) and never accepts plaintext credential values. Use `sc.user.connection.request/manage/list` for labeled account/auth selection and `sc.user.credential.request` for direct credential create/rotate handoff; values are entered only through hidden local terminal input or another explicitly secure credential channel.
+The installer registers the same `scripts/sc-mcp.js` server used by the `machine/functions.json` tool SSOT. The adapter supports MCP `2026-07-28` discovery/stateless calls and preserves `2025-11-25` initialize compatibility. Hermes uses `hermes mcp add`; OpenClaw uses `openclaw mcp add`. The MCP surface is user/connection-scoped (`sc.user.*`) and never accepts plaintext credential values. Use `sc.user.connection.request/manage/list` for labeled account/auth selection and `sc.user.credential.request` for direct credential create/rotate handoff; values are entered only through hidden local terminal input or another explicitly secure credential channel.
 
 ## Package contract
 
@@ -107,4 +109,4 @@ Never hand-edit `dist/sc.skill`.
 
 ## Security
 
-Installing SI-Coder must not copy provider secrets. Credential/account authorization happens separately through secure connected accounts or the local hidden-secret flow.
+Installing SI-Coder must not copy provider secrets. Fresh local onboarding uses `sc setup` → user → provider → named connection; direct values go only to the selected `0600` connection file. Legacy profile/`~/.bashrc` helpers are migration-only. Credential/account authorization otherwise happens through secure connected accounts or the local hidden-secret flow.

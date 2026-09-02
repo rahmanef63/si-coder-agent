@@ -18,4 +18,4 @@ Organisation under which `/sc-supabase` will create projects. This is the org **
 
 ## Note
 
-Project creation returns the DB password **once**. `/sc-supabase` must capture it and write `SUPABASE_DB_PASSWORD_<projectref>` to `~/.bashrc` immediately — if lost, you'll need to rotate via the dashboard.
+Project creation returns the DB password **once**. `/sc-supabase` must capture it and write the one-shot DB password to the selected private Supabase named connection immediately — if lost, you'll need to rotate via the dashboard.

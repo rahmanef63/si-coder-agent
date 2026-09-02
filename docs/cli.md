@@ -4,6 +4,21 @@ Run `sc` in a terminal to open the Finder-style interactive console. It owns one
 
 The identity model is **user-first**. A user owns an isolated credential store, and every provider/credential is managed underneath that user.
 
+## Fresh setup
+
+Current local releases require **Node.js 22+**. `sc setup` creates/selects the SI-Coder user first, then creates or reuses named provider connections. Direct credentials are entered with hidden input and stored only in the selected connection's `0600` file. Fresh setup does not write provider secrets to `~/.bashrc`.
+
+```text
+sc setup
+  → user
+  → active provider
+  → named connection
+  → hidden credential input
+  → verify
+```
+
+Unfinished/legacy skills are excluded from normal setup according to `skills/catalog.json`. Existing legacy profile values can be migrated locally into a named connection; the value is never printed.
+
 ## Navigation
 
 ```text
@@ -195,7 +210,7 @@ click: Settings → Developer settings → Personal access tokens → Tokens (cl
 
 Pressing **Enter** repeats the reference URL and navigation path before the hidden `value:` prompt. Press **Esc** at that prompt to cancel and return to the credential screen immediately. Credentials generated locally use `get with:` instead of a URL; generated-at-deploy values explain that they should normally be left blank.
 
-For `github` with `source=sc`, SI-Coder exposes one direct auth method: **Personal access token (classic)** (`classic-pat`). The setup URL is `https://github.com/settings/tokens/new`; direct SC validates the `ghp_…` token format. GitHub via Composio remains a separate OAuth-backed connection source.
+For `github` with `source=sc`, SI-Coder exposes one direct auth method: **Personal access token (classic)** (`classic-pat`). The setup URL is `https://github.com/settings/tokens/new`; direct SC validates the `ghp_…` token format. GitHub via Composio remains a separate OAuth-backed connection source. `sc doctor` also inspects GitHub classic-token scope metadata when available: `repo` supports private+public repository automation, `public_repo` is public-only, and a token with neither is insufficient for repository writes. SAML SSO blocks are surfaced separately; organization PAT policy/SSO may still gate an otherwise valid token.
 
 The source/auth metadata is defined once in `lib/providers.js` (`auth[]`, `url`/`cmd`, `navigation[]`, `note`) and rendered by `lib/credential-guidance.js`. Tool-calling returns the same fields as `referenceUrl`, `createCommand`, `navigation`, and `navigationText`.
 
@@ -227,7 +242,7 @@ sc memory record debug --title "GitHub routing" --issue "..." --root-cause "..."
 sc memory status <id> confirmed
 
 sc recipe list
-sc recipe observe release-candidate-check --steps "syntax|tests|docs|skills|secret scan"
+sc recipe observe release-candidate-check --steps "syntax|tests|docs|catalog|skills|repository-secret-scan"
 sc recipe verify release-candidate-check --yes
 sc recipe promote release-candidate-check --script scripts/release-candidate-check.js --yes
 ```

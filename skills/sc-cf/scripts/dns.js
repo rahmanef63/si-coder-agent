@@ -106,7 +106,8 @@ async function main() {
 
   if (!token) {
     console.error('❌ CLOUDFLARE_API_TOKEN not set in env.');
-    console.error('   Set it first:  node bin/onboard.js --domains cf  (then: source ~/.bashrc)');
+    console.error('   Connect it first: sc setup --providers cf');
+    console.error('   Then run through the connection resolver: sc run -- node skills/sc-cf/scripts/dns.js <command> ...');
     process.exit(1);
   }
 

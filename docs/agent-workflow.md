@@ -162,7 +162,7 @@ observed
 Example:
 
 ```bash
-sc recipe observe release-candidate-check --steps "syntax|tests|docs|skills|secret scan"
+sc recipe observe release-candidate-check --steps "syntax|tests|docs|skills|repository-wide secret scan"
 sc recipe list
 sc recipe verify release-candidate-check --yes
 sc recipe promote release-candidate-check --script scripts/release-candidate-check.js --yes
@@ -178,7 +178,7 @@ The deterministic release helper is:
 npm run verify:release
 ```
 
-It returns structured JSON with syntax/tests/docs/distribution/skills/secret-scan results. Add `-- --record` only when a persistent verification receipt/test-memory update is desired.
+It returns structured JSON with syntax/tests/docs/distribution/skills/repository-wide secret-scan results. Add `-- --record` only when a persistent verification receipt/test-memory update is desired.
 
 ## Skill verification
 
@@ -244,8 +244,9 @@ sc task prepare <intent>
 - syntax of the agent workflow integration;
 - full repository regression suite;
 - documentation synchronization checks;
+- lifecycle/catalog consistency for installed capabilities;
 - strict-compatible skill quality;
-- secret scan of persisted `.agent` state.
+- repository-wide secret scan of checkout text files that could enter source/generated packages; `.agent` write-time secret rejection remains a separate guard.
 
 The full repository test suite continues to cover CLI, provider behavior, machine/MCP schemas, distribution, migration/security contracts, and other existing surfaces.
 

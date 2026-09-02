@@ -19,6 +19,16 @@ Use this skill when the user wants to inspect, change, or clean up Dokploy state
 
 If missing, route to `/sc-onboarding`.
 
+## Connection-safe local execution
+
+When Dokploy access is stored in an SI-Coder named `source=sc` connection, run credential-dependent commands through `sc run -- ...` so the selected connection is injected only into that child process:
+
+```bash
+sc run -- node skills/sc-dokploy/scripts/projects.js list
+```
+
+The shorter `node scripts/...` examples below describe the script interface and are valid only when the required environment is already supplied by the caller. Do not export Dokploy credentials globally just to use them. External/provider-managed sources must execute through their own connection backend instead of `sc run`.
+
 ## REST vs SSH
 
 Dokploy REST API covers projects, applications, compose, domains, deploy/start/stop, monitoring read. It does **NOT** cover:

@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",
@@ -32,7 +32,7 @@
   "author": "Rahman EF",
   "type": "commonjs",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "bin": {
     "si-coder-onboard": "bin/onboard.js",
@@ -57,21 +57,21 @@
     ".agents/",
     "plugins/",
     "docs/",
-    "OPENAI_SUBMISSION.md"
+    "OPENAI_SUBMISSION.md",
+    "SECURITY.md"
   ],
   "scripts": {
-    "onboard": "node bin/onboard.js",
+    "onboard": "node bin/sc.js setup",
     "sc": "node bin/sc.js",
     "doctor": "node bin/sc.js doctor",
     "deploy": "node scripts/deploy.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
-    "preversion": "npm test",
-    "postversion": "git push --follow-tags origin main",
     "route": "node scripts/route-plan.js",
     "mcp": "node scripts/sc-mcp.js",
     "package:skills": "python3 scripts/package-web-skill.py",
     "docs:sync": "node scripts/sync-install-docs.js",
     "docs:check": "node scripts/sync-install-docs.js --check",
-    "verify:release": "node scripts/release-candidate-check.js"
+    "verify:release": "node scripts/release-candidate-check.js",
+    "catalog:check": "node scripts/check-skill-catalog.js"
   }
 }

@@ -30,7 +30,7 @@ Do not ask the user to choose a SI-Coder sub-skill.
 - Existing app that needs to go live, change hosting, or attach a domain → follow the `sc-all` skill.
 - Account/permission/API access task → follow the `sc-provider` skill.
 - Installation into another agent runtime → follow the `sc-install` skill.
-- Explicit advanced provider operation → use the matching `sc-*` provider skill.
+- Explicit advanced provider operation → use the matching `sc-*` provider skill **only when that skill is active/implemented**. Unfinished/stub provider work stays in `sc`/`sc-provider`; explain the limitation instead of routing to a dead-end skill.
 
 The route is internal. Do not narrate the skill handoff unless it helps recover from a problem.
 
