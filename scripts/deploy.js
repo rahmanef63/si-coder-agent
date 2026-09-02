@@ -24,7 +24,6 @@ const { deployBackendOnly, deriveCloudUrl } = require('../lib/convex-cloud');
 
 // ---- M2: named constants (no magic numbers) ----
 const BACKEND_PORTS = { api: 3210, site: 3211, dash: 6791 };
-const DNS_TTL = 14400;
 const CONVEX_TEMPLATE_ID = 'convex';
 const BACKEND_CONTAINER_SUFFIX = '-backend-1';
 
@@ -896,7 +895,7 @@ async function run() {
                 https: true,
                 certificateType: 'letsencrypt',
               });
-            } catch (e) {
+            } catch {
               console.warn(`⚠️ Domain ${backendDomain.host} may already exist or Dokploy rejected it. Skipping.`);
             }
           }
@@ -1102,7 +1101,7 @@ async function run() {
               certificateType: 'letsencrypt',
             });
             console.log(`✅ Domain ${domain} created.`);
-          } catch (e) {
+          } catch {
             console.warn('⚠️ Note on domain creation: Domain may already exist or API rejected it. Skipping.');
           }
 
@@ -1134,7 +1133,7 @@ async function run() {
             } else {
               process.stdout.write('.'); // loading indicator
             }
-          } catch (e) {
+          } catch {
             // ignore network blips during polling
           }
         }

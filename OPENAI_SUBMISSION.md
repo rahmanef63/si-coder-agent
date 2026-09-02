@@ -1,6 +1,6 @@
 # SI-Coder OpenAI submission pack
 
-Status: **workspace-distribution ready; universal public skill-only submission path not currently documented by OpenAI.**
+Status: **GitHub workspace-marketplace distribution ready; uploaded-Skill packaging ready for eligible ChatGPT workspaces; universal public skill-only submission path not currently documented by OpenAI.**
 
 Use [`docs/publishing/openai-plugin-directory.md`](docs/publishing/openai-plugin-directory.md) as the canonical submission/readiness document.
 
@@ -9,8 +9,8 @@ Use [`docs/publishing/openai-plugin-directory.md`](docs/publishing/openai-plugin
 - `.agents/plugins/marketplace.json`
 - `plugins/si-coder/.codex-plugin/plugin.json`
 - `plugins/si-coder/skills/`
-- `dist/sc.skill`
-- `dist/sc.zip`
+- `dist/sc.zip` — uploaded-Skill package
+- `dist/sc.skill` — optional archive for clients that explicitly support `.skill`
 
 ## Immediate supported publication
 

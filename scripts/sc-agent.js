@@ -7,7 +7,6 @@
 // or a trusted local stdin/env/file flow, never chat/tool JSON.
 const path = require('path');
 const { spawnSync } = require('child_process');
-const P = require('../lib/profiles');
 const C = require('../lib/connections');
 const { PROVIDERS } = require('../lib/providers');
 const UC = require('../lib/user-control');

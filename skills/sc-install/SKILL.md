@@ -65,16 +65,16 @@ Use `--with-mcp` when the user also wants the local SI-Coder MCP server.
 
 ## ChatGPT Web
 
-If ChatGPT Skills are available for the user's account/workspace, use the complete `dist/sc.zip` package by default. OpenAI documents skill upload and the `SKILL.md` standard but does not currently require the `.skill` extension. Use `dist/sc.skill` only if that ChatGPT surface explicitly accepts or requests it.
+Use uploaded ChatGPT Skills only when the account/workspace exposes the feature. OpenAI currently documents Skills for eligible Business, Enterprise, Healthcare, and Edu workspaces, subject to workspace settings and product availability. When available, use the complete `dist/sc.zip` package by default. OpenAI documents skill upload and the `SKILL.md` standard but does not currently require the `.skill` extension. Use `dist/sc.skill` only if that ChatGPT surface explicitly accepts or requests it.
 
 ChatGPT currently documents two invocation modes:
 
 1. automatic use when the skill is relevant, and
 2. explicit selection by @-mention / the skill picker.
 
-For a personal Skill upload, the OpenAI display name is `sc`, so say `@sc` (or select the installed skill) when explicit invocation is needed. For the workspace marketplace plugin, the plugin display name remains `SI-Coder`, so explicit plugin selection may appear as `@SI-Coder`. Do **not** promise `/sc` on ChatGPT Web unless OpenAI adds and documents that surface behavior.
+For an uploaded Skill, the OpenAI display name is `sc`, so say `@sc` (or select the installed Skill) when explicit invocation is needed. For the workspace marketplace plugin, the plugin display name remains `SI-Coder`, so explicit plugin selection may appear as `@SI-Coder`. Do **not** promise `/sc` on ChatGPT Web unless OpenAI adds and documents that surface behavior.
 
-ChatGPT also has a Plugin Directory. Plugins can bundle Skills and Apps. Publishing SI-Coder as a public ChatGPT plugin is a separate review/distribution lifecycle from uploading a personal skill package.
+ChatGPT also has a Plugin Directory. Plugins can bundle Skills and Apps. Publishing SI-Coder as a public ChatGPT plugin is a separate review/distribution lifecycle from uploading a Skill package.
 
 ## Hermes / OpenClaw / generic local Agent Skills
 

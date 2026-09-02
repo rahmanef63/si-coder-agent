@@ -24,17 +24,17 @@ Canonical source: `skills/sc/`. The Agent Skills specification does not define `
 | Claude Code | plugin marketplace or GitHub/disk skill directory containing `SKILL.md` |
 | Claude Web | ZIP containing the skill folder |
 | Codex | GitHub/disk skill directory containing `SKILL.md` |
-| ChatGPT personal Skills | uploaded complete skill package; SI-Coder recommends ZIP because OpenAI does not document `.skill` as required |
+| ChatGPT uploaded Skills (eligible workspaces) | uploaded complete skill package; SI-Coder recommends ZIP because OpenAI does not document `.skill` as required; uploaded Skills currently depend on eligible workspace/plan settings |
 | ChatGPT workspace | GitHub plugin marketplace |
 | Generic local Agent Skills | skill directory containing `SKILL.md` |
 | Explicit `.skill`-aware clients | optional `.skill` ZIP-format archive |
 
-## Stable links for v0.8.14
+## Current release links — v0.9.1
 
-- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.8.14/skills/sc`
-- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.8.14/skills/sc/SKILL.md`
-- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.14/sc.zip`
-- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.8.14/sc.skill`
+- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc`
+- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.1/skills/sc/SKILL.md`
+- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip`
+- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.skill`
 
 ## Rule for agents
 

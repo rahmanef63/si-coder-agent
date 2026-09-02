@@ -29,7 +29,7 @@ An explicit VPS/Dokploy request from hosted mode requires a connected VPS runner
 
 ## Rule 2 — local GitHub stays in SC
 
-For local runtimes, GitHub repo creation/push remains SC/direct Git by default. This keeps source identity deterministic across deployment operations.
+For local runtimes, GitHub repo creation/push remains SC/direct Git by default. Direct GitHub authentication uses **Personal access token (classic)** (`classic-pat`, `ghp_…`) from `https://github.com/settings/tokens/new`. This keeps source identity deterministic across deployment operations.
 
 Composio GitHub may still be used for optional issues/PR/releases, but it is not the default deployment identity when a local SC runtime exists.
 

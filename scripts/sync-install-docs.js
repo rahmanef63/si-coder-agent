@@ -5,7 +5,6 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const SOURCE = path.join(ROOT, 'docs/install/README.md');
 const BEGIN = '<!-- INSTALL_MATRIX_SSOT:BEGIN -->';
 const END = '<!-- INSTALL_MATRIX_SSOT:END -->';
 const GEN_BEGIN = '<!-- INSTALL_MATRIX_GENERATED:BEGIN -->';
@@ -39,6 +38,40 @@ function requireText(text, pattern, label) {
 function forbidText(text, pattern, label) {
   if (pattern.test(text)) throw new Error(`${label}: forbidden ${pattern}`);
 }
+function markdownFiles(dir = ROOT, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === '.git' || entry.name === 'node_modules') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) markdownFiles(full, out);
+    else if (entry.isFile() && entry.name.endsWith('.md')) out.push(full);
+  }
+  return out;
+}
+function assertLocalMarkdownLinks() {
+  const mdLink = /\[[^\]]*\]\(([^)]+)\)/g;
+  for (const file of markdownFiles()) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const match of text.matchAll(mdLink)) {
+      const href = match[1].trim();
+      if (!href || /^(?:https?:|mailto:|#)/i.test(href)) continue;
+      const rawTarget = href.split('#')[0].replace(/^<|>$/g, '');
+      if (!rawTarget) continue;
+      const target = path.resolve(path.dirname(file), rawTarget);
+      if (!target.startsWith(`${ROOT}${path.sep}`) && target !== ROOT) throw new Error(`markdown link escapes repository: ${path.relative(ROOT, file)} -> ${href}`);
+      if (!fs.existsSync(target)) throw new Error(`broken markdown link: ${path.relative(ROOT, file)} -> ${href}`);
+    }
+  }
+}
+function assertCurrentVersionLinks(rel, version) {
+  const text = read(rel);
+  const patterns = [
+    /si-coder-agent\/(?:tree|releases\/download)\/v(\d+\.\d+\.\d+)/g,
+    /raw\.githubusercontent\.com\/rahmanef63\/si-coder-agent\/v(\d+\.\d+\.\d+)/g,
+  ];
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) if (m[1] !== version) throw new Error(`${rel}: stale SI-Coder version v${m[1]} (current v${version})`);
+  }
+}
 
 const pkg = JSON.parse(read('package.json'));
 const version = pkg.version;
@@ -46,6 +79,26 @@ const sourceText = read('docs/install/README.md');
 const table = between(sourceText, BEGIN, END);
 const rows = parseRows(table);
 if (rows.length < 7) throw new Error(`install matrix has too few rows: ${rows.length}`);
+
+
+const currentVersionDocs = [
+  'README.md',
+  'AI_INSTALL.md',
+  'references/portable-skills.md',
+  'docs/install/README.md',
+  'docs/install/claude-code.md',
+  'docs/install/claude-web.md',
+  'docs/install/codex.md',
+  'docs/install/chatgpt-skills.md',
+  'docs/install/generic-local.md',
+];
+for (const rel of currentVersionDocs) assertCurrentVersionLinks(rel, version);
+assertLocalMarkdownLinks();
+
+for (const file of fs.readdirSync(path.join(ROOT, 'docs/releases')).filter(name => /^v\d+\.\d+\.\d+\.md$/.test(name))) {
+  if (file === `v${version}.md`) continue;
+  requireText(read(`docs/releases/${file}`), /Historical release record/i, `historical release ${file}`);
+}
 
 const generatedBody = `### Installation format matrix\n\n> Generated from [docs/install/README.md](docs/install/README.md). Do not edit this matrix here.\n\n${table}`;
 const releaseBody = `## Install transport by surface\n\n> Generated from [docs/install/README.md](../install/README.md). Do not edit this matrix here.\n\n${table}`;
@@ -66,6 +119,13 @@ for (const [rel, body] of targets) {
   }
 }
 
+const currentMarkdown = markdownFiles()
+  .filter(file => !file.includes(`${path.sep}docs${path.sep}releases${path.sep}`))
+  .map(file => fs.readFileSync(file, 'utf8'))
+  .join('\n');
+forbidText(currentMarkdown, /ChatGPT personal Skills/i, 'current Markdown terminology');
+forbidText(currentMarkdown, /chatgpt-personal-skills\.md/i, 'current Markdown filename');
+
 // Surface-contract assertions are intentionally kept here so CI guards the SSOT and the per-surface guides together.
 const claudeWeb = read('docs/install/claude-web.md');
 requireText(claudeWeb, new RegExp(`releases/download/v${version.replaceAll('.', '\\.')}/sc\\.zip`), 'Claude Web');
@@ -78,10 +138,12 @@ requireText(codex, new RegExp(`tree/v${version.replaceAll('.', '\\.')}/skills/sc
 requireText(codex, /SKILL\.md/, 'Codex');
 forbidText(codex, new RegExp(`releases/download/v${version.replaceAll('.', '\\.')}/sc\\.(zip|skill)`), 'Codex transport');
 
-const chatgpt = read('docs/install/chatgpt-personal-skills.md');
-requireText(chatgpt, new RegExp(`releases/download/v${version.replaceAll('.', '\\.')}/sc\\.zip`), 'ChatGPT personal');
-requireText(chatgpt, /does \*\*not\*\* specify that a `\.skill` filename is required/i, 'ChatGPT personal');
-requireText(chatgpt, /optional.*`sc\.skill`/i, 'ChatGPT personal');
+const chatgpt = read('docs/install/chatgpt-skills.md');
+requireText(chatgpt, new RegExp(`releases/download/v${version.replaceAll('.', '\\.')}/sc\\.zip`), 'ChatGPT uploaded Skill');
+requireText(chatgpt, /does \*\*not\*\* specify that a `\.skill` filename is required/i, 'ChatGPT uploaded Skill');
+requireText(chatgpt, /optional.*`sc\.skill`/i, 'ChatGPT uploaded Skill');
+requireText(chatgpt, /Business[\s\S]*Enterprise[\s\S]*Healthcare[\s\S]*Edu/i, 'ChatGPT Skill availability');
+forbidText(sourceText, /ChatGPT personal Skills/i, 'install SSOT current terminology');
 
 const workspace = read('docs/install/chatgpt-workspace-marketplace.md');
 requireText(workspace, /github\.com\/rahmanef63\/si-coder-agent/, 'ChatGPT workspace');

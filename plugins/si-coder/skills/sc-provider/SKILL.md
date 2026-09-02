@@ -127,7 +127,7 @@ sc user connection-rm <user> <provider> <connection>
 sc user connection-migrate <user> [provider]
 ```
 
-The provider's `sources` metadata selects the backend first; direct `auth[]` then defines local auth methods. External source metadata supplies its own auth schemes. Do not put Composio back into direct `auth[]`.
+The provider's `sources` metadata selects the backend first; direct `auth[]` then defines local auth methods. External source metadata supplies its own auth schemes. Do not put Composio back into direct `auth[]`. GitHub `source=sc` intentionally exposes only `classic-pat` and validates `ghp_…`; GitHub `source=composio` remains OAuth-backed.
 
 OAuth/external connections must not copy provider access/refresh tokens into SI-Coder. Store only safe external ids/alias/scope/status and authorize Composio-backed connections through `connected_accounts/link`. Never persist `link_token`, redirect URL, or Connected Account credential state.
 

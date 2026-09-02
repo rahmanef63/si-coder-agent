@@ -30,7 +30,7 @@ sc setup
 sc doctor
 ```
 
-`sc setup` uses hidden terminal entry for credentials. `sc doctor` verifies provider connectivity without printing credential values.
+`sc setup` uses hidden terminal entry for credentials. In the Finder flow, `Esc` cancels the current credential/metadata input and returns to the previous SC screen without saving or exiting. `sc doctor` verifies provider connectivity without printing credential values.
 
 If a credential is missing, SI-Coder must show:
 
@@ -41,6 +41,10 @@ Save with    : sc user credential-set <user> <provider> <KEY> --connection <alia
 Stored in    : protected SC profile/local store
 Continue     : sc doctor --providers <provider>
 ```
+
+### GitHub direct auth
+
+For local `source=sc` GitHub connections, SI-Coder uses **Personal access token (classic)** (`classic-pat`) only. Create it at `https://github.com/settings/tokens/new`, choose a limited expiration, and grant only the scopes the task requires (`repo` when private-repository automation is necessary). Fine-grained `github_pat_…` values are not accepted by the direct SC provider; GitHub through Composio remains a separate OAuth-backed source.
 
 ## Existing credentials
 

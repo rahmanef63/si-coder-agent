@@ -102,7 +102,7 @@ test('DIST-7: per-surface install docs exist and keep invocation claims surface-
     'docs/install/claude-code.md',
     'docs/install/claude-web.md',
     'docs/install/codex.md',
-    'docs/install/chatgpt-personal-skills.md',
+    'docs/install/chatgpt-skills.md',
     'docs/install/chatgpt-workspace-marketplace.md',
     'docs/install/generic-local.md',
     'docs/install/first-run-onboarding.md',
@@ -114,9 +114,10 @@ test('DIST-7: per-surface install docs exist and keep invocation claims surface-
   const claudeCode = fs.readFileSync(path.join(ROOT, 'docs/install/claude-code.md'), 'utf8');
   assert.match(claudeCode, /\/sc Build/);
 
-  const personal = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-personal-skills.md'), 'utf8');
-  assert.match(personal, /@sc/);
-  assert.doesNotMatch(personal, /After installation, use:\s*`?\/sc\b/i);
+  const uploadedSkill = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-skills.md'), 'utf8');
+  assert.match(uploadedSkill, /@sc/);
+  assert.match(uploadedSkill, /Business[\s\S]*Enterprise[\s\S]*Healthcare[\s\S]*Edu/i);
+  assert.doesNotMatch(uploadedSkill, /After installation, use:\s*`?\/sc\b/i);
 
   const workspace = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-workspace-marketplace.md'), 'utf8');
   assert.match(workspace, /@SI-Coder/);
@@ -131,10 +132,10 @@ test('DIST-7: per-surface install docs exist and keep invocation claims surface-
   assert.ok(pkg.files.includes('OPENAI_SUBMISSION.md'));
 });
 
-test('DIST-9: ChatGPT personal skill identity is sc and .skill never promises slash registration', () => {
+test('DIST-9: ChatGPT uploaded skill identity is sc and .skill never promises slash registration', () => {
   const meta = fs.readFileSync(path.join(ROOT, 'skills/sc/agents/openai.yaml'), 'utf8');
   const skill = fs.readFileSync(path.join(ROOT, 'skills/sc/SKILL.md'), 'utf8');
-  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-personal-skills.md'), 'utf8');
+  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-skills.md'), 'utf8');
   assert.match(meta, /display_name:\s*["']?sc["']?/);
   assert.doesNotMatch(meta, /default_prompt:[^\n]*\$sc/);
   assert.doesNotMatch(skill, /default slash command/i);
@@ -190,10 +191,11 @@ test('DIST-10: install links match each surface transport contract', () => {
   assert.match(codex, /directories containing `SKILL\.md`/);
   assert.doesNotMatch(codex, new RegExp(`releases/download/v${version}/sc\\.(zip|skill)`));
 
-  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-personal-skills.md'), 'utf8');
+  const chatgpt = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-skills.md'), 'utf8');
   assert.match(chatgpt, new RegExp(`releases/download/v${version}/sc\\.zip`));
   assert.match(chatgpt, /does \*\*not\*\* specify that a `\.skill` filename is required/i);
   assert.match(chatgpt, /optional.*sc\.skill/i);
+  assert.match(chatgpt, /Business[\s\S]*Enterprise[\s\S]*Healthcare[\s\S]*Edu/i);
 
   const workspace = fs.readFileSync(path.join(ROOT, 'docs/install/chatgpt-workspace-marketplace.md'), 'utf8');
   assert.match(workspace, /does \*\*not\*\* use `sc\.zip`, `sc\.skill`, or a raw `SKILL\.md` download/);

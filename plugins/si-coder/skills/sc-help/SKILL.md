@@ -79,7 +79,7 @@ Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel
 
 ## Local CLI navigation
 
-On a TTY, bare `sc` is a Finder-style alternate-screen TUI: navigation redraws one frame instead of appending terminal lines, visible `SECTIONS` tabs and a `PATH` breadcrumb stay at the top, and parent/current layers appear as columns. Use `Tab`/`→` to enter a deeper branch, `Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the same TUI frame. `Esc` at Home does not quit; choose Quit or press Ctrl-D.
+On a TTY, bare `sc` is a Finder-style alternate-screen TUI: navigation redraws one frame instead of appending terminal lines, visible `SECTIONS` tabs and a `PATH` breadcrumb stay at the top, and parent/current layers appear as columns. Use `Tab`/`→` to enter a deeper branch, `Enter` to open or run, and `←`/`Esc` to go back. Completing an action returns to the same TUI frame. `Esc` at Home does not quit; choose Quit or press Ctrl-D. If a credential or metadata input is open, `Esc` cancels only that input, saves nothing, and returns immediately to the previous Finder screen. On a normal 28-row terminal the lower INFO/PREVIEW/RESULT panel reserves 8 detail rows (6 on medium, 4 on compact terminals) so guidance uses the available vertical space.
 
 Credential management is user-first. Always select a user before a provider/credential:
 
@@ -97,7 +97,7 @@ sc user map <folder> <user>
 sc user which
 ```
 
-Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. One user can own several isolated provider connections with unique labels, source/backends, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
+Finder hierarchy: `Users → <user> → Providers → <provider> → Connections → <label> → Credentials → <KEY>`. A GitHub direct connection (`source=sc`) uses `classic-pat` only and points to `https://github.com/settings/tokens/new`; GitHub through Composio remains a separate OAuth source. One user can own several isolated provider connections with unique labels, source/backends, auth methods, and scopes. Duplicate creates an independent user+connection tree. Never expose plaintext credential values.
 
 For AI agents, prefer the matching `sc.user.*` MCP/machine tools from `machine/functions.json`. Use `sc.user.connection.request/manage/list` for account/auth selection and `sc.user.credential.request` for direct create/rotate handoff because machine JSON never accepts raw secret values.
 

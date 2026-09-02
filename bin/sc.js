@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  PROVIDERS, BUILTIN_PROVIDERS, BUILTIN_PROVIDER_IDS, BUILTIN_PROVIDER_KEYS, TARGET_PROVIDERS, VALIDATORS, DOMAIN_VARS,
+  PROVIDERS, BUILTIN_PROVIDER_IDS, BUILTIN_PROVIDER_KEYS, TARGET_PROVIDERS, VALIDATORS,
 } = require(path.resolve(__dirname, '../lib/providers'));
 const { isSecret, sourceLine, readShellRcEnv } =
   require(path.resolve(__dirname, '../skills/sc-onboarding/lib/onboarding-domains'));
@@ -23,7 +23,7 @@ const { spawnSync } = require('child_process');
 const { askVisible, askHidden, redactValue, isInteractive, confirm, selectOne, selectMany } =
   require(path.resolve(__dirname, '../lib/prompt'));
 const {
-  enterAlternateScreen, leaveAlternateScreen, clearAlternateScreen, hideCursor, showCursor,
+  enterAlternateScreen, leaveAlternateScreen, clearAlternateScreen, hideCursor,
   selectFinderFrame, waitForEnter, stripAnsi,
 } = require(path.resolve(__dirname, '../lib/finder-tui'));
 const P = require(path.resolve(__dirname, '../lib/profiles'));
@@ -326,7 +326,7 @@ function providerItemsForUser(name) {
 }
 
 function connectionItemsForUser(name, providerId) {
-  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  byId.get(providerId) || die(`unknown provider "${providerId}"`);
   const rows = UC.connectionsStatus(name, providerId).sort((a,b) => Number(b.isDefault)-Number(a.isDefault) || a.label.localeCompare(b.label));
   return rows.map(c => ({
     id: `connection:${c.id}`, kind: 'branch', pathLabel: c.label,
@@ -337,7 +337,7 @@ function connectionItemsForUser(name, providerId) {
 }
 
 function credentialItemsForUser(name, providerId, connectionId = null) {
-  const p = byId.get(providerId) || die(`unknown provider "${providerId}"`);
+  byId.get(providerId) || die(`unknown provider "${providerId}"`);
   const status = UC.providerStatus(name, providerId, connectionId);
   if (connectionId && status.external) return [];
   return status.credentials.map(c => ({
@@ -368,7 +368,7 @@ async function pickProvider(title) {
 // ---------------------------------------------------------------------------
 // setup / set — collect values
 // ---------------------------------------------------------------------------
-async function promptForVar(v, { force = false, user, connection, store } = {}) {
+async function promptForVar(v, { user, connection, store } = {}) {
   console.log('');
   console.log(`  ${v.key}${v.required ? '' : '  (optional — press Enter to skip)'}`);
   printCredentialGuide(v.key, '    ', { user, connection, store });
@@ -399,7 +399,7 @@ async function collect(ids, { force = false } = {}) {
     console.log(`   ${p.blurb}`);
     if (p.status === 'stub') console.log('   ⚠️ this /sc-* script is not implemented yet; values are stored for later.');
     for (const v of todo) {
-      const val = await promptForVar(v, { force });
+      const val = await promptForVar(v);
       if (val === INPUT_CANCELLED) return INPUT_CANCELLED;
       if (val !== null) updates[v.key] = val;
     }
@@ -569,7 +569,7 @@ function cmdProviderUpdate(id, args) {
 }
 
 async function cmdProviderDelete(id, args) {
-  const p = assertCustom(id);
+  assertCustom(id);
   if (!args.yes) {
     if (!isInteractive()) die('refusing to delete a provider without --yes on a non-TTY');
     if (!await confirm(`Delete custom provider "${id}" AND purge its managed credentials from all si-coder profiles?`)) return console.log('aborted');
@@ -891,10 +891,6 @@ async function cmdUserAdd(name, args) {
 }
 
 
-function userProviderSummary(name) {
-  return UC.userProviders(name).map(p => ({ id:p.id, stored:p.stored, total:p.total, invalid:p.invalid, connectionCount:p.connectionCount || 0, defaultConnection:p.defaultConnection }));
-}
-
 function cmdUserConnections(name, providerId) {
   if (!name || !P.profileExists(name)) die(`no such user "${name || ''}"`);
   if (providerId && !byId.has(providerId)) die(`unknown provider "${providerId}"`);
@@ -1148,9 +1144,9 @@ async function cmdUserCredentialSet(name, providerId, key, args = {}) {
     return;
   }
   if (!isInteractive()) die('setting all connection fields requires a TTY; specify one KEY with --stdin/--from-env/--from-file');
-  const existing=C.readValues(name,providerId,conn.id), updates={};
+  const updates={};
   for (const v of fields) {
-    const value=await promptForVar(v,{force:true,user:name,connection:conn.id,store});
+    const value=await promptForVar(v,{user:name,connection:conn.id,store});
     if (value===INPUT_CANCELLED) return 'cancel';
     if (value!==null) updates[v.key]=value;
   }

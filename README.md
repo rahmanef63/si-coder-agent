@@ -13,7 +13,7 @@ Tell `sc` what you want to build or change.
 Examples:
 
 ```text
-ChatGPT Web : @sc Create a booking app for my salon.
+ChatGPT Skill (eligible workspace): @sc Create a booking app for my salon.
 Claude Code : /sc Create a booking app for my salon.
 Natural use : Fix the mobile checkout flow and publish it.
 ```
@@ -93,13 +93,13 @@ The canonical source is the `skills/sc/` directory containing `SKILL.md`. Differ
 
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.0/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.0/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT personal Skills | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.0/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.0/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.1/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.1/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
 Detailed guides:
@@ -108,7 +108,7 @@ Detailed guides:
 - [Claude Code](docs/install/claude-code.md)
 - [Claude Web / claude.ai](docs/install/claude-web.md)
 - [Codex](docs/install/codex.md)
-- [ChatGPT personal Skills](docs/install/chatgpt-personal-skills.md)
+- [ChatGPT uploaded Skills](docs/install/chatgpt-skills.md)
 - [ChatGPT workspace marketplace](docs/install/chatgpt-workspace-marketplace.md)
 - [Generic local Agent Skills](docs/install/generic-local.md)
 
@@ -174,7 +174,7 @@ Everything below is optional for normal SC users.
 <details>
 <summary><strong>Local CLI and provider connections</strong></summary>
 
-Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly.
+Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly. `Esc` goes back one level; inside a credential/metadata input it cancels that input without saving or exiting SC. The lower INFO/PREVIEW/RESULT area expands on taller terminals so setup guidance is easier to read.
 
 ```bash
 sc doctor

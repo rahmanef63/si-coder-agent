@@ -6,7 +6,7 @@ This is the closest supported path to “install this repository” for a manage
 
 - A ChatGPT workspace where plugin marketplace import is available.
 - Workspace admin access for the import.
-- A GitHub account that can read the marketplace repository. SI-Coder's repository is public.
+- A GitHub account that can read the marketplace repository and referenced plugin content. OpenAI supports both public and private GitHub repositories for marketplace import.
 
 ## Package format
 

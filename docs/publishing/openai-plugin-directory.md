@@ -9,7 +9,7 @@ SI-Coder already ships:
 - `.agents/plugins/marketplace.json` — GitHub marketplace import entry point.
 - `plugins/si-coder/.codex-plugin/plugin.json` — OpenAI plugin metadata.
 - `plugins/si-coder/skills/` — a skill-only, web-compatible plugin bundle.
-- `dist/sc.skill` and `dist/sc.zip` — personal Skill upload artifacts.
+- `dist/sc.zip` — uploaded-Skill package for eligible ChatGPT workspaces; `dist/sc.skill` remains an optional archive for clients that explicitly support the extension.
 - No local MCP inside `plugins/si-coder/`, avoiding a desktop-only requirement for the web plugin.
 
 ## Self-serve distribution OpenAI currently documents
@@ -22,9 +22,9 @@ A workspace admin can import the GitHub repository as a plugin marketplace from 
 
 With the applicable role permission, a plugin owner can use **Share plugin** and select **Visible in <workspace> directory**. This publishes only to that workspace.
 
-### Personal Skill upload
+### Uploaded Skill
 
-Eligible users can open **Plugins → Skills → Create → Upload from your computer** and install the packaged Skill.
+OpenAI currently documents Skills for eligible ChatGPT **Business, Enterprise, Healthcare, and Edu** workspaces, subject to workspace settings and product availability. When Skill upload is enabled, users can open **Plugins → Skills → Create → Upload from your computer** and install the packaged Skill.
 
 ## Universal public Plugin Directory boundary
 
