@@ -1709,7 +1709,7 @@ function menuLayer(stack) {
   const ctx = menuContext(stack);
 
   if (here === '') return [
-    { id: 'browser-setup', kind: 'action', label: 'Connections in browser', hint: 'users, providers, named connections and step-by-step credential guides' },
+    { id: 'web-setup', kind: 'action', label: 'Connections in browser', hint: 'users, providers, named connections and guided credential setup' },
     { id: 'users',    kind: 'branch', label: 'Users', hint: 'each user owns an isolated provider + credential set' },
     { id: 'build',    kind: 'action', label: 'Build / publish', hint: 'plan the simplest suitable route' },
     { id: 'catalog',  kind: 'branch', label: 'Provider catalog', hint: 'available integrations; credentials live under Users' },
@@ -1743,6 +1743,7 @@ function menuLayer(stack) {
   if (ctx.user && here === `users/user:${ctx.user}`) {
     const userInfo = UC.showUser(ctx.user);
     return [
+      { id: 'web-setup', kind: 'action', label: 'Open browser setup', hint: 'interactive provider catalog and named connections' },
       { id: 'providers', kind: 'branch', label: 'Providers', hint: `provider connections owned by ${ctx.user}` },
       { id: 'credentials', kind: 'action', label: 'Credential overview', hint: `${userInfo.connectionCount} connection(s) · ${userInfo.credentialCount} field(s), values hidden` },
       { id: 'default', kind: 'action', label: 'Set as default', hint: 'fallback user when no folder mapping matches' },
@@ -1765,6 +1766,7 @@ function menuLayer(stack) {
     const legacy = P.readProfile(ctx.user);
     const legacyCount = p.vars.filter(v => legacy[v.key] !== undefined).length;
     return [
+      { id: 'web-setup', kind: 'action', label: 'Open browser setup', hint: 'set credentials with official step-by-step guides' },
       { id: 'connections', kind: 'branch', label: 'Connections', hint: `${connections.length} named connection(s) · labels + scopes`, preview: UC.previewForProvider(ctx.user, ctx.provider) },
       { id: 'add-connection', kind: 'branch', label: 'Add connection', hint: `choose where ${ctx.provider} authentication is managed`, preview: [`user ${ctx.user} › ${ctx.provider}`, ...C.sourceOptions(p).map(src => `${src.label} · ${src.description || src.id}`)] },
       ...(legacyCount ? [{ id: 'migrate-legacy', kind: 'action', label: 'Migrate legacy credentials', hint: `${legacyCount} legacy field(s) → named default connection`, preview: [`user ${ctx.user} › ${ctx.provider}`, `${legacyCount} legacy field(s) are still stored in the old profile`, 'migration moves values locally without printing them'] }] : []),
@@ -1817,6 +1819,7 @@ function menuLayer(stack) {
   if (ctx.user && ctx.provider && ctx.connection && here === `users/user:${ctx.user}/providers/provider:${ctx.provider}/connections/connection:${ctx.connection}`) {
     const c = UC.connectionStatus(ctx.user, ctx.provider, ctx.connection);
     const items = [
+      { id: 'web-setup', kind: 'action', label: 'Open browser setup', hint: 'manage this connection in the secure browser hub' },
       ...(!c.external && c.total ? [{ id: 'credentials', kind: 'branch', label: 'Credentials', hint: `${c.total} field(s) in ${c.label}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
       { id: 'auth-guide', kind: 'action', label: c.external ? 'Authorization guide' : 'Auth / setup guide', hint: `${c.sourceLabel} · ${c.scheme} · ${c.scope}`, preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) },
       ...(c.source === 'composio' && !c.externalRef?.connectedAccountId ? [{ id: 'connect-external', kind: 'action', label: 'Connect account', hint: 'create a secure Composio Connect Link', preview: UC.previewForConnection(ctx.user, ctx.provider, ctx.connection) }] : []),
@@ -1906,7 +1909,7 @@ async function runMenuAction(stack, item) {
   const here = ids.join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
   try {
-    if (here === '' && item.id === 'browser-setup') return cmdCredentialWeb({});
+    if (item.id === 'web-setup') return cmdCredentialWeb({ _: [], user, provider, connection });
     if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
     if (here === '' && item.id === 'quit') return 'quit';
 
@@ -1984,9 +1987,9 @@ async function runMenuAction(stack, item) {
 }
 
 function menuActionNeedsTerminal(stack, item) {
+  if (item.id === 'web-setup') return true;
   const here = stack.map(x => x.id).join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
-  if (here === '' && item.id === 'browser-setup') return true;
   if (here === 'users' && item.id === 'add') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
   if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
@@ -2286,7 +2289,7 @@ sc — SI-Coder interactive console + secret control plane
   sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
                                       consume one user's selected named connections without changing defaults
 
-  sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method] [--connection alias]
+  sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method]
                                       temporary local browser form; interactive terminal only
   sc setup [--providers a,b] [--target t] [--user name] [--force]
                                       user-first named-connection setup; fresh setup never writes provider secrets to ~/.bashrc
@@ -2361,24 +2364,27 @@ Agent safety contract:
 }
 
 async function cmdCredentialWeb(args) {
-  if (!isInteractive()) die('browser setup links are terminal-only; open an interactive terminal. Never pass credentials or setup links through chat/tool output.');
-  const user = typeof args.user === 'string' ? args.user : P.resolveProfile().profile;
-  const providerId = typeof args.provider === 'string' ? args.provider : (typeof args.providers === 'string' ? args.providers : null);
+  if (!isInteractive()) die('browser setup links are terminal-only; run this command in an interactive terminal');
+  const user = typeof args.user === 'string' ? args.user : null;
+  const providerId = typeof args.provider === 'string' ? args.provider : (typeof args.providers === 'string' ? args.providers : args._?.[1]);
+  if (providerId && (!byId.has(providerId) || providerId.includes(','))) die('choose one known provider, or omit --provider to open the full catalog');
   if (args.host) die('credential web setup binds only to 127.0.0.1; use SSH forwarding for a remote VPS');
   const port = args.port === undefined ? 0 : Number(args.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) die('port must be an integer between 0 and 65535');
-  const { startCredentialManager } = require('../lib/credential-manager');
-  const session = await startCredentialManager({ user, providerId, port, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null });
-  console.log('SI-Coder connections — users, providers, sources and named connections');
-  console.log('Private link (expires in 10 minutes; do not share or paste into chat):');
+  const { startCredentialHub } = require('../lib/credential-manager');
+  const session = await startCredentialHub({ user, providerId, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null, port });
+  console.log('SI-Coder Connections — Users / Providers / Connections / Source / Auth');
+  console.log('Private browser URL (10 minutes; never paste this link into chat):');
   console.log(session.url);
-  console.log('Loopback-only. On a remote VPS, forward this port over SSH. Ctrl+C closes it.');
+  console.log('Loopback-only. For a VPS, forward this port over SSH.');
   if (MENU_MODE) {
-    await askVisible('Press Enter or Esc to close the browser session and return to SC ', {escapeCancels:true});
+    await askVisible('Press Enter or Esc to close browser setup and return to SC: ', { escapeCancels: true });
     await session.close(); return 'cancel';
   }
-  const close = () => session.close().then(() => { process.exitCode = 0; });
+  const close = () => { void session.close(); };
   process.once('SIGINT', close); process.once('SIGTERM', close);
+  await new Promise(resolve => session.server.once('close', resolve));
+  process.removeListener('SIGINT', close); process.removeListener('SIGTERM', close);
 }
 
 async function main() {

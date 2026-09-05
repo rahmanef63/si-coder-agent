@@ -296,3 +296,11 @@ Use `sc run [--connection provider=alias] -- <command>` to inject resolved **`so
 ## Non-interactive behavior
 
 The Finder TUI is only used when stdin and stdout are both a TTY. Piped/scripted `sc` calls remain command-oriented and do not open the interactive console.
+
+## Browser connection hub
+
+Run `sc setup --web` in a TTY for the full User → Provider → Connection → Source → Auth
+workflow. Optional `--user`, `--provider`, `--connection`, `--auth`, and `--port`
+preselect the context. The TUI exposes Open browser setup at the relevant levels.
+See [Secure credential setup](CREDENTIAL-SETUP.md) for localhost/SSH access,
+privacy, explicit unverified storage, and external-authorization limits.

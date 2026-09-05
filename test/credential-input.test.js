@@ -42,7 +42,7 @@ test('Composio project and organization checks use distinct headers and endpoint
   assert.equal((await p.check({COMPOSIO_API_KEY:'opaque-project-key-example'})).ok,true);
   assert.equal((await p.check({COMPOSIO_ORG_API_KEY:'organization-key-example'})).ok,true);
   assert.match(calls[0].url,/\/tools\?limit=1$/);assert.deepEqual(Object.keys(calls[0].headers),['x-api-key']);
-  assert.match(calls[1].url,/\/org\/project\/list$/);assert.deepEqual(Object.keys(calls[1].headers),['x-org-api-key']);
+  assert.match(calls[1].url,/\/org\/owner\/project\/list$/);assert.deepEqual(Object.keys(calls[1].headers),['x-org-api-key']);
 });
 
 test('organization keys reject malformed or oversized values before provider requests',()=>{

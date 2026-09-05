@@ -1,17 +1,16 @@
 # Secure credential setup
 
-Choose the correct **user → provider → connection → authentication method** before
+Choose the correct **user → provider → connection → source → authentication method** before
 entering a key. A folder-scoped active user may differ from your usual account;
 use `--user` explicitly when setting up a different account.
 
-## Interactive browser manager
+## Interactive browser form
 
-Open **Connections in browser** in the SC terminal menu, or run the command below
-in an interactive terminal, not through an agent's tool-output channel:
+Run this in an interactive terminal, not through an agent's tool-output channel:
 
 ```sh
 sc setup --web
-# Optional: preselect a user/provider/method
+# Optional: start with a particular user/provider
 sc setup --web --provider composio --user YOUR_USER
 # Organization administration uses a different key/header:
 sc setup --web --provider composio --user YOUR_USER --auth organization-token
@@ -19,17 +18,18 @@ sc setup --web --provider composio --user YOUR_USER --auth organization-token
 sc setup --web --provider hostinger --user YOUR_USER
 ```
 
-The command prints a private ten-minute manager URL. Each credential form opened
-inside the manager is bound to the chosen user/provider/connection/method and is
-single-use after saving. The manager lets you create a user, search every registry
-provider, select direct/Composio/native-MCP source, create/rename/default/delete
-named connections, and edit credential values. Deletion requires typing the exact
-connection label. No existing user or connection is deleted automatically. Its token is a URL fragment,
+The command opens the complete user/provider connection workflow and prints a
+private, ten-minute browser URL. The catalog includes all registered providers
+and custom definitions. Each credential form is single-use after a successful save. Its token is a URL fragment,
 not a query parameter, and disappears from browser history once loaded. The form
 has masked inputs, show/hide controls, official references, expandable steps,
 and live verification before saving. Blank values preserve previously stored
-fields. The user/provider/method cannot be changed by modifying the submitted
-JSON. Successful saves clear the input and invalidate the session.
+fields. Each credential form is bound to its selected user/provider/method; these cannot
+be changed by modifying a save request. The hub provides named-connection creation,
+labels, defaults, confirmed deletion, separate source selection, and public
+credential guidance before collecting a value. The TUI also exposes **Open browser
+setup** under users, providers, and connections; Enter/Esc closes it and returns
+to the previous terminal view. Successful saves clear the input and invalidate the session.
 
 The server binds **only to 127.0.0.1** and expires after ten minutes. For a VPS,
 choose a port, then forward it over your own SSH connection:
@@ -76,13 +76,13 @@ command -v sc
 
 A 401 response indicates authentication rejection. A 403 does not, by itself,
 prove a token is expired: check the token type, resource scope, and endpoint.
-A provider without live verification requires an explicit **save unverified**
-acknowledgment; the result is not reported as a successful connection. A rejected
-credential cannot bypass a failed check using that option. Composio connections
-can open the existing Connect Link flow and refresh its status; its project key
-must be configured under the same user first. Native-MCP methods display their
-provider-owned authorization guide: OAuth is completed in that native client,
-not impersonated by SC.
+Providers with no live verifier are reported as unverified. Only a separate user
+confirmation can save them without claiming verification. An explicitly rejected
+key cannot use this path. Composio-hosted connection creation and authorization
+links use the existing connected-account flow; only identifiers/status stay local.
+The user completes authorization on Composio and refreshes status here. Native-MCP
+methods show their own authorization instructions and never accept local OAuth
+secrets. A browser test cannot prove a real provider authorization was completed.
 
 ## Storage and security
 
@@ -94,3 +94,11 @@ against compromise of the operating-system owner/root account.
 
 Provider transport errors are reduced to safe diagnostic categories. Raw header or
 network exceptions are not returned because runtime error text can echo a key.
+
+
+## Endpoint-specific diagnostics
+
+Organization keys use Composio's `/api/v3.1/org/owner/project/list` endpoint with
+`x-org-api-key`; `/org/project/list` is a different user-key endpoint. Convex personal
+tokens are verified through the PAT-authenticated read-only endpoint
+`/v1/list_personal_access_tokens?limit=1`; returned token metadata is discarded.

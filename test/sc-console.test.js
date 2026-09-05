@@ -593,7 +593,7 @@ test('SCP-11: Composio doctor distinguishes organization token x-org-api-key fro
   try {
     const result = await composio.check({ COMPOSIO_ORG_API_KEY: 'organization-token-value-1234' });
     assert.strictEqual(result.ok, true);
-    assert.strictEqual(seen.url, 'https://backend.composio.dev/api/v3.1/org/project/list');
+    assert.strictEqual(seen.url, 'https://backend.composio.dev/api/v3.1/org/owner/project/list');
     assert.strictEqual(seen.options.headers['x-org-api-key'], 'organization-token-value-1234');
     assert.ok(!('x-api-key' in seen.options.headers));
   } finally {
