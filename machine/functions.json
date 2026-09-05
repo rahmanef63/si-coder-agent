@@ -1740,6 +1740,173 @@
         "data.import"
       ],
       "timeoutMs": 10000
+    },
+    {
+      "name": "sc.hostinger.mail.orders",
+      "description": "List Hostinger Mail orders using an explicit direct Hostinger account-token connection. Returns metadata only; credentials never leave SI-Coder.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "hostinger.mail.orders"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "connection"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sc.hostinger.mail.list",
+      "description": "List one allowlisted Hostinger Mail resource (mailboxes, aliases, forwarders, autoreplies, catchalls, webhooks) for the selected connection/order.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "hostinger.mail.list"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string",
+            "enum": [
+              "mailboxes",
+              "aliases",
+              "forwarders",
+              "autoreplies",
+              "catchalls",
+              "webhooks"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "user",
+          "connection",
+          "resource"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sc.hostinger.mail.logs",
+      "description": "Read an allowlisted Hostinger Mail log for the selected connection/order.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "hostinger.mail.logs"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "access",
+              "action",
+              "inbound",
+              "mailbox-actions",
+              "outbound"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "user",
+          "connection",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sc.hostinger.mail.mutate",
+      "description": "Run a reviewed non-secret Hostinger Mail mutation. Requires confirm=true. Mailbox create/password changes, webhook-secret creation, and API-token creation are intentionally excluded because their secret values must not enter tool JSON.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "hostinger.mail.mutate"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "alias.create",
+              "alias.delete",
+              "forwarder.create",
+              "forwarder.delete",
+              "forwarder.resend",
+              "forwarder.keep-copy",
+              "autoreply.create",
+              "autoreply.update",
+              "autoreply.delete",
+              "catchall.create",
+              "catchall.delete",
+              "catchall.resend",
+              "mailbox.delete"
+            ]
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "user",
+          "connection",
+          "operation",
+          "confirm"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

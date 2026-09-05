@@ -1,19 +1,22 @@
-# Hostinger DNS (optional)
+# Hostinger API (optional)
 
-## `HOSTINGER_API_TOKEN` (optional but recommended)
+## Account token — `HOSTINGER_API_TOKEN`
 
-Enables automatic A-record creation for your main domain + `api-`, `dash-`, `site-` Convex subdomains. Without it, you must add DNS records manually before deployment.
+Use this for Hostinger VPS/DNS automation and account-level Hostinger Mail API access.
 
-**Get it:** https://hpanel.hostinger.com/profile/api (hPanel → Profile → API)
-1. Click **Generate token**, name it, pick a (short) expiration → **Generate**
-2. Copy it now — the value is hidden once you leave the API page
+**Get it:** https://hpanel.hostinger.com/profile/api
+1. Open hPanel → Profile → API.
+2. Generate a named token and choose a short, appropriate expiration.
+3. Copy it once into the named Hostinger connection.
 
-No scope picker: the token has full account access (DNS zone management included).
+The current Hostinger API exposes `/api/mail/v1/orders`, so the same account token can enumerate and manage Hostinger Mail resources when the account owns a mail service. SI-Coder verifies Mail access first and falls back to VPS verification when the account has no accessible mail order.
 
-**Validator**: length ≥ 32.
+## Scoped Hostinger Mail token — `HOSTINGER_MAIL_API_TOKEN` + `HOSTINGER_MAIL_ORDER_ID`
 
-If your DNS provider is **not** Hostinger, skip this. You can manually point an A record at your Dokploy server's IP.
+Use a separate `mail-api-token` named connection when a project should only manage one mail order instead of inheriting the full account token.
 
-## Future: Cloudflare
+The Hostinger Mail API supports order/mailbox management, aliases, forwarders, autoreplies, catch-alls, webhooks and logs. Store the scoped token together with its exact mail order ID; SI-Coder refuses a different order at execution time.
 
-When `/sc-cf` ships, it will replace Hostinger automation for users on Cloudflare DNS. See `steps/cf.md` (TBD).
+Operations that create or consume new secret values (mailbox passwords, generated Mail API tokens, generated webhook secrets) are intentionally not accepted through agent/tool JSON.
+
+**Reference:** https://developers.hostinger.com/ → Mail.

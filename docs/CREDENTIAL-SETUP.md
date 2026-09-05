@@ -109,3 +109,11 @@ The connection manager now includes **Import / export JSON**. Choose metadata-on
 or encrypted direct credentials, then review the destination import plan. Existing
 IDs/labels are preserved, not overwritten; use a user prefix for a separate copy.
 Details: [Data portability](DATA-PORTABILITY.md).
+
+## Hostinger Mail
+
+The Hostinger provider now has two direct authentication methods. `api-token` is the account-level token used for Hostinger VPS/DNS and can also access Mail orders when the account has Hostinger Email. `mail-api-token` is a scoped Mail connection with `HOSTINGER_MAIL_API_TOKEN` plus `HOSTINGER_MAIL_ORDER_ID`.
+
+Machine calling includes `sc.hostinger.mail.orders`, `sc.hostinger.mail.list`, `sc.hostinger.mail.logs`, and confirmed `sc.hostinger.mail.mutate`. Mailbox password/create operations, webhook secret creation/regeneration, and Mail API-token creation are intentionally excluded from tool JSON because those flows involve new secret values.
+
+Official reference: <https://developers.hostinger.com/> → **Mail**.

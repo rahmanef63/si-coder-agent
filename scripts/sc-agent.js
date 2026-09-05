@@ -75,6 +75,19 @@ async function main() {
   inspect(input);
 
   switch (ACTION) {
+    case 'hostinger.mail.orders': {
+      const H=require('../lib/hostinger-mail');process.stdout.write(`${JSON.stringify(await H.orders(input.user,input.connection), null, 2)}\n`);return;
+    }
+    case 'hostinger.mail.list': {
+      const H=require('../lib/hostinger-mail');process.stdout.write(`${JSON.stringify(await H.list(input.user,input.connection,input.resource,input.orderId,input.page), null, 2)}\n`);return;
+    }
+    case 'hostinger.mail.logs': {
+      const H=require('../lib/hostinger-mail');process.stdout.write(`${JSON.stringify(await H.logs(input.user,input.connection,input.kind,input.orderId,input.page), null, 2)}\n`);return;
+    }
+    case 'hostinger.mail.mutate': {
+      if(input.confirm!==true)throw new Error('confirm=true is required');
+      const H=require('../lib/hostinger-mail');process.stdout.write(`${JSON.stringify(await H.mutate(input.user,input.connection,input.operation,input.arguments||{}), null, 2)}\n`);return;
+    }
     case 'data.export':
       if(input.confirm!==true)throw new Error('confirm=true is required');
       return require('../lib/portability/cli').machine('export',input);

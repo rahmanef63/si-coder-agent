@@ -266,3 +266,7 @@ bash install.sh --agent openclaw --with-mcp
 `planId` to create users/connections. Both call the same core as the browser/CLI.
 Encrypted bundles and passphrases are deliberately unavailable to machine calls.
 See [Data portability](DATA-PORTABILITY.md) for the versioned contract.
+
+### Hostinger Mail tools
+
+Hostinger Mail uses the selected SI-Coder user and named `hostinger` connection. Account-token connections can list mail orders; scoped `mail-api-token` connections are pinned to `HOSTINGER_MAIL_ORDER_ID`. Available machine functions: `sc.hostinger.mail.orders`, `sc.hostinger.mail.list`, `sc.hostinger.mail.logs`, and `sc.hostinger.mail.mutate`. The mutation tool excludes operations whose request/response contains a password, generated API token, or generated webhook secret.
