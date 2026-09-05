@@ -80,11 +80,13 @@ The main `sc` skill routes internally to the appropriate workflow. Normal users 
 ## Set credentials without pasting into chat
 
 ```sh
-sc setup --web --provider composio --user YOUR_USER
+sc setup --web
 ```
 
-The temporary browser form includes official links, expandable instructions,
-masked inputs, and verification before saving. Run it in an interactive terminal.
+The temporary browser manager includes all registry providers, user selection,
+named connections, authentication methods, official guides, and masked inputs.
+It verifies credentials before saving, or explicitly marks them unverified when
+a provider has no live check. Run it in an interactive terminal.
 For VPS access, use SSH port forwarding rather than exposing the local port.
 See [Secure credential setup](docs/CREDENTIAL-SETUP.md).
 

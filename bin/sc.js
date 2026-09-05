@@ -1709,6 +1709,7 @@ function menuLayer(stack) {
   const ctx = menuContext(stack);
 
   if (here === '') return [
+    { id: 'browser-setup', kind: 'action', label: 'Connections in browser', hint: 'users, providers, named connections and step-by-step credential guides' },
     { id: 'users',    kind: 'branch', label: 'Users', hint: 'each user owns an isolated provider + credential set' },
     { id: 'build',    kind: 'action', label: 'Build / publish', hint: 'plan the simplest suitable route' },
     { id: 'catalog',  kind: 'branch', label: 'Provider catalog', hint: 'available integrations; credentials live under Users' },
@@ -1905,6 +1906,7 @@ async function runMenuAction(stack, item) {
   const here = ids.join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
   try {
+    if (here === '' && item.id === 'browser-setup') return cmdCredentialWeb({});
     if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
     if (here === '' && item.id === 'quit') return 'quit';
 
@@ -1984,6 +1986,7 @@ async function runMenuAction(stack, item) {
 function menuActionNeedsTerminal(stack, item) {
   const here = stack.map(x => x.id).join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
+  if (here === '' && item.id === 'browser-setup') return true;
   if (here === 'users' && item.id === 'add') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
   if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
@@ -2283,7 +2286,7 @@ sc — SI-Coder interactive console + secret control plane
   sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
                                       consume one user's selected named connections without changing defaults
 
-  sc setup --web --provider <id> --user <name> [--port N] [--auth method]
+  sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method] [--connection alias]
                                       temporary local browser form; interactive terminal only
   sc setup [--providers a,b] [--target t] [--user name] [--force]
                                       user-first named-connection setup; fresh setup never writes provider secrets to ~/.bashrc
@@ -2360,18 +2363,20 @@ Agent safety contract:
 async function cmdCredentialWeb(args) {
   if (!isInteractive()) die('browser setup links are terminal-only; open an interactive terminal. Never pass credentials or setup links through chat/tool output.');
   const user = typeof args.user === 'string' ? args.user : P.resolveProfile().profile;
-  const providerId = typeof args.provider === 'string' ? args.provider : (typeof args.providers === 'string' ? args.providers : args._[1]);
-  if (!user) die('select a user with --user NAME or sc user use NAME');
-  if (!providerId || providerId.includes(',')) die('choose exactly one provider: sc setup --web --provider composio --user NAME');
+  const providerId = typeof args.provider === 'string' ? args.provider : (typeof args.providers === 'string' ? args.providers : null);
   if (args.host) die('credential web setup binds only to 127.0.0.1; use SSH forwarding for a remote VPS');
   const port = args.port === undefined ? 0 : Number(args.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) die('port must be an integer between 0 and 65535');
-  const { startCredentialWeb } = require('../lib/credential-web');
-  const session = await startCredentialWeb({ user, providerId, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null, port });
-  console.log(`SI-Coder secure setup — ${user} / ${providerId}`);
+  const { startCredentialManager } = require('../lib/credential-manager');
+  const session = await startCredentialManager({ user, providerId, port, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null });
+  console.log('SI-Coder connections — users, providers, sources and named connections');
   console.log('Private link (expires in 10 minutes; do not share or paste into chat):');
   console.log(session.url);
-  console.log('The server is loopback-only. On a remote VPS, forward this port over SSH. Ctrl+C closes it.');
+  console.log('Loopback-only. On a remote VPS, forward this port over SSH. Ctrl+C closes it.');
+  if (MENU_MODE) {
+    await askVisible('Press Enter or Esc to close the browser session and return to SC ', {escapeCancels:true});
+    await session.close(); return 'cancel';
+  }
   const close = () => session.close().then(() => { process.exitCode = 0; });
   process.once('SIGINT', close); process.once('SIGTERM', close);
 }
