@@ -204,7 +204,7 @@ Everything below is optional for normal SC users.
 <details>
 <summary><strong>Local CLI and provider connections</strong></summary>
 
-Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly. `Esc` goes back one level; inside a credential/metadata input it cancels that input without saving or exiting SC. The lower INFO/PREVIEW/RESULT area expands on taller terminals so setup guidance is easier to read.
+Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly. The Finder root also includes **Import / export JSON**, so portability is discoverable without memorizing `sc data ...` commands. `Esc` goes back one level; inside a credential/metadata input it cancels that input without saving or exiting SC. The lower INFO/PREVIEW/RESULT area expands on taller terminals so setup guidance is easier to read.
 
 ```bash
 sc doctor

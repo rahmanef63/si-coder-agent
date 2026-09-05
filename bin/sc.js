@@ -1711,6 +1711,7 @@ function menuLayer(stack) {
   if (here === '') return [
     { id: 'web-setup', kind: 'action', label: 'Connections in browser', hint: 'users, providers, named connections and guided credential setup' },
     { id: 'users',    kind: 'branch', label: 'Users', hint: 'each user owns an isolated provider + credential set' },
+    { id: 'transfer', kind: 'branch', label: 'Import / export JSON', hint: 'portable metadata or encrypted direct credentials' },
     { id: 'build',    kind: 'action', label: 'Build / publish', hint: 'plan the simplest suitable route' },
     { id: 'catalog',  kind: 'branch', label: 'Provider catalog', hint: 'available integrations; credentials live under Users' },
     { id: 'system',   kind: 'branch', label: 'System', hint: 'update, history, version, readiness' },
@@ -1846,6 +1847,13 @@ function menuLayer(stack) {
     ];
   }
 
+  if (here === 'transfer') return [
+    { id: 'export-metadata', kind: 'action', label: 'Export metadata JSON', hint: 'users + named connections; credential values omitted', preview: ['Integration Bundle v1', 'safe default for MSO / connector-gateway / Baton adapters'] },
+    { id: 'export-encrypted', kind: 'action', label: 'Export encrypted JSON', hint: 'direct credential values protected by a local passphrase', preview: ['AES-GCM encrypted bundle', 'OAuth / externally managed sessions are not portable'] },
+    { id: 'import-json', kind: 'action', label: 'Import JSON', hint: 'preview conflicts before create-only apply', preview: ['existing connections are preserved', 'external accounts require reauthorization'] },
+    { id: 'web-setup', kind: 'action', label: 'Open browser transfer', hint: 'file upload/download UI in the temporary private session' },
+  ];
+
   if (here === 'catalog') {
     return PROVIDERS.map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.id, hint: p.blurb, preview: [`provider ${p.id} — ${p.title}`, p.blurb, `${p.vars.length} credential field(s) · choose a User to manage values`] }));
   }
@@ -1899,6 +1907,7 @@ function menuColumns(stack) {
 
 const MENU_SECTIONS = [
   { id: 'users', label: 'Users' },
+  { id: 'transfer', label: 'Transfer' },
   { id: 'build', label: 'Build' },
   { id: 'catalog', label: 'Providers' },
   { id: 'system', label: 'System' },
@@ -1912,6 +1921,12 @@ async function runMenuAction(stack, item) {
     if (item.id === 'web-setup') return cmdCredentialWeb({ _: [], user, provider, connection });
     if (here === '' && item.id === 'build') return cmdDeploy('plan', {});
     if (here === '' && item.id === 'quit') return 'quit';
+    if (here === 'transfer') {
+      const portabilityMenu = require('../lib/portability/menu');
+      if (item.id === 'export-metadata') return portabilityMenu.exportInteractive(false,{askVisible,askHidden});
+      if (item.id === 'export-encrypted') return portabilityMenu.exportInteractive(true,{askVisible,askHidden});
+      if (item.id === 'import-json') return portabilityMenu.importInteractive({askVisible,askHidden,confirm});
+    }
 
     if (here === 'users') {
       if (item.id === 'which') return cmdUserWhich();
@@ -1991,6 +2006,7 @@ function menuActionNeedsTerminal(stack, item) {
   const here = stack.map(x => x.id).join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
   if (here === 'users' && item.id === 'add') return true;
+  if (here === 'transfer') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
   if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
   if (user && provider && source && (here === `users/user:${user}/providers/provider:${provider}/add-connection/source:${source}` || here === `users/user:${user}/providers/provider:${provider}/connections/add-connection/source:${source}`) && item.id.startsWith('auth:')) return true;

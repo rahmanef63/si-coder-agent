@@ -263,6 +263,8 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.match(sc, /connections\/connection:/, 'provider credentials must be grouped into named connections');
   assert.match(sc, /credentials\/credential:/, 'individual credentials must live under a user/provider/connection path');
   assert.match(sc, /UC\.previewForProvider/, 'provider rows must preview the explicitly selected user');
+  assert.match(sc, /id: 'transfer'.*Import \/ export JSON/, 'Finder root must expose portable JSON transfer');
+  assert.match(sc, /here === 'transfer'/, 'Finder Transfer section must expose export/import actions');
   assert.match(source, /showActivity = false/, 'stale result panel must disappear after navigation');
 });
 

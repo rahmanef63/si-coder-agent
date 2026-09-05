@@ -6,8 +6,7 @@ explicit, reviewed JSON transfer instead. This is a snapshot, not live sync.
 
 ## Supported workflows
 
-SI-Coder provides `sc data export`, `sc data import`, and **Import / export JSON**
-in its temporary browser manager. MSO provides the same browser workflow at
+SI-Coder provides `sc data export`, `sc data import`, and **Import / export JSON** in both the bare `sc` Finder-style Transfer section and its temporary browser manager. MSO provides the same browser workflow at
 `/integrations?transfer=1`, opened from the native manager or
 `mso integrations transfer`. Both use their own independent bundled codec and
 native store adapter. Neither imports application code from the other product.

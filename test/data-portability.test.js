@@ -57,3 +57,9 @@ test('MSO Hostinger scoped Mail connections map to SI-Coder mail-api-token witho
   const preview=await importData(bundle,{prefix:'portable-'});assert.equal(preview.connections[0].status,'create');assert.equal(preview.connections[0].authMethod,'mail-api-token');
   await importData(bundle,{prefix:'portable-',apply:true,confirm:preview.planId});const c=C.get('portable-mso-mail','hostinger','mail-main');assert.equal(c.authMethod,'mail-api-token');assert.deepEqual(C.readValues('portable-mso-mail','hostinger','mail-main'),{});
 });
+
+test('data --help is accepted and Finder portability helper is wired without plaintext arguments',()=>{
+  const {spawnSync}=require('node:child_process'),cli=path.join(__dirname,'../bin/sc.js');
+  const h=spawnSync(process.execPath,[cli,'data','--help'],{encoding:'utf8',env:process.env});assert.equal(h.status,0);assert.match(h.stdout,/sc data export/);assert.match(h.stdout,/sc data import/);
+  const source=fs.readFileSync(path.join(__dirname,'../lib/portability/menu.js'),'utf8');assert.doesNotMatch(source,/--passphrase|--password/);assert.match(source,/includeSecrets/);
+});
