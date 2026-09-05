@@ -44,3 +44,16 @@ test('Composio project and organization checks use distinct headers and endpoint
   assert.match(calls[0].url,/\/tools\?limit=1$/);assert.deepEqual(Object.keys(calls[0].headers),['x-api-key']);
   assert.match(calls[1].url,/\/org\/project\/list$/);assert.deepEqual(Object.keys(calls[1].headers),['x-org-api-key']);
 });
+
+test('organization keys reject malformed or oversized values before provider requests',()=>{
+  assert.equal(VALIDATORS.COMPOSIO_ORG_API_KEY('synthetic_organization_token'),true);
+  for(const value of ['', 'short', 'organization token with whitespace', '1234567890123456\nsecret','x'.repeat(4097)]) assert.equal(VALIDATORS.COMPOSIO_ORG_API_KEY(value),false);
+});
+test('transport errors cannot echo credentials through provider diagnostics',async t=>{
+  const original=global.fetch;t.after(()=>{global.fetch=original});
+  const secret='synthetic_credential_for_redaction_test';
+  global.fetch=async()=>{throw new TypeError('invalid header value: '+secret)};
+  const result=await PROVIDERS.find(p=>p.id==='composio').check({COMPOSIO_API_KEY:secret});
+  assert.equal(result.ok,false);assert.ok(!JSON.stringify(result).includes(secret));
+  assert.match(result.detail,/network request failed/);
+});

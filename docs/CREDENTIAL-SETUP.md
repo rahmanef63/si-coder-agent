@@ -79,3 +79,6 @@ constant-time capability comparisons, bounded JSON bodies, field allowlisting,
 and no credential values in responses. Credentials use the existing owner-only
 connection store. File permissions are not encryption at rest and cannot protect
 against compromise of the operating-system owner/root account.
+
+Provider transport errors are reduced to safe diagnostic categories. Raw header or
+network exceptions are not returned because runtime error text can echo a key.
