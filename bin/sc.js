@@ -2289,6 +2289,8 @@ sc — SI-Coder interactive console + secret control plane
   sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
                                       consume one user's selected named connections without changing defaults
 
+  sc data export --out FILE.json [--user ID] [--include-secrets]
+  sc data import --file FILE.json [--apply --confirm PREVIEW_ID]
   sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method]
                                       temporary local browser form; interactive terminal only
   sc setup [--providers a,b] [--target t] [--user name] [--force]
@@ -2392,6 +2394,7 @@ async function main() {
   NO_PROFILE = Boolean(args['no-profile']);
   const [cmd, sub, arg] = args._;
   switch (cmd) {
+    case 'data': return require('../lib/portability/cli').cli(args,{askHidden,isInteractive});
     case 'providers':
       if (!sub) return cmdProvidersList(args);
       if (sub === 'show') return cmdProvidersShow(arg);

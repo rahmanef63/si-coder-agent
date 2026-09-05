@@ -1667,6 +1667,79 @@
         "verify"
       ],
       "timeoutMs": 30000
+    },
+    {
+      "name": "sc.data.export",
+      "description": "Export a versioned metadata-only integration JSON file for transfer to another application. Never exports credential values or accepts a passphrase through tools. Encrypted full transfers are interactive CLI/browser only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "out": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "confirm": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "out",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "data.export"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.data.import",
+      "description": "Preview a metadata-only JSON bundle import; apply only with confirm=true and unchanged planId. Existing connections, defaults and folder mappings are preserved. Encrypted bundles require the interactive browser or CLI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "skip",
+              "error"
+            ]
+          },
+          "apply": {
+            "type": "boolean"
+          },
+          "confirm": {
+            "type": "boolean"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "acceptWarnings": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "data.import"
+      ],
+      "timeoutMs": 10000
     }
   ]
 }

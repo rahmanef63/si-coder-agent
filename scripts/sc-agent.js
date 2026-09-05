@@ -66,7 +66,7 @@ async function main() {
     if (!value || typeof value !== 'object') return;
     for (const [k, v] of Object.entries(value)) {
       const field = prefix ? `${prefix}.${k}` : k;
-      if (/^(value|secret|secretValue|token|tokenValue|password|apiKey|apiKeyValue)$/i.test(k)) {
+      if (/^(value|secret|secretValue|token|tokenValue|password|passphrase|apiKey|apiKeyValue)$/i.test(k)) {
         throw new Error(`field ${field} is forbidden on the agent surface; secrets must not enter tool JSON`);
       }
       inspect(v, field);
@@ -75,6 +75,12 @@ async function main() {
   inspect(input);
 
   switch (ACTION) {
+    case 'data.export':
+      if(input.confirm!==true)throw new Error('confirm=true is required');
+      return require('../lib/portability/cli').machine('export',input);
+    case 'data.import':
+      if(input.apply===true&&input.confirm!==true)throw new Error('confirm=true is required');
+      return require('../lib/portability/cli').machine('import',input);
     case 'task.risk': {
       process.stdout.write(`${JSON.stringify(AgentActions.taskRiskAction(input), null, 2)}\n`);
       return;

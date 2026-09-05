@@ -11,3 +11,7 @@ node_modules/
 # Python tooling cache
 __pycache__/
 *.pyc
+
+# Local integration transfers are personal data, not repository source
+*.integration-bundle.json
+*.integration-bundle.enc.json

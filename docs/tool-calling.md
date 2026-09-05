@@ -258,3 +258,11 @@ bash install.sh --agent openclaw --with-mcp
 - Credential creation/rotation is a secure handoff, not a JSON write.
 - OAuth/external authorization stays in the external connected-account system.
 - Connection aliases are unique per user+provider to prevent ambiguous selection.
+
+## Portable integration data
+
+`sc.data.export` writes metadata-only JSON to a new file after explicit confirmation.
+`sc.data.import` previews that file and requires `apply`, `confirm`, and the returned
+`planId` to create users/connections. Both call the same core as the browser/CLI.
+Encrypted bundles and passphrases are deliberately unavailable to machine calls.
+See [Data portability](DATA-PORTABILITY.md) for the versioned contract.

@@ -102,3 +102,10 @@ Organization keys use Composio's `/api/v3.1/org/owner/project/list` endpoint wit
 `x-org-api-key`; `/org/project/list` is a different user-key endpoint. Convex personal
 tokens are verified through the PAT-authenticated read-only endpoint
 `/v1/list_personal_access_tokens?limit=1`; returned token metadata is discarded.
+
+## Import / export
+
+The connection manager now includes **Import / export JSON**. Choose metadata-only
+or encrypted direct credentials, then review the destination import plan. Existing
+IDs/labels are preserved, not overwritten; use a user prefix for a separate copy.
+Details: [Data portability](DATA-PORTABILITY.md).

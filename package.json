@@ -58,7 +58,8 @@
     "plugins/",
     "docs/",
     "OPENAI_SUBMISSION.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    "schemas/"
   ],
   "scripts": {
     "onboard": "node bin/sc.js setup",

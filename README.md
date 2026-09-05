@@ -77,6 +77,22 @@ For a provider integration:
 
 The main `sc` skill routes internally to the appropriate workflow. Normal users should not need to choose a sub-skill themselves.
 
+## Move users and connections between projects
+
+```sh
+sc data export --out users.integration-bundle.json
+sc data export --include-secrets --out users.integration-bundle.enc.json
+sc data import --file users.integration-bundle.json
+```
+
+Plain JSON contains metadata only. Encrypted transfers prompt locally for a
+passphrase. Import previews conflicts before an explicitly confirmed create-only
+apply; no default, folder mapping or active OAuth session is copied. The browser
+manager also has **Import / export JSON**. Receiving projects use the documented versioned bundle and their own
+import adapter; no other application is required to run SI-Coder.
+
+[Data portability and schema](docs/DATA-PORTABILITY.md).
+
 ## Set credentials without pasting into chat
 
 ```sh

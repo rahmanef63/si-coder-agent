@@ -1,0 +1,49 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'sc-portability-test-'));process.env.SC_CONFIG_DIR=path.join(root,'config');
+const P=require('../lib/profiles'),C=require('../lib/connections'),codec=require('../lib/portability/codec'),{exportData,importData}=require('../lib/portability/data');
+const KEY='synthetic_test_credential_not_real',PASS='test-only-passphrase-12345';let n=0;
+function seed(){const user='origin-'+(++n);P.writeProfile(user,{});P.setProfileOwner(user,'Test Owner');const c=C.create(user,'github',{id:'work',label:'Work',source:'sc',authMethod:'classic-pat'});C.writeValues(user,'github',c.id,{GITHUB_TOKEN:KEY,GH_OWNER:'example'});return user;}
+test.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+test('metadata excludes all field values, defaults, folder mappings and external sessions',async()=>{const user=seed(),out=await exportData({users:[user]});assert.equal(out.mode,'metadata');assert.ok(!JSON.stringify(out).includes(KEY));assert.ok(!JSON.stringify(out).includes('"example"'));assert.equal(out.users[0].connections[0].fields[0].configured,true);assert.equal(out.users[0].connections[0].values,undefined);});
+test('encrypted export authenticates contents and preserves values after roundtrip',async()=>{const user=seed(),out=await exportData({users:[user],includeSecrets:true,passphrase:PASS});assert.equal(out.format,codec.ENCRYPTED);assert.ok(!JSON.stringify(out).includes(KEY));const open=await codec.open(out,PASS);assert.equal(open.users[0].connections[0].values.GITHUB_TOKEN,KEY);await assert.rejects(()=>codec.open(out,'wrong-but-long-passphrase'),/wrong_passphrase/);const tampered=structuredClone(out);tampered.data='A'+out.data.slice(1);await assert.rejects(()=>codec.open(tampered,PASS));});
+test('metadata preview has no side effects; exact confirmation imports empty named connections',async()=>{const user=seed(),bundle=await exportData({users:[user]});const opts={prefix:'copy-'};const p=await importData(bundle,opts);assert.equal(P.profileExists('copy-'+user),false);await assert.rejects(()=>importData(bundle,{...opts,apply:true}),/preview_required/);const result=await importData(bundle,{...opts,apply:true,confirm:p.planId});assert.equal(result.created,1);assert.equal(P.profileOwner('copy-'+user),'Test Owner');assert.deepEqual(C.readValues('copy-'+user,'github','work'),{});assert.equal(C.get('copy-'+user,'github','work').isDefault,false);});
+test('encrypted SC import restores values with 0600, without choosing defaults',async()=>{const user=seed(),bundle=await exportData({users:[user],includeSecrets:true,passphrase:PASS}),opts={prefix:'secure-',passphrase:PASS};const p=await importData(bundle,opts);await importData(bundle,{...opts,apply:true,confirm:p.planId});assert.equal(C.readValues('secure-'+user,'github','work').GITHUB_TOKEN,KEY);assert.equal(fs.statSync(C.connectionPath('secure-'+user,'github','work')).mode&0o777,0o600);assert.equal(C.get('secure-'+user,'github','work').isDefault,false);});
+test('conflicts preserve existing keys and require review, or fail under error policy',async()=>{const user=seed(),bundle=await exportData({users:[user]});const p=await importData(bundle);assert.equal(p.connections[0].status,'skip');await assert.rejects(()=>importData(bundle,{apply:true,confirm:p.planId}),/review_and_accept/);const r=await importData(bundle,{apply:true,confirm:p.planId,acceptWarnings:true});assert.equal(r.created,0);assert.equal(C.readValues(user,'github','work').GITHUB_TOKEN,KEY);assert.equal((await importData(bundle,{policy:'error'})).canApply,false);});
+test('stale preview, traversal, duplicate identities and plaintext values fail closed',async()=>{const user=seed(),bundle=await exportData({users:[user]});const p=await importData(bundle,{prefix:'stale-'});P.writeProfile('new-after-preview',{});await assert.rejects(()=>importData(bundle,{prefix:'stale-',apply:true,confirm:p.planId}),/destination_changed/);const plain=structuredClone(bundle);plain.users[0].connections[0].values={GITHUB_TOKEN:KEY};await assert.rejects(()=>importData(plain),/plaintext/);const escape=structuredClone(bundle);escape.users[0].id='../outside';await assert.rejects(()=>importData(escape),/identity/);const duplicate=structuredClone(bundle);duplicate.users.push(duplicate.users[0]);await assert.rejects(()=>importData(duplicate),/duplicate/);});
+test('legacy profile values export as explicit virtual connections without mutating source',async()=>{const user='legacy-'+ ++n;P.writeProfile(user,{COMPOSIO_API_KEY:KEY,COMPOSIO_ORG_API_KEY:KEY});const out=await exportData({users:[user],includeSecrets:true,passphrase:PASS});const d=await codec.open(out,PASS);assert.equal(d.users[0].connections.length,2);assert.equal(C.list(user).length,0);assert.equal(d.users[0].connections.find(c=>c.authMethod==='project-api-key').values.COMPOSIO_API_KEY,KEY);});
+test('external connections import only metadata and require fresh authorization',async()=>{const user='external-'+ ++n;P.writeProfile(user,{});C.create(user,'github',{id:'hosted',label:'Hosted',source:'composio',authMethod:'oauth2'});C.setExternal(user,'github','hosted',{connectedAccountId:'synthetic-id',lastKnownStatus:'ACTIVE'});const bundle=await exportData({users:[user]}),p=await importData(bundle,{prefix:'safe-'});assert.ok(!JSON.stringify(bundle).includes('synthetic-id'));await importData(bundle,{prefix:'safe-',apply:true,confirm:p.planId,acceptWarnings:true});assert.equal(C.get('safe-'+user,'github','hosted').external,null);});
+test('malformed KDF parameters are rejected before expensive derivation',async()=>{const user=seed(),bundle=await exportData({users:[user],includeSecrets:true,passphrase:PASS});bundle.kdf.N=2**28;await assert.rejects(()=>codec.open(bundle,PASS),/unsupported_encryption/);});
+test('imports refuse symlinked destination directories and preserve orphan files',async()=>{
+  const user=seed(),bundle=await exportData({users:[user]});
+  const target='unsafe-'+user,dir=path.join(C.CONNECTIONS_DIR,target),outside=path.join(root,'outside');fs.mkdirSync(outside,{mode:0o700});fs.mkdirSync(C.CONNECTIONS_DIR,{recursive:true,mode:0o700});fs.symlinkSync(outside,dir);
+  await assert.rejects(()=>importData(bundle,{prefix:'unsafe-'}),/unsafe_store_path/);fs.unlinkSync(dir);
+  const orphanUser='orphan-'+user,file=C.connectionPath(orphanUser,'github','work');fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});fs.writeFileSync(file,'not-to-overwrite',{mode:0o600});
+  const preview=await importData(bundle,{prefix:'orphan-'});assert.equal(preview.connections[0].reason,'orphan_destination_preserved');assert.equal(fs.readFileSync(file,'utf8'),'not-to-overwrite');
+});
+test('machine data tools share the codec but never accept encrypted transfer passphrases',()=>{
+  const {spawnSync}=require('node:child_process'),script=path.join(__dirname,'../scripts/sc-agent.js'),user=seed(),out=path.join(root,'machine.integration-bundle.json');
+  const call=(action,input)=>spawnSync(process.execPath,[script,action],{input:JSON.stringify(input),encoding:'utf8',env:process.env});
+  assert.equal(call('data.export',{out,user,confirm:true}).status,0);const bundle=JSON.parse(fs.readFileSync(out,'utf8'));assert.equal(bundle.mode,'metadata');assert.ok(!JSON.stringify(bundle).includes(KEY));
+  const preview=call('data.import',{file:out,prefix:'machine-'});assert.equal(preview.status,0);const p=JSON.parse(preview.stdout);assert.equal(call('data.import',{file:out,prefix:'machine-',apply:true,confirm:true,planId:p.planId}).status,0);
+  assert.notEqual(call('data.export',{out:out+'2',user,passphrase:PASS,confirm:true}).status,0);
+});
+test('the browser transfer route requires its valid session capability and exact Origin',async t=>{
+  const {startCredentialHub}=require('../lib/credential-manager');const hub=await startCredentialHub();t.after(()=>hub.close());
+  const body=JSON.stringify({action:'export',includeSecrets:true,passphrase:PASS});
+  const post=headers=>fetch(hub.origin+'/api/transfer',{method:'POST',headers:{'Content-Type':'application/json',...headers},body});
+  assert.equal((await post({Origin:hub.origin})).status,401);
+  const auth='Bearer '+new URL(hub.url).hash.slice(1);assert.equal((await post({Authorization:auth,Origin:'https://attacker.invalid'})).status,403);
+  const valid=await post({Authorization:auth,Origin:hub.origin});assert.equal(valid.status,200);assert.ok(!(await valid.text()).includes(KEY));
+});
+test('a deep malformed bundle is refused with bounded parsing work',async()=>{
+  await assert.rejects(()=>codec.open('['.repeat(20000)+'0'+']'.repeat(20000)),/structure_limit/);
+});
+test('ordinary SC writes honor the same state lock as imports',()=>{
+  const {withStateLock}=require('../lib/portability/state-lock'),{spawnSync}=require('node:child_process');
+  const out=withStateLock(()=>spawnSync(process.execPath,['-e','require("./lib/profiles").writeProfile("should-block",{})'],{cwd:path.join(__dirname,'..'),env:process.env,encoding:'utf8'}));assert.notEqual(out.status,0);assert.match(out.stderr,/state_busy/);assert.equal(P.profileExists('should-block'),false);
+});
+test('a failed write rolls back only the imported records and preserves source keys',async()=>{
+  const user=seed(),bundle=await exportData({users:[user],includeSecrets:true,passphrase:PASS}),options={prefix:'rollback-',passphrase:PASS},preview=await importData(bundle,options);const original=C.writeValues;
+  C.writeValues=()=>{throw Error('simulated write failure')};try{await assert.rejects(()=>importData(bundle,{...options,apply:true,confirm:preview.planId}),/rolled_back/)}finally{C.writeValues=original}
+  assert.equal(P.profileExists('rollback-'+user),false);assert.equal(C.readValues(user,'github','work').GITHUB_TOKEN,KEY);
+});
