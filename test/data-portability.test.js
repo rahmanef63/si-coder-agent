@@ -52,3 +52,8 @@ test('structurally corrupt existing metadata is not silently reset by preview',a
   const original=fs.readFileSync(C.CONNECTION_META,'utf8');fs.writeFileSync(C.CONNECTION_META,JSON.stringify({version:2,users:'corrupt'}),{mode:0o600});
   try{await assert.rejects(()=>importData(require('../schemas/integration-bundle-example.json')),/invalid_metadata_store/);assert.equal(JSON.parse(fs.readFileSync(C.CONNECTION_META,'utf8')).users,'corrupt')}finally{fs.writeFileSync(C.CONNECTION_META,original,{mode:0o600})}
 });
+test('MSO Hostinger scoped Mail connections map to SI-Coder mail-api-token without importing values',async()=>{
+  const bundle={format:'integration-bundle',version:1,producer:{name:'mso',version:'test'},exportedAt:new Date().toISOString(),mode:'metadata',users:[{id:'mso-mail',label:'MSO Mail',connections:[{id:'mail-main',label:'Mail main',provider:'hostinger',source:'direct',authMethod:'mail',scope:'mail-order',fields:[{key:'HOSTINGER_MAIL_API_TOKEN',secret:true,configured:true},{key:'HOSTINGER_MAIL_ORDER_ID',secret:false,configured:true}]}]}]};
+  const preview=await importData(bundle,{prefix:'portable-'});assert.equal(preview.connections[0].status,'create');assert.equal(preview.connections[0].authMethod,'mail-api-token');
+  await importData(bundle,{prefix:'portable-',apply:true,confirm:preview.planId});const c=C.get('portable-mso-mail','hostinger','mail-main');assert.equal(c.authMethod,'mail-api-token');assert.deepEqual(C.readValues('portable-mso-mail','hostinger','mail-main'),{});
+});
