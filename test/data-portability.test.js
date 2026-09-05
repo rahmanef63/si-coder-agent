@@ -47,3 +47,8 @@ test('a failed write rolls back only the imported records and preserves source k
   C.writeValues=()=>{throw Error('simulated write failure')};try{await assert.rejects(()=>importData(bundle,{...options,apply:true,confirm:preview.planId}),/rolled_back/)}finally{C.writeValues=original}
   assert.equal(P.profileExists('rollback-'+user),false);assert.equal(C.readValues(user,'github','work').GITHUB_TOKEN,KEY);
 });
+
+test('structurally corrupt existing metadata is not silently reset by preview',async()=>{
+  const original=fs.readFileSync(C.CONNECTION_META,'utf8');fs.writeFileSync(C.CONNECTION_META,JSON.stringify({version:2,users:'corrupt'}),{mode:0o600});
+  try{await assert.rejects(()=>importData(require('../schemas/integration-bundle-example.json')),/invalid_metadata_store/);assert.equal(JSON.parse(fs.readFileSync(C.CONNECTION_META,'utf8')).users,'corrupt')}finally{fs.writeFileSync(C.CONNECTION_META,original,{mode:0o600})}
+});
