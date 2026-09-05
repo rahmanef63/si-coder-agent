@@ -9,6 +9,8 @@ use `--user` explicitly when setting up a different account.
 Run this in an interactive terminal, not through an agent's tool-output channel:
 
 ```sh
+sc browser
+# Equivalent explicit form:
 sc setup --web
 # Optional: start with a particular user/provider
 sc setup --web --provider composio --user YOUR_USER
@@ -31,19 +33,18 @@ credential guidance before collecting a value. The TUI also exposes **Open brows
 setup** under users, providers, and connections; Enter/Esc closes it and returns
 to the previous terminal view. Successful saves clear the input and invalidate the session.
 
-The server binds **only to 127.0.0.1** and expires after ten minutes. For a VPS,
-choose a port, then forward it over your own SSH connection:
+The temporary HTTP server still binds **only to 127.0.0.1** and expires after ten minutes. On a VPS where Tailscale is already online, SI-Coder automatically adds one session-only **Tailscale Serve** path and prints an HTTPS MagicDNS URL. Open that URL from another device on the same tailnet. Closing the browser setup removes only that temporary Serve path and preserves unrelated Serve routes.
+
+Use `--no-tailscale` to force local-only mode. If Tailscale Serve is unavailable, SI-Coder prints an SSH-forward command using the actual temporary port instead of a bare VPS IP:
 
 ```sh
 # VPS terminal
-sc setup --web --provider composio --user YOUR_USER --port 49152
-# Your computer; keep this connection open and use the private URL in its browser
+sc setup --web --provider composio --user YOUR_USER --port 49152 --no-tailscale
+# Your computer; keep this connection open and use the private localhost URL
 ssh -N -L 49152:127.0.0.1:49152 -p YOUR_SSH_PORT YOUR_SSH_USER@YOUR_VPS_HOST
 ```
 
-Do not expose that HTTP port publicly or share the URL in chat. HTTPS proxying is
-not implied by the loopback form. Non-interactive setup is refused rather than
-printing setup capabilities in agent logs.
+The Tailscale URL is private to your tailnet; the capability remains in the URL fragment and is not sent in HTTP requests. Non-interactive setup is refused rather than printing setup capabilities in agent logs.
 
 Existing secret input through hidden terminal prompts, stdin, environment, and
 files remains supported. Bracketed paste is handled without interpreting its

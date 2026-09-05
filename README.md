@@ -99,7 +99,7 @@ import adapter; no other application is required to run SI-Coder.
 sc setup --web
 ```
 
-The temporary browser hub includes every registered provider, user selection,
+The temporary browser hub automatically uses a private Tailscale Serve URL when the VPS is already on a tailnet, with a localhost/SSH fallback. It includes every registered provider, user selection,
 named connections, source/auth methods, official links, expandable instructions,
 masked inputs, and verification before saving. Run it in an interactive terminal.
 For VPS access, use SSH port forwarding rather than exposing the local port.

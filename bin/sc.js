@@ -2291,7 +2291,8 @@ sc — SI-Coder interactive console + secret control plane
 
   sc data export --out FILE.json [--user ID] [--include-secrets]
   sc data import --file FILE.json [--apply --confirm PREVIEW_ID]
-  sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method]
+  sc browser [--provider <id>] [--user <name>] [--connection <id>]   secure browser manager
+  sc setup --web [--provider <id>] [--user <name>] [--port N] [--auth method] [--no-tailscale]
                                       temporary local browser form; interactive terminal only
   sc setup [--providers a,b] [--target t] [--user name] [--force]
                                       user-first named-connection setup; fresh setup never writes provider secrets to ~/.bashrc
@@ -2374,11 +2375,24 @@ async function cmdCredentialWeb(args) {
   const port = args.port === undefined ? 0 : Number(args.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) die('port must be an integer between 0 and 65535');
   const { startCredentialHub } = require('../lib/credential-manager');
+  const { startTailnetServe } = require('../lib/tailscale-browser');
   const session = await startCredentialHub({ user, providerId, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null, port });
+  let tailnet = null;
+  if (args.tailscale !== false && args['no-tailscale'] !== true) {
+    tailnet = startTailnetServe(session.server.address().port);
+    if (tailnet.active) session.addPublicAccess(tailnet);
+  }
+  const browserUrl = tailnet?.active ? `${tailnet.url}#${session.token}` : session.url;
+  const originalClose = session.close;
+  session.close = async () => { try { tailnet?.close?.(); } finally { await originalClose(); } };
   console.log('SI-Coder Connections — Users / Providers / Connections / Source / Auth');
   console.log('Private browser URL (10 minutes; never paste this link into chat):');
-  console.log(session.url);
-  console.log('Loopback-only. For a VPS, forward this port over SSH.');
+  console.log(browserUrl);
+  if (tailnet?.active) console.log('Tailscale Serve is active for this session only. Open the URL from any device on your tailnet.');
+  else {
+    console.log(`Tailscale Serve unavailable${tailnet?.reason ? `: ${tailnet.reason}` : ''}. Local fallback is active.`);
+    console.log(`From another machine, forward this port: ssh -N -L ${session.server.address().port}:127.0.0.1:${session.server.address().port} <user>@<vps>`);
+  }
   if (MENU_MODE) {
     await askVisible('Press Enter or Esc to close browser setup and return to SC: ', { escapeCancels: true });
     await session.close(); return 'cancel';
@@ -2427,7 +2441,8 @@ async function main() {
     case 'env':       return cmdEnv(args);
     case 'run':       return cmdRun(args);
     case 'setup':     return args.web ? cmdCredentialWeb(args) : cmdSetup(args);
-    case 'setup-web': return cmdCredentialWeb(args);
+    case 'setup-web':
+    case 'browser':   return cmdCredentialWeb(args);
     case 'doctor':    return cmdDoctor(args);
     case 'preflight': return cmdPreflight(args);
     case undefined:   return isInteractive() ? cmdMenu() : usage();

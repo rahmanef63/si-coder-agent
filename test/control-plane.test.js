@@ -148,7 +148,13 @@ test('SCCP-6: self-update fast-forwards only and refuses a dirty checkout', () =
 
   fs.writeFileSync(path.join(seed, 'file.txt'), 'two\n');
   git(seed, ['add', 'file.txt']); git(seed, ['commit', '-m', 'two']); git(seed, ['push']);
+  fs.mkdirSync(path.join(local, '.agent', 'evidence'), { recursive: true });
+  fs.writeFileSync(path.join(local, '.agent', 'evidence', 'runtime.json'), '{}\n');
+  fs.mkdirSync(path.join(local, '.agent', 'memory', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(local, '.agent', 'memory', 'tasks', 'pending.json'), '{}\n');
   const before = checkUpdate({ repoDir: local });
+  assert.strictEqual(before.dirty, false, 'ephemeral untracked agent runtime files must not block updates');
+  assert.strictEqual(before.ignoredRuntimeArtifacts.length, 2);
   assert.strictEqual(before.state, 'behind');
   assert.strictEqual(before.behind, 1);
   const result = performUpdate({ repoDir: local });
@@ -156,7 +162,7 @@ test('SCCP-6: self-update fast-forwards only and refuses a dirty checkout', () =
   assert.strictEqual(fs.readFileSync(path.join(local, 'file.txt'), 'utf8'), 'two\n');
 
   fs.writeFileSync(path.join(local, 'dirty.txt'), 'dirty\n');
-  assert.throws(() => performUpdate({ repoDir: local }), /dirty checkout/);
+  assert.throws(() => performUpdate({ repoDir: local }), /refuses source changes/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
