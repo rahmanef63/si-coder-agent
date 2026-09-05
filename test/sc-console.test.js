@@ -81,7 +81,9 @@ test('SCP-7: validators accept the documented real shapes and reject junk', () =
   assert.ok(VALIDATORS.RESEND_API_KEY('re_1234567890abcdef'));
   assert.ok(!VALIDATORS.RESEND_API_KEY('convex-key'));
   assert.ok(VALIDATORS.COMPOSIO_API_KEY('ak_1234567890abcdef'));
-  assert.ok(!VALIDATORS.COMPOSIO_API_KEY('ck_consumer_key_is_not_a_project_key'));
+  assert.ok(VALIDATORS.COMPOSIO_API_KEY('opaque_project_key_example'));
+  // Key type/authorization is decided by the live API, not an undocumented prefix.
+  assert.ok(!VALIDATORS.COMPOSIO_API_KEY('invalid key with whitespace'));
 });
 
 test('SCP-8: Resend and Composio are credential-ready providers, not setup stubs', () => {

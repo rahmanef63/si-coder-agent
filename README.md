@@ -77,6 +77,17 @@ For a provider integration:
 
 The main `sc` skill routes internally to the appropriate workflow. Normal users should not need to choose a sub-skill themselves.
 
+## Set credentials without pasting into chat
+
+```sh
+sc setup --web --provider composio --user YOUR_USER
+```
+
+The temporary browser form includes official links, expandable instructions,
+masked inputs, and verification before saving. Run it in an interactive terminal.
+For VPS access, use SSH port forwarding rather than exposing the local port.
+See [Secure credential setup](docs/CREDENTIAL-SETUP.md).
+
 ## Installation
 
 Already have SC installed in your agent? Skip this section and just use `sc`.

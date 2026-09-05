@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // sc.js — si-coder provider console.
 //
+//   sc setup --web --provider <id> --user <name>  temporary secure browser setup
 //   sc setup        [--providers a,b | --target t]   interactive wizard for what is missing
 //   sc providers    [show|set|rm <id>]               inspect / rotate / remove one provider
 //   sc doctor       [--providers a,b | --target t]   LIVE verification against each real API
@@ -799,7 +800,7 @@ function readAllStdin() {
     let data = '';
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', chunk => { data += chunk; if (data.length > 1024 * 1024) reject(new Error('stdin secret exceeds 1 MiB')); });
-    process.stdin.on('end', () => resolve(data.replace(/[\r\n]+$/, '')));
+    process.stdin.on('end', () => resolve(data.trim()));
     process.stdin.on('error', reject);
     process.stdin.resume();
   });
@@ -823,7 +824,7 @@ async function readSecretInput(v, args) {
     if (!value) die(`environment variable ${name} is not set`);
     source = `env:${name}`;
   } else if (typeof args['from-file'] === 'string') {
-    value = fs.readFileSync(path.resolve(args['from-file']), 'utf8').replace(/[\r\n]+$/, '');
+    value = fs.readFileSync(path.resolve(args['from-file']), 'utf8').trim();
     source = 'file';
   } else {
     if (!isInteractive()) die('no secret input source on a non-TTY; use --stdin, --from-env NAME, or --from-file PATH');
@@ -832,6 +833,7 @@ async function readSecretInput(v, args) {
     value = isSecret(v.key) ? await askHidden(`  ${v.key} (hidden): `, inputOptions) : await askVisible(`  ${v.key}: `, inputOptions);
     if (value === null && MENU_MODE) return { cancelled: true, source };
   }
+  if (typeof value === 'string') value = value.trim();
   if (!value) die(`${v.key} cannot be empty`);
   const validator = VALIDATORS[v.key];
   if (validator && !validator(value)) die(`${v.key} failed validation`);
@@ -2281,6 +2283,8 @@ sc — SI-Coder interactive console + secret control plane
   sc run [--connection provider=alias[,provider=alias]] -- <cmd> ...
                                       consume one user's selected named connections without changing defaults
 
+  sc setup --web --provider <id> --user <name> [--port N] [--auth method]
+                                      temporary local browser form; interactive terminal only
   sc setup [--providers a,b] [--target t] [--user name] [--force]
                                       user-first named-connection setup; fresh setup never writes provider secrets to ~/.bashrc
   sc doctor [--providers a,b] [--target t]
@@ -2353,6 +2357,25 @@ Agent safety contract:
 `);
 }
 
+async function cmdCredentialWeb(args) {
+  if (!isInteractive()) die('browser setup links are terminal-only; open an interactive terminal. Never pass credentials or setup links through chat/tool output.');
+  const user = typeof args.user === 'string' ? args.user : P.resolveProfile().profile;
+  const providerId = typeof args.provider === 'string' ? args.provider : (typeof args.providers === 'string' ? args.providers : args._[1]);
+  if (!user) die('select a user with --user NAME or sc user use NAME');
+  if (!providerId || providerId.includes(',')) die('choose exactly one provider: sc setup --web --provider composio --user NAME');
+  if (args.host) die('credential web setup binds only to 127.0.0.1; use SSH forwarding for a remote VPS');
+  const port = args.port === undefined ? 0 : Number(args.port);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) die('port must be an integer between 0 and 65535');
+  const { startCredentialWeb } = require('../lib/credential-web');
+  const session = await startCredentialWeb({ user, providerId, connectionId: typeof args.connection === 'string' ? args.connection : null, authMethod: typeof args.auth === 'string' ? args.auth : null, port });
+  console.log(`SI-Coder secure setup — ${user} / ${providerId}`);
+  console.log('Private link (expires in 10 minutes; do not share or paste into chat):');
+  console.log(session.url);
+  console.log('The server is loopback-only. On a remote VPS, forward this port over SSH. Ctrl+C closes it.');
+  const close = () => session.close().then(() => { process.exitCode = 0; });
+  process.once('SIGINT', close); process.once('SIGTERM', close);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   NO_PROFILE = Boolean(args['no-profile']);
@@ -2389,7 +2412,8 @@ async function main() {
     case 'user':      return cmdUser(sub, arg, args._[3], args);
     case 'env':       return cmdEnv(args);
     case 'run':       return cmdRun(args);
-    case 'setup':     return cmdSetup(args);
+    case 'setup':     return args.web ? cmdCredentialWeb(args) : cmdSetup(args);
+    case 'setup-web': return cmdCredentialWeb(args);
     case 'doctor':    return cmdDoctor(args);
     case 'preflight': return cmdPreflight(args);
     case undefined:   return isInteractive() ? cmdMenu() : usage();
