@@ -1,0 +1,31 @@
+name: Skill search WIP
+
+on:
+  push:
+    branches:
+      - feat/skill-search-auto-metadata
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --check lib/skill-metadata.js && node --check lib/skill-search.js && node --check lib/skill-registry.js
+      - run: node - <<'NODE'
+          const R = require('./lib/skill-registry');
+          const S = require('./lib/skill-search');
+          const rows = R.listSkills();
+          console.log('rows', rows.length);
+          console.log('ui', S.searchSkills('ui').slice(0,5).map(x => [x.name,x.tags,x.aliases]));
+          if (!S.searchSkills('ui').some(x => x.name === 'sc-ui')) throw new Error('ui search must find sc-ui');
+          if (!S.searchSkills('accessibility').some(x => x.name === 'sc-ux')) throw new Error('accessibility search must find sc-ux');
+          NODE
+      - run: npm test
