@@ -1,0 +1,39 @@
+name: Publish verified v0.9.5
+
+on:
+  push:
+    branches:
+      - fix/sc-update-bootstrap
+    paths:
+      - .github/workflows/publish-v095.yml
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or verify v0.9.5 tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: f16ae39cdac45136c5f6bf8090e0b08dcf27bdd6
+          RELEASE_TAG: v0.9.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          if existing="$(gh api --repo "${GITHUB_REPOSITORY}" "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null)"; then
+            test "$existing" = "$RELEASE_SHA"
+            echo "$RELEASE_TAG already points at verified main."
+          else
+            gh api --repo "${GITHUB_REPOSITORY}" --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="$RELEASE_SHA" >/dev/null
+            echo "Created $RELEASE_TAG at $RELEASE_SHA."
+          fi
+
+      - name: Dispatch canonical release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag=v0.9.5
