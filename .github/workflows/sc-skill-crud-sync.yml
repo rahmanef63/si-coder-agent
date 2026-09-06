@@ -1,0 +1,13 @@
+name: SC skill CRUD sync
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo placeholder
