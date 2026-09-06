@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+// webhook.js — GitHub webhook CRUD (push → VPS endpoint)
+const { parseArgs, ghApi, OWNER, ok, err, warn, log } = require('./_shared');
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const cmd = args._[0];
+  const repo = args.repo;
+  if (!repo) { err('--repo required'); process.exit(1); }
+
+  if (cmd === 'list') {
+    const hooks = ghApi(`repos/${OWNER}/${repo}/hooks`);
+    console.table(hooks.map(h => ({ id: h.id, url: h.config?.url, events: (h.events || []).join(','), active: h.active })));
+    return;
+  }
+
+  if (cmd === 'create') {
+    const { url, events = 'push' } = args;
+    if (!url) { err('--url required'); process.exit(1); }
+    // SKILL.md documents https:// endpoints — reject anything that isn't http(s),
+    // and warn loudly on plain http:// (the webhook secret travels in cleartext).
+    let parsed;
+    try { parsed = new URL(url); } catch { err(`--url is not a valid URL: ${url}`); process.exit(1); }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      err(`--url must be http(s), got ${parsed.protocol}//`); process.exit(1);
+    }
+    if (parsed.protocol === 'http:') {
+      warn(`--url uses http:// — the webhook secret will be sent in CLEARTEXT. Use https:// in production.`);
+    }
+    // S10: never take the secret on argv (leaks to ps/shell history). Read from env or stdin.
+    let secret = process.env.SC_GIT_WEBHOOK_SECRET || '';
+    if (!secret && !process.stdin.isTTY) {
+      try { secret = require('fs').readFileSync(0, 'utf8').trim(); } catch {}
+    }
+    const eventList = events.split(',').map(s => s.trim()).filter(Boolean);
+    // S10/S13: send the whole payload as JSON on stdin (gh api --input -) so the
+    // secret never lands on the gh child's argv (visible via /proc/<pid>/cmdline).
+    // config is a real nested object; active stays a typed boolean, events an array.
+    const payload = {
+      name: 'web',
+      active: true,
+      events: eventList,
+      config: { url, content_type: 'json' },
+    };
+    if (secret) payload.config.secret = secret;
+    const hook = ghApi(`repos/${OWNER}/${repo}/hooks`, { method: 'POST', input: payload });
+    ok(`webhook ${hook.id} created → ${url}`);
+    return;
+  }
+
+  if (cmd === 'delete') {
+    const { id } = args;
+    if (!id) { err('--id required'); process.exit(1); }
+    ghApi(`repos/${OWNER}/${repo}/hooks/${id}`, { method: 'DELETE' });
+    ok(`webhook ${id} deleted`);
+    return;
+  }
+
+  err('Usage: webhook.js list|create|delete --repo X [--url ...] [--events push,pull_request] [--id ...]  (secret via SC_GIT_WEBHOOK_SECRET env or stdin)');
+  process.exit(1);
+}
+main().catch(e => { console.error('❌', e.message); process.exit(1); });
