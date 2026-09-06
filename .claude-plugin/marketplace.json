@@ -15,6 +15,11 @@
         "./skills/sc",
         "./skills/sc-build",
         "./skills/sc-all",
+        "./skills/sc-fe",
+        "./skills/sc-ui",
+        "./skills/sc-ux",
+        "./skills/sc-dx",
+        "./skills/sc-ax",
         "./skills/sc-provider",
         "./skills/sc-install",
         "./skills/sc-help",
@@ -31,6 +36,6 @@
     }
   ],
   "metadata": {
-    "description": "SI-Coder marketplace for non-technical web-app building, deployment, and secure provider workflows."
+    "description": "SI-Coder marketplace for non-technical web-app building, frontend quality, deployment, and secure provider workflows."
   }
 }

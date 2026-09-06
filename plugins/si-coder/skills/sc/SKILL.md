@@ -1,8 +1,8 @@
 ---
 name: sc
-description: "Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product and publish it. Route automatically to product discovery, implementation, deployment, account connection, or advanced provider skills while keeping technical details optional."
-use_when: "Use when the task matches this skill scope: Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product and publish it. Route automatically to product discovery, implementation, deployment, account connection, or advanced provider skills while keeping technical details optional."
-do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
+description: "Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product, improve frontend quality across UI/UX/DX/AX, and publish it. Route automatically while keeping technical details optional."
+use_when: "Use when the task matches this skill scope: Main SI-Coder entry point for non-technical users. Turn a plain-language idea or existing web app into a working product, improve it, and publish it without making the user choose internal skills."
+do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the explicitly requested outcome."
 required_tools: []
 security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
 references: []
@@ -17,6 +17,7 @@ Examples:
 
 - ChatGPT Web: `@sc Create a booking app for my salon with customer and admin access, then put it on my domain.` or ask naturally and let ChatGPT select `sc` automatically.
 - Claude Code: `/sc Create a booking app for my salon with customer and admin access, then put it on my domain.`
+- Frontend quality on slash-capable hosts: `/sc-fe --workbench improve the desktop shell` or `/sc-fe --apple refine settings`.
 
 ## Language
 
@@ -27,13 +28,19 @@ Write the skill instructions and documentation in English, but **reply in the us
 Do not ask the user to choose a SI-Coder sub-skill.
 
 - New or vague product idea → follow the `sc-build` skill.
-- Existing app that needs to go live, change hosting, or attach a domain → follow the `sc-all` skill.
+- Existing app that needs frontend/UI/UX improvement or any substantial frontend work → follow `sc-fe`.
+- Focused visual interface request → `sc-ui` through `sc-fe` unless the user explicitly invokes `sc-ui`.
+- Focused usability/accessibility/interaction request → `sc-ux` through `sc-fe` unless explicitly invoked.
+- Focused frontend developer-experience request → `sc-dx` through `sc-fe` unless explicitly invoked.
+- Focused Agent Experience/tool ergonomics request → `sc-ax` through `sc-fe` unless explicitly invoked.
+- Existing app that needs to go live, change hosting, or attach a domain → follow the `sc-all` skill; `sc-all` delegates user-facing frontend quality to `sc-fe` before final verification when applicable.
 - Account/permission/API access task → follow the `sc-provider` skill.
 - Installation into another agent runtime → follow the `sc-install` skill.
 - Explicit advanced provider operation → use the matching `sc-*` provider skill **only when that skill is active/implemented**. Unfinished/stub provider work stays in `sc`/`sc-provider`; explain the limitation instead of routing to a dead-end skill.
 
-The route is internal. Do not narrate the skill handoff unless it helps recover from a problem.
+Forward frontend flags such as `--apple`, `--workbench`, `--profile <name>`, `--save-profile <name>`, `--density`, `--motion`, `--platform`, `--audit`, and `--strict` to `sc-fe` rather than interpreting them as deployment flags.
 
+The route is internal. Do not narrate the skill handoff unless it helps recover from a problem.
 
 ## Standalone package mode
 
@@ -47,15 +54,17 @@ Surface invocation is not universal: Claude Code can invoke this as `/sc`; ChatG
 
 ## Non-technical default
 
-Lead with outcomes. Hide stack, hosting vendor, database vendor, repository mechanics, DNS, environment variables, containers, deploy keys, and provider routing unless:
+Lead with outcomes. Hide stack, hosting vendor, database vendor, repository mechanics, DNS, environment variables, containers, deploy keys, provider routing, and internal quality-axis routing unless:
 
 1. the user explicitly asks for technical details, or
 2. one technical fact is necessary for a user action or error recovery.
 
-Ask one question at a time. Prefer a useful default over asking the user to make a technical choice.
+Ask one question at a time. Prefer a useful default over asking the user to make a technical choice. Do not ask a question that repository/tool state can answer.
+
+For existing products, preserve coherent UI/UX design DNA by default. Do not replace it with a generic preset unless the user asks for a redesign or explicit preset.
 
 ## Completion contract
 
-A "done" result means the requested user-facing outcome works. For a published app this normally includes the app, data path, public URL/domain, HTTPS, and a basic functional verification.
+A "done" result means the requested user-facing outcome works. For a published app this normally includes the app, data path, public URL/domain, HTTPS, frontend quality verification when applicable, and a basic functional verification.
 
 After a meaningful completion, show exactly one `[rekomendasi]` block with the highest-value next step, why it helps, what is required, and a simple opt-in.

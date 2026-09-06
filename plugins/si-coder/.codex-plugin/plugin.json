@@ -13,6 +13,7 @@
     "web-apps",
     "agent-skills",
     "deployment",
+    "frontend",
     "no-code",
     "workflow"
   ],
@@ -20,13 +21,13 @@
   "interface": {
     "displayName": "SI-Coder",
     "shortDescription": "Build and publish web apps from plain language",
-    "longDescription": "SI-Coder turns a non-technical product idea into a working web app, chooses sensible technical defaults, and guides secure publishing and account connections.",
+    "longDescription": "SI-Coder turns a non-technical product idea into a working web app, applies frontend quality across UI, UX, DX and AX, chooses sensible technical defaults, and guides secure publishing and account connections.",
     "developerName": "Rahman EF",
     "category": "Developer Tools",
     "defaultPrompt": [
       "Build a web app from my idea.",
-      "Publish this app and connect my domain.",
-      "Help me improve this web app."
+      "Improve this frontend with UI, UX, DX and AX quality.",
+      "Publish this app and connect my domain."
     ]
   }
 }

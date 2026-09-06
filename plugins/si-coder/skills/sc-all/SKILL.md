@@ -1,6 +1,6 @@
 ---
 name: sc-all
-description: "Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, and expose technical details only when needed or requested."
+description: "Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, delegate user-facing frontend quality to sc-fe, and expose technical details only when needed or requested."
 use_when: "Use when the task matches this skill scope: Turn a plain-language web-app goal into a working live app. Designed for non-technical users: choose architecture and hosting automatically, connect accounts safely, create/publish code, data, domain and verification end-to-end, and expose technical details only when needed or requested."
 do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
 required_tools: []
@@ -18,7 +18,6 @@ Keep durable instructions in English. **Reply in the user's language** unless th
 Use this when the user says **build me a web app**, **create a website**, **put this app online**, **use my domain**, or describes a product they want built and published.
 
 The user should describe the goal, not the infrastructure. SI-Coder owns the routing.
-
 
 ## Non-technical default UX — mandatory
 
@@ -38,7 +37,7 @@ Rules:
 4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
 5. **Credentials are framed as permissions, not secrets.** Say "I need permission to use the email service" first. Then show the official create/connect action, where access is stored, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
 6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
-7. **Progress is product-oriented:** `Build the app → Prepare data → Publish → Connect domain → Verify`, not internal provider phases.
+7. **Progress is product-oriented:** `Build the app → Prepare data → Frontend quality → Publish → Connect domain → Verify`, not internal provider phases.
 8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
 9. Technical users can ask for "technical details", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
 10. When a planner/tool returns `userPlan`, **that is the default user-facing response**. Fields such as route, providerRouting, executionEngine, credential key names, and raw flow ids are internal/advanced unless they are necessary to recover from an error.
@@ -50,14 +49,27 @@ When a technical failure occurs, translate it first:
 
 Never hide a failure, but explain its user impact before its implementation detail.
 
-
 ## Core promise
 
 One request drives the complete path. The following route vocabulary is **internal/advanced**; do not repeat it to a non-technical user unless needed:
 
-`detect runtime → choose/ask VPS branch → connect auth safely → GitHub → backend → frontend → domain/DNS → verify → recommend next action`
+`detect runtime → choose/ask VPS branch → connect auth safely → GitHub → backend → frontend → sc-fe quality gate → domain/DNS → verify → recommend next action`
 
-Do not stop at repo creation, project creation, DNS write, or build trigger. Complete and verify the production path.
+Do not stop at repo creation, project creation, DNS write, build trigger, or a compiled frontend. Complete and verify the production path.
+
+## Frontend quality delegation — mandatory when applicable
+
+`sc-all` owns end-to-end delivery; `sc-fe` owns frontend quality. For any user-facing frontend created or materially changed by this workflow, delegate to `sc-fe` before final production verification.
+
+Rules:
+
+1. New frontend with no established design system → use `sc-fe` with product/platform defaults unless the user named a preset/profile.
+2. Existing coherent product → use `sc-fe --existing` behavior by default; preserve design DNA instead of resetting it to generic SI-Coder taste.
+3. Forward explicit frontend flags unchanged, including `--apple`, `--workbench`, `--profile <name>`, `--save-profile <name>`, `--density`, `--motion`, `--platform`, `--audit`, and `--strict`.
+4. Do not route backend-only/infrastructure-only work through a cosmetic frontend pass.
+5. User scope exclusions are hard locks. If the user excludes a surface (for example a mobile nav dock), `sc-all` and `sc-fe` must not modify it directly or indirectly.
+6. Presets are principle references only; do not copy proprietary assets or pixel-clone another product.
+7. Frontend completion requires rendered/interaction verification when the runtime provides browser/screenshot capability; compilation alone is not sufficient evidence.
 
 # 0. FIRST BRANCH — where is the agent running?
 
@@ -173,7 +185,8 @@ Infer whenever possible:
 - framework/build command,
 - whether `convex/` exists,
 - canonical domain,
-- existing Vercel/Dokploy/Convex state.
+- existing Vercel/Dokploy/Convex state,
+- whether a user-facing frontend exists and which design/profile constraints already apply.
 
 Only ask for a fact that cannot be safely inferred. On local runtime, VPS ownership is the first such branch when unknown.
 
@@ -201,6 +214,10 @@ Use SC/direct GitHub identity. Protect `.env*`, keys, certificates and other sec
 4. Inject only required public/build values.
 5. Deploy and poll to success/failure.
 
+## Frontend quality gate
+
+If a user-facing frontend exists or was changed, run the `sc-fe` workflow before final publication verification. `sc-fe` internally composes UI, UX, DX and AX checks, preserving existing design DNA by default and honoring any named preset/profile. Do not let a successful build override an unresolved strict frontend gate.
+
 # Phase 4 — domain is first-class
 
 For a Hostinger domain/subdomain:
@@ -220,6 +237,8 @@ A deployment is complete only when applicable checks pass:
 - source/repository is correct,
 - backend is reachable,
 - frontend deployment succeeded,
+- user-facing frontend passed the applicable `sc-fe` quality/interaction verification,
+- explicit excluded surfaces remained unchanged,
 - custom domain is attached,
 - DNS points to the intended destination,
 - HTTPS works,
@@ -253,7 +272,7 @@ Rules:
 
 Typical progression when relevant:
 
-`deploy → transactional email → auth/account flows → observability → backups/recovery → CI/release hardening`
+`build → frontend quality → deploy → transactional email → auth/account flows → observability → backups/recovery → CI/release hardening`
 
 # Explicit routing
 
@@ -272,12 +291,13 @@ sc deploy plan --runtime local --target hybrid
 sc deploy plan --runtime local --target vercel
 ```
 
-Low-level skills remain available through `sc-dokploy`, `sc-convex`, `sc-convex-cloud`, and `sc-vercel`. `/sc-all` owns runtime/route orchestration; sub-skills own provider mechanics.
+Low-level skills remain available through `sc-dokploy`, `sc-convex`, `sc-convex-cloud`, and `sc-vercel`. `/sc-all` owns runtime/route orchestration; `sc-fe` owns frontend quality orchestration; provider sub-skills own provider mechanics.
 
 ## Related references
 
 - Provider routing: `../../references/provider-routing.md`
 - Portable hosted/local behavior: `../../references/portable-skills.md`
+- Frontend quality: `../sc-fe/SKILL.md`
 - Secret/MCP boundary: `../sc-provider/SKILL.md`
 
 ## Mandatory credential + next-step response contract

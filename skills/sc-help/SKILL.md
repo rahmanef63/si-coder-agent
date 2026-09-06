@@ -1,7 +1,7 @@
 ---
 name: sc-help
-description: "Quick reference for SI-Coder route selection, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which deploy route', or 'list si-coder commands'."
-use_when: "Use when the task matches this skill scope: Quick reference for SI-Coder route selection, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which deploy route', or 'list si-coder commands'."
+description: "Quick reference for SI-Coder route selection, frontend quality presets/profiles, secret-safe provider control, portable installation, and provider-specific skills. Use for 'sc help', 'what should I run', 'which frontend preset', 'which deploy route', or 'list si-coder commands'."
+use_when: "Use when the user needs SI-Coder command/skill routing, frontend preset/profile syntax, installation help, or provider/deployment route reference."
 do_not_use_when: "Do not use when the task is outside this skill scope or a more specific SI-Coder skill owns the requested outcome."
 required_tools: []
 security_constraints: "Never request, print, or persist plaintext credentials in chat/tool payloads; use SI-Coder safe credential handoffs."
@@ -15,7 +15,6 @@ compatibility: "Standalone SI-Coder; host invocation syntax and available tools 
 
 Keep durable instructions in English. **Reply in the user's language** unless they request another language.
 
-
 ## Non-technical default UX — mandatory
 
 SI-Coder is primarily for people who want a working web app, not an infrastructure lesson. **Lead with the outcome, hide the plumbing.**
@@ -24,28 +23,20 @@ A valid user request can be as simple as:
 
 > "Create a salon booking app and put it on my domain."
 
-From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, and verification approach itself.
+From that sentence, the agent should normally choose the stack, database/data service, hosting route, repository strategy, deployment method, domain records, frontend quality route, and verification approach itself.
 
 Rules:
 
-1. **Speak in goals:** "publish the app", "connect the account", "connect the domain", "store the app data". Do not lead with terms such as environment variable, DNS record, deploy key, compose, container, build pipeline, or provider routing.
+1. **Speak in goals:** "publish the app", "improve the frontend", "connect the account", "connect the domain", "store the app data". Do not lead with environment variables, DNS records, deploy keys, containers, or internal skill routing.
 2. **One user action at a time.** Never dump a setup checklist when only one permission/account connection blocks progress.
-3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep the technology name in optional technical details.
-4. **Do not ask a question that tools/repo state can answer.** Inspect first, then ask only the unresolved product/domain/account decision.
-5. **Credentials are framed as permissions, not secrets.** Say "I need permission to use the email service" first. Then show the official create/connect action, where access is stored, and what SI-Coder will do next. Put env-key names and terminal commands under optional technical details unless the user must run the command.
+3. **Do not ask users to choose technology** unless they explicitly care. Choose sensible defaults and keep technology names in optional technical details.
+4. **Do not ask a question that tools/repo state can answer.** Inspect first.
+5. **Credentials are framed as permissions, not secrets.**
 6. **Never ask the user to copy values between services** when a connector/server-side flow can do it safely.
-7. **Progress is product-oriented:** `Build the app → Prepare data → Publish → Connect domain → Verify`, not internal provider phases.
-8. Every completion message must state what is now working and then offer exactly one `[rekomendasi]` next step.
-9. Technical users can ask for "technical details", `--technical`, JSON, or provider-specific skills. Do not force those details on everyone else.
-10. When a planner/tool returns `userPlan`, **that is the default user-facing response**. Fields such as route, providerRouting, executionEngine, credential key names, and raw flow ids are internal/advanced unless they are necessary to recover from an error.
-
-When a technical failure occurs, translate it first:
-
-- preferred: "The domain is not connected yet. I am fixing the connection between the domain and the website."
-- optional detail: "The CNAME does not match the hosting target yet."
-
-Never hide a failure, but explain its user impact before its implementation detail.
-
+7. **Progress is product-oriented:** `Build → Frontend quality → Prepare data → Publish → Connect domain → Verify`.
+8. Every completion message states what works and offers exactly one `[rekomendasi]` next step.
+9. Technical users can ask for `--technical`, JSON, or provider-specific skills.
+10. When a planner/tool returns `userPlan`, use it as the default user-facing response and keep raw routing/credential internals advanced.
 
 ## Pick the entry point
 
@@ -53,12 +44,46 @@ Never hide a failure, but explain its user impact before its implementation deta
 |---|---|
 | Describe anything you want SI-Coder to build/change | `sc` |
 | New/vague app idea | `sc-build` |
+| Combined frontend UI + UX + DX + AX work | `sc-fe` |
+| Visual interface/design-system/anti-slop audit | `sc-ui` |
+| Usability/accessibility/interaction audit | `sc-ux` |
+| Frontend developer-experience audit | `sc-dx` |
+| Agent Experience/tool/project ergonomics audit | `sc-ax` |
 | Existing app: publish from repo to production | `sc-all` |
 | API/provider credential or account connection | `sc-provider` |
 | Install in Claude Code/Codex/Hermes/OpenClaw | `sc-install` |
 | Provider-specific operation | matching `sc-*` skill |
 
-Invocation is a host concern: ChatGPT Web uses automatic selection or `@sc` for the personal Skill; Claude Code exposes the main skill as `/sc`.
+Invocation is a host concern: slash-capable hosts can expose `/sc-fe`; ChatGPT Web uses automatic selection or the product's explicit skill/plugin selection UX rather than assuming custom slash registration.
+
+## Frontend presets and profiles
+
+`sc-fe` preserves a coherent existing design by default. Use a named preset only when a direction is useful; presets encode principles, never proprietary assets or pixel clones.
+
+```text
+/sc-fe --apple improve settings
+/sc-fe --workbench audit the desktop shell
+/sc-fe --profile baton-desktop refine the inspector
+/sc-fe --save-profile baton-desktop
+/sc-fe --apple --density compact --motion subtle
+/sc-fe --audit --strict
+```
+
+Built-in shorthand presets: `--apple`, `--workbench`, `--linear`, `--notion`, `--vercel`, `--material`, `--editorial`, `--terminal`.
+
+Key flags:
+- `--preset <name>` — explicit preset.
+- `--profile <name>` — load `.sc/frontend/profiles/<name>.json`.
+- `--save-profile <name>` — extract current design DNA into a reusable compact profile when writes are available.
+- `--existing` — explicitly preserve existing design DNA (default for a coherent existing product).
+- `--fresh` — allow a new direction.
+- `--density compact|comfortable|spacious`.
+- `--motion none|subtle|expressive`.
+- `--platform desktop|mobile|responsive`.
+- `--audit` — audit/report-first behavior.
+- `--strict` — applicable frontend verification failures block completion.
+
+Explicit scope exclusions always win. A command such as "desktop shell only; do not touch mobile nav dock" must preserve that mobile surface even if shared styles/components are involved.
 
 ## Deploy routing
 
@@ -75,7 +100,7 @@ sc deploy plan --runtime local
 - **local + VPS** → SC GitHub/Dokploy/self-hosted Convex.
 - **local + no VPS** → SC GitHub; Vercel/Convex/Hostinger prefer Composio, SC fallback.
 
-Advanced overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel|vps|managed`.
+Advanced deployment overrides: `--runtime hosted|local` and `--target dokploy|hybrid|vercel|vps|managed`. Frontend flags are routed to `sc-fe`, not interpreted as deployment flags.
 
 ## Local CLI navigation
 
@@ -132,7 +157,7 @@ claude --plugin-dir /path/to/si-coder-agent
 
 ## Skills
 
-`/sc-all`, `/sc-provider`, `/sc-install`, `/sc-git`, `/sc-dokploy`, `/sc-convex`, `/sc-convex-cloud`, `/sc-vercel`, `/sc-cf`, `/sc-onboarding`, `/sc-sync`, `/sc-n8n` are active surfaces. Dedicated Resend/Stripe/Clerk/Supabase automation is not installed/routed by default while unfinished. Their credential schemas may still be prepared or inspected through `sc-provider`; Cloudflare DNS is active.
+Active default surfaces are catalog-driven and currently include `/sc`, `/sc-build`, `/sc-all`, `/sc-fe`, `/sc-ui`, `/sc-ux`, `/sc-dx`, `/sc-ax`, `/sc-provider`, `/sc-install`, `/sc-help`, `/sc-git`, `/sc-dokploy`, `/sc-convex`, `/sc-convex-cloud`, `/sc-vercel`, `/sc-cf`, `/sc-onboarding`, `/sc-sync`, and `/sc-n8n`. Dedicated Resend/Stripe/Clerk/Supabase automation is not installed/routed by default while unfinished. Their credential schemas may still be prepared or inspected through `sc-provider`; Cloudflare DNS is active.
 
 ## After completing a task
 

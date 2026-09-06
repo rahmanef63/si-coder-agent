@@ -18,10 +18,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-CORE_REFS = ["sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
-OPENAI_PLUGIN_SKILLS = ["sc", "sc-build", "sc-all", "sc-provider", "sc-install", "sc-help"]
+CATALOG = ROOT / "skills" / "catalog.json"
+CORE_REFS = [
+    "sc-build",
+    "sc-all",
+    "sc-fe",
+    "sc-ui",
+    "sc-ux",
+    "sc-dx",
+    "sc-ax",
+    "sc-provider",
+    "sc-install",
+    "sc-help",
+]
 REPO_REFS = ["provider-routing.md", "portable-skills.md", "output-styles.md"]
 FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
+
+
+def active_default_skills() -> list[str]:
+    rows = json.loads(CATALOG.read_text(encoding="utf-8"))["skills"]
+    return [
+        name
+        for name, row in rows.items()
+        if row.get("lifecycle") == "active" and row.get("installByDefault") is True
+    ]
+
+
+OPENAI_PLUGIN_SKILLS = active_default_skills()
 
 
 def add_tree(zipf: zipfile.ZipFile, skill_dir: Path) -> None:
@@ -88,7 +111,7 @@ def build_web_sc(stage_root: Path) -> Path:
 
 
 def build_openai_plugin() -> None:
-    """Generate the skill-only OpenAI plugin from canonical skill sources."""
+    """Generate the skill-only OpenAI plugin from canonical active/default skill sources."""
     version = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
     plugin = ROOT / "plugins" / "si-coder"
     skills_dst = plugin / "skills"
@@ -107,18 +130,18 @@ def build_openai_plugin() -> None:
         "homepage": "https://github.com/rahmanef63/si-coder-agent",
         "repository": "https://github.com/rahmanef63/si-coder-agent",
         "license": "MIT",
-        "keywords": ["web-apps", "agent-skills", "deployment", "no-code", "workflow"],
+        "keywords": ["web-apps", "agent-skills", "deployment", "frontend", "no-code", "workflow"],
         "skills": "./skills/",
         "interface": {
             "displayName": "SI-Coder",
             "shortDescription": "Build and publish web apps from plain language",
-            "longDescription": "SI-Coder turns a non-technical product idea into a working web app, chooses sensible technical defaults, and guides secure publishing and account connections.",
+            "longDescription": "SI-Coder turns a non-technical product idea into a working web app, applies frontend quality across UI, UX, DX and AX, chooses sensible technical defaults, and guides secure publishing and account connections.",
             "developerName": "Rahman EF",
             "category": "Developer Tools",
             "defaultPrompt": [
                 "Build a web app from my idea.",
-                "Publish this app and connect my domain.",
-                "Help me improve this web app."
+                "Improve this frontend with UI, UX, DX and AX quality.",
+                "Publish this app and connect my domain."
             ]
         }
     }
