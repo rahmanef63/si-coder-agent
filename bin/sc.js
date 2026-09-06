@@ -38,6 +38,7 @@ const { checkUpdate, performUpdate } = require(path.resolve(__dirname, '../lib/u
 const { planDeploy } = require(path.resolve(__dirname, '../lib/deploy-route'));
 const { credentialGuide, humanGuideLines, looksLikeExternalCredential, recommendation } = require(path.resolve(__dirname, '../lib/credential-guidance'));
 const AgentActions = require(path.resolve(__dirname, '../lib/agent/actions'));
+const { listSkills } = require(path.resolve(__dirname, '../lib/skill-registry'));
 const PKG = require(path.resolve(__dirname, '../package.json'));
 
 const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
@@ -2243,7 +2244,28 @@ function cmdRecipe(sub, arg, args) {
   return die(`unknown: recipe ${sub}`);
 }
 
+function cmdSkillList(args) {
+  const rows = listSkills({ includeInactive: Boolean(args.all) });
+  if (args.json) {
+    console.log(JSON.stringify({
+      version: 1,
+      source: 'si-coder',
+      contract: { list: '/skills', direct: '/<skill> [prompt]', exact: '/skill <exact-id> [prompt]' },
+      skills: rows,
+    }, null, 2));
+    return;
+  }
+  console.log('\nSI-Coder skills\n');
+  for (const row of rows) {
+    const status = row.lifecycle === 'active' && row.installByDefault ? '' : ` [${row.lifecycle}]`;
+    console.log(`  ${row.invocation.padEnd(20)} ${row.description}${status}`);
+  }
+  console.log('\nUse /<skill> [prompt] in a compatible agent surface.');
+  console.log('Use /skills to discover skills, or /skill <exact-id> [prompt] when a host reports ambiguity.\n');
+}
+
 function cmdSkill(sub, args) {
+  if (sub === 'list') return cmdSkillList(args);
   if (!sub || sub === 'verify') {
     const out = AgentActions.skillVerifyAction({ strict: Boolean(args.strict) });
     return printJsonOr(out, args, row => {
@@ -2331,6 +2353,8 @@ sc — SI-Coder interactive console + secret control plane
   sc recipe verify <id> --yes          mark a repeated recipe verified
   sc recipe promote <id> --script scripts/name.js --yes
                                       bind a verified recipe to a deterministic executable script
+  sc skills [--all] [--json]            list canonical slash skills for MSO/RC/Baton and compatible hosts
+  sc skill list [--all] [--json]        alias for the machine-readable skill registry
   sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets
   sc verify [--json] [--no-record]    full regression/docs/skills/secret verification + evidence/test memory
 
@@ -2451,6 +2475,7 @@ async function main() {
     case 'task':      return cmdTask(sub, arg, args);
     case 'memory':    return cmdMemory(sub, arg, args);
     case 'recipe':    return cmdRecipe(sub, arg, args);
+    case 'skills':    return cmdSkillList(args);
     case 'skill':     return cmdSkill(sub, args);
     case 'verify':    return cmdVerify(args);
     case 'user':      return cmdUser(sub, arg, args._[3], args);
