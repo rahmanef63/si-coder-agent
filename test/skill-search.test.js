@@ -116,3 +116,36 @@ test('SKSEARCH-6: sc skills search keeps the cross-host registry JSON envelope',
   assert.equal(parsed.query, 'ui');
   assert.ok(parsed.skills.some(row => row.name === 'sc-ui'));
 });
+
+
+test('SKSEARCH-7: shared Finder fuzzy matcher supports multi-token and typo-tolerant discovery', () => {
+  const Fuzzy = require('../lib/fuzzy');
+  const items = [
+    { id: 'ui', searchText: 'ui interface visual frontend design-system accessibility' },
+    { id: 'deploy', searchText: 'deployment production hosting dokploy' },
+  ];
+  const interfaceHit = Fuzzy.rankItems(items, 'interfce', item => item.searchText);
+  assert.equal(interfaceHit[0]?.id, 'ui');
+  const multi = Fuzzy.rankItems(items, 'visual frontend', item => item.searchText);
+  assert.deepEqual(multi.map(item => item.id), ['ui']);
+  const finderSource = fs.readFileSync(path.join(ROOT, 'lib', 'finder-tui.js'), 'utf8');
+  const scSource = fs.readFileSync(path.join(ROOT, 'bin', 'sc.js'), 'utf8');
+  assert.match(finderSource, /Fuzzy\.rankItems/);
+  assert.match(finderSource, /it\.searchText/);
+  assert.match(scSource, /searchText: \[row\.name, row\.invocation, row\.description/);
+});
+
+test('SKSEARCH-8: manual tags survive description edits while auto tags refresh', () => {
+  const projectRoot = tmp();
+  const options = { projectRoot, globalRoot: path.join(projectRoot, 'global') };
+  let row = Store.createSkill({ name: 'manual-meta', description: 'A UI audit helper.', scope: 'project', tags: ['custom-taxonomy'], aliases: ['special-ui'] }, options);
+  row = Store.updateSkill(row.id, { description: 'A database audit helper.' }, options);
+  assert.deepEqual(row.tags, ['custom-taxonomy']);
+  assert.deepEqual(row.aliases, ['special-ui']);
+
+  let auto = Store.createSkill({ name: 'auto-meta', description: 'A UI audit helper.', scope: 'project' }, options);
+  assert.ok(auto.tags.includes('ui'));
+  auto = Store.updateSkill(auto.id, { description: 'A database schema migration helper.' }, options);
+  assert.ok(auto.tags.includes('database'));
+  assert.ok(!auto.tags.includes('ui'));
+});
