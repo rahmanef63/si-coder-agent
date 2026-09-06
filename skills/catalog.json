@@ -9,6 +9,7 @@
     "sc-ux": { "lifecycle": "active", "installByDefault": true },
     "sc-dx": { "lifecycle": "active", "installByDefault": true },
     "sc-ax": { "lifecycle": "active", "installByDefault": true },
+    "sc-skill": { "lifecycle": "active", "installByDefault": true },
     "sc-provider": { "lifecycle": "active", "installByDefault": true },
     "sc-install": { "lifecycle": "active", "installByDefault": true },
     "sc-help": { "lifecycle": "active", "installByDefault": true },
