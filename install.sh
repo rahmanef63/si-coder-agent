@@ -11,7 +11,7 @@ run_onboarding=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --agent) agent="${2:?--agent needs claude|codex|hermes|openclaw|all}"; shift 2 ;;
+    --agent) agent="${2:?--agent needs claude|codex|hermes|openclaw|mso|all}"; shift 2 ;;
     --skills-dir) custom_dir="${2:?--skills-dir needs a path}"; agent="custom"; shift 2 ;;
     --with-mcp) with_mcp=1; shift ;;
     --no-onboard) run_onboarding=0; shift ;;
@@ -19,10 +19,13 @@ while [[ $# -gt 0 ]]; do
       cat <<'EOF'
 Usage: bash install.sh [options]
 
-  --agent claude|codex|hermes|openclaw|all   target runtime (default: claude)
-  --skills-dir PATH                          custom Agent Skills directory
-  --with-mcp                                 register local SC MCP where supported
-  --no-onboard                               skip interactive credential setup
+  --agent claude|codex|hermes|openclaw|mso|all   target runtime (default: claude)
+  --skills-dir PATH                              custom Agent Skills directory
+  --with-mcp                                     register local SC MCP where supported
+  --no-onboard                                   skip interactive credential setup
+
+MSO installs into ~/.mso/skills, MSO's trusted local skill root, so /sc-* triggers
+remain executable without weakening MSO's trust rules for generic agent registries.
 
 Claude plugin mode needs no symlink install:
   claude --plugin-dir /path/to/si-coder-agent
@@ -47,7 +50,8 @@ case "$agent" in
   codex) dirs=("$HOME/.agents/skills") ;;
   hermes) dirs=("$HOME/.hermes/skills") ;;
   openclaw) dirs=("$HOME/.openclaw/workspace/skills") ;;
-  all) dirs=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.hermes/skills" "$HOME/.openclaw/workspace/skills") ;;
+  mso) dirs=("$HOME/.mso/skills") ;;
+  all) dirs=("$HOME/.mso/skills" "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.hermes/skills" "$HOME/.openclaw/workspace/skills") ;;
   custom) dirs=("$custom_dir") ;;
   *) echo "❌ unknown --agent $agent" >&2; exit 1 ;;
 esac
@@ -90,12 +94,12 @@ if [[ "${SC_SKIP_NPM_LINK:-0}" != "1" ]]; then
       npm_link_failed=1
       echo "⚠️ Skills were installed, but npm could not link the global 'sc' command." >&2
       echo "   npm said: $(printf '%s' "$npm_link_output" | tail -n 2 | tr '\n' ' ')" >&2
-      echo "   You can still run: node '$REPO_DIR/bin/sc.js'" >&2
+      echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js'" >&2
     fi
   else
     npm_link_failed=1
     echo "⚠️ npm is not available, so the global 'sc' command was not linked." >&2
-    echo "   You can still run: node '$REPO_DIR/bin/sc.js'" >&2
+    echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js'" >&2
   fi
 fi
 
@@ -149,12 +153,16 @@ echo "✅ SI-Coder active skills installed for: $agent (${#skill_dirs[@]} skills
 echo "   /sc          → main entry point: describe what you want in plain language"
 echo "   /sc-build    → idea → short product interview → first working version → publish"
 echo "   /sc-all      → publish an existing app end to end"
+echo "   /sc-fe       → frontend UI + UX + DX + AX orchestration"
 echo "   /sc-provider → connect/manage service access safely"
 echo "   /sc-install  → portable install guidance"
+echo "   /skills      → discover installed skills on compatible agent surfaces"
 if [[ "$npm_link_failed" == "0" || "${SC_SKIP_NPM_LINK:-0}" == "1" ]]; then
+  echo "   Machine skill registry: sc skills --json"
   echo "   Technical CLI (optional): sc deploy plan --json"
 else
-  echo "   Technical CLI: node '$REPO_DIR/bin/sc.js' deploy plan --json  (until npm link is fixed)"
+  echo "   Machine skill registry: node '$REPO_DIR/bin/sc-entry.js' skills --json"
+  echo "   Technical CLI: node '$REPO_DIR/bin/sc-entry.js' deploy plan --json  (until npm link is fixed)"
 fi
 
 [[ -t 0 && -t 1 ]] || run_onboarding=0
@@ -162,11 +170,12 @@ if [[ "$run_onboarding" == "1" ]]; then
   echo ""
   read -r -p "Set up credentials now? [Y/n] " _ans
   if [[ ! "$_ans" =~ ^[Nn] ]]; then
-    node "$REPO_DIR/bin/sc.js" setup
+    node "$REPO_DIR/bin/sc-entry.js" setup
   fi
 else
   echo ""
-  echo "Credential setup: sc setup"
-  echo "Provider status : sc providers"
+  echo "Credential setup : sc setup"
+  echo "Provider status  : sc providers"
+  echo "Skill registry   : sc skills --json"
   echo "Live verification: sc doctor"
 fi
