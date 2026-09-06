@@ -20,6 +20,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Advance current-version install links
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            README.md
+            AI_INSTALL.md
+            references/portable-skills.md
+            docs/install/README.md
+            docs/install/claude-code.md
+            docs/install/claude-web.md
+            docs/install/codex.md
+            docs/install/chatgpt-skills.md
+            docs/install/generic-local.md
+          )
+          sed -i 's/v0\.9\.3/v0.9.4/g' "${files[@]}"
       - run: npm run docs:sync
       - run: npm run package:skills
       - name: Commit deterministic generated files
