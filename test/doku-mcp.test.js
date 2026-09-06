@@ -31,9 +31,15 @@ test('DOKU-1: provider exposes separate Checkout REST and MCP credential contrac
   assert.deepStrictEqual(provider.auth.map(row => row.id), ['checkout-rest', 'mcp-api-key']);
   assert.deepStrictEqual(C.authOptions(provider, 'sc').map(row => row.id), ['checkout-rest', 'mcp-api-key']);
   const vars = Object.fromEntries(provider.vars.map(v => [v.key, v]));
-  assert.strictEqual(vars.DOKU_CLIENT_ID.secret, false);
+  assert.strictEqual(vars.DOKU_CLIENT_ID.secret, true);
   assert.strictEqual(vars.DOKU_SECRET_KEY.secret, true);
   assert.strictEqual(vars.DOKU_MCP_API_KEY.secret, true);
+  assert.strictEqual(vars.DOKU_CLIENT_ID.validate('BRN-0259-1678068334526'), true);
+  assert.strictEqual(vars.DOKU_CLIENT_ID.validate('MCH-0001-10791114622547'), true);
+  assert.strictEqual(vars.DOKU_SECRET_KEY.validate('SK-1234567890abcdef'), true);
+  assert.strictEqual(vars.DOKU_MCP_API_KEY.validate('api_key_abcdefgh123456'), true);
+  assert.strictEqual(vars.DOKU_CLIENT_ID.validate('BRN invalid'), false);
+  assert.strictEqual(vars.DOKU_SECRET_KEY.validate('secret with spaces'), false);
   assert.strictEqual(vars.DOKU_MCP_ENV.secret, false);
   assert.strictEqual(vars.DOKU_MCP_ENV.validate('sandbox'), true);
   assert.strictEqual(vars.DOKU_MCP_ENV.validate('production'), true);
