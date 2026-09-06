@@ -1,0 +1,142 @@
+name: Verify dirty update auto-preserve
+
+on:
+  push:
+    branches:
+      - fix/update-auto-preserve-dirty
+    paths:
+      - .github/workflows/update-preserve-verify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/update-auto-preserve-dirty
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Patch regression contract and prepare v0.9.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path('test/control-plane.test.js')
+          s = p.read_text()
+          old = """  fs.writeFileSync(path.join(local, 'dirty.txt'), 'dirty\\n');
+            assert.throws(() => performUpdate({ repoDir: local }), /refuses source changes/);
+          """
+          new = """  fs.writeFileSync(path.join(local, 'file.txt'), 'local overlay\\n');
+            fs.writeFileSync(path.join(local, 'dirty.txt'), 'dirty\\n');
+            fs.writeFileSync(path.join(seed, 'remote-only.txt'), 'remote\\n');
+            git(seed, ['add', 'remote-only.txt']); git(seed, ['commit', '-m', 'three']); git(seed, ['push']);
+            const preserved = performUpdate({ repoDir: local });
+            assert.strictEqual(preserved.changed, true);
+            assert.strictEqual(preserved.localChangesPreserved, true);
+            assert.strictEqual(preserved.localChangesRestored, true);
+            assert.strictEqual(fs.readFileSync(path.join(local, 'file.txt'), 'utf8'), 'local overlay\\n');
+            assert.strictEqual(fs.readFileSync(path.join(local, 'dirty.txt'), 'utf8'), 'dirty\\n');
+            assert.strictEqual(fs.readFileSync(path.join(local, 'remote-only.txt'), 'utf8'), 'remote\\n');
+            assert.strictEqual(git(local, ['stash', 'list']), '', 'successful restore must drop only the temporary stash');
+          """
+          if old not in s:
+              raise SystemExit('expected dirty-refusal assertion not found')
+          p.write_text(s.replace(old, new, 1))
+
+          Path('test/update-preserve.test.js').write_text(r'''const test = require('node:test');
+          const assert = require('node:assert');
+          const fs = require('fs');
+          const os = require('os');
+          const path = require('path');
+          const { spawnSync } = require('child_process');
+          const { performUpdate } = require('../lib/update');
+
+          function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'sc-update-preserve-')); }
+          function git(cwd, args) {
+            const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+            if (r.status !== 0) throw new Error(r.stderr || r.stdout || `git ${args.join(' ')} failed`);
+            return (r.stdout || '').trim();
+          }
+
+          test('SCUPDATE-1: conflicting dirty work remains recoverable in stash after fast-forward', () => {
+            const dir = tmp();
+            const remote = path.join(dir, 'remote.git');
+            const seed = path.join(dir, 'seed');
+            const local = path.join(dir, 'local');
+            fs.mkdirSync(seed, { recursive: true });
+            git(dir, ['init', '--bare', remote]);
+            git(seed, ['init']);
+            git(seed, ['config', 'user.email', 'test@example.com']);
+            git(seed, ['config', 'user.name', 'SC Test']);
+            fs.writeFileSync(path.join(seed, 'file.txt'), 'base\n');
+            git(seed, ['add', 'file.txt']); git(seed, ['commit', '-m', 'base']); git(seed, ['branch', '-M', 'main']);
+            git(seed, ['remote', 'add', 'origin', remote]); git(seed, ['push', '-u', 'origin', 'main']);
+            git(dir, ['clone', '-b', 'main', remote, local]);
+
+            fs.writeFileSync(path.join(seed, 'file.txt'), 'remote\n');
+            git(seed, ['add', 'file.txt']); git(seed, ['commit', '-m', 'remote']); git(seed, ['push']);
+            fs.writeFileSync(path.join(local, 'file.txt'), 'local\n');
+
+            assert.throws(() => performUpdate({ repoDir: local }), /local changes need reconciliation/);
+            assert.strictEqual(git(local, ['rev-parse', 'HEAD']), git(seed, ['rev-parse', 'HEAD']), 'remote fast-forward must still be installed');
+            const stashList = git(local, ['stash', 'list']);
+            assert.match(stashList, /sc-update-auto-preserve-/);
+            const patch = git(local, ['stash', 'show', '-p', 'stash@{0}']);
+            assert.match(patch, /\+local/);
+            fs.rmSync(dir, { recursive: true, force: true });
+          });
+          ''')
+
+          provider = Path('skills/sc-provider/SKILL.md')
+          text = provider.read_text()
+          old_doc = '`sc update` only performs a Git fast-forward. It refuses dirty, ahead, diverged, and detached checkouts; it never resets, stashes, rebases, or discards local changes.'
+          new_doc = '`sc update` remains fast-forward-only. Dirty tracked/untracked work is auto-preserved in a temporary local stash, the fast-forward is applied, then the work is restored. The temporary stash is dropped only after a clean restore; on conflict it is kept for recovery. Ahead, diverged, and detached checkouts are still refused, and SC never resets or discards local changes.'
+          if old_doc not in text:
+              raise SystemExit('provider updater documentation sentence not found')
+          provider.write_text(text.replace(old_doc, new_doc, 1))
+
+          current_docs = [
+              'README.md', 'AI_INSTALL.md', 'references/portable-skills.md',
+              'docs/install/README.md', 'docs/install/claude-code.md', 'docs/install/claude-web.md',
+              'docs/install/codex.md', 'docs/install/chatgpt-skills.md', 'docs/install/generic-local.md',
+          ]
+          for rel in current_docs:
+              q = Path(rel)
+              q.write_text(q.read_text().replace('v0.9.7', 'v0.9.8'))
+
+          old_rel = Path('docs/releases/v0.9.7.md')
+          old_text = old_rel.read_text()
+          if 'Historical release record' not in old_text:
+              old_rel.write_text(old_text.replace('# ', '> Historical release record. Current installation links are documented in the latest release.\n\n# ', 1))
+
+          Path('docs/releases/v0.9.8.md').write_text('''# SI-Coder v0.9.8\n\nSI-Coder v0.9.8 fixes self-update UX for working checkouts with local source changes.\n\n## Safe dirty-worktree updates\n\n- `sc update` is still Git fast-forward-only.\n- Dirty tracked and untracked work is preserved automatically before a required fast-forward.\n- Local work is restored after the fast-forward and the temporary stash is dropped only after a successful restore.\n- If restoration conflicts with upstream, the updated source stays installed, the stash remains recoverable, and SC reports the recovery reference instead of discarding work.\n- Ahead, diverged, and detached checkouts remain blocked.\n- Runtime-only `.agent` artifacts still do not count as source dirtiness.\n\n## Why\n\nProvider/skill installation can legitimately add local extensions such as a new provider adapter or skill. Updating SI-Coder should not force a non-technical user to choose between `commit`, `stash`, or losing those changes.\n\n<!-- INSTALL_MATRIX_GENERATED:BEGIN -->\nplaceholder\n<!-- INSTALL_MATRIX_GENERATED:END -->\n''')
+
+          for rel in ['.claude-plugin/plugin.json', 'plugins/si-coder/.codex-plugin/plugin.json']:
+              q = Path(rel)
+              data = json.loads(q.read_text())
+              data['version'] = '0.9.8'
+              q.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          npm version 0.9.8 --no-git-tag-version
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run docs:sync
+          npm run package:skills
+          npm run verify:release
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/update.js test README.md AI_INSTALL.md references/portable-skills.md docs skills/sc-provider/SKILL.md package.json package-lock.json .claude-plugin plugins/si-coder dist
+          git commit -m "fix(update): preserve dirty local work during self-update"
+          git push origin HEAD:fix/update-auto-preserve-dirty
