@@ -20,6 +20,7 @@
         "./skills/sc-ux",
         "./skills/sc-dx",
         "./skills/sc-ax",
+        "./skills/sc-skill",
         "./skills/sc-provider",
         "./skills/sc-install",
         "./skills/sc-help",
