@@ -8,14 +8,14 @@ on:
       - .github/workflows/publish-v094.yml
 
 permissions:
-  contents: write
+  contents: read
   actions: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Create release tag at the verified main commit
+      - name: Verify release tag points at verified main
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: 3e6d8397bf5c00e44b86621b4f353fc4c42f0529
@@ -23,16 +23,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh api --silent "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/tmp/release-tag.json 2>/dev/null; then
-            existing="$(jq -r '.object.sha' /tmp/release-tag.json)"
-            test "$existing" = "$RELEASE_SHA"
-            echo "$RELEASE_TAG already points at verified main."
-          else
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="refs/tags/${RELEASE_TAG}" \
-              -f sha="$RELEASE_SHA"
-            echo "Created $RELEASE_TAG at $RELEASE_SHA."
-          fi
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha')"
+          test "$existing" = "$RELEASE_SHA"
+          echo "$RELEASE_TAG points at verified main $RELEASE_SHA."
 
       - name: Dispatch canonical release workflow
         env:
