@@ -56,11 +56,13 @@ jobs:
           NODE
           sc skill show sc-fe --json
 
-      - name: Validate Finder exposes Skills as an SSOT resource
+      - name: Validate Finder exposes and opens Skills from the installed CLI
         shell: bash
         run: |
           set -euo pipefail
-          timeout 2s script -qfec 'sc' /tmp/sc-tui.raw || true
+          # The TUI has a filter: type "skills", Enter the only matching branch,
+          # then capture the rendered skill list from the actual globally linked `sc`.
+          (printf 'skills\r'; sleep 1) | timeout 3s script -qfec 'sc' /tmp/sc-tui.raw || true
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -68,7 +70,11 @@ jobs:
           clean = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', raw)
           clean = re.sub(r'\x1b\][^\x07]*(?:\x07|\x1b\\)', '', clean)
           Path('/tmp/sc-tui.txt').write_text(clean)
-          print(clean[-12000:])
-          if 'Skills' not in clean:
-              raise SystemExit('Finder/TUI does not expose a Skills section')
+          print(clean[-16000:])
+          required = ['Skills', '/sc-fe', '/sc-ui', '/sc-ux', '/sc-dx', '/sc-ax']
+          missing = [value for value in required if value not in clean]
+          if missing:
+              raise SystemExit(f'installed Finder/TUI missing: {missing}')
+          if 'SI-Coder › Skills' not in clean:
+              raise SystemExit('installed Finder/TUI did not actually enter the Skills branch')
           PY
