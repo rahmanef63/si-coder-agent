@@ -1,41 +1,133 @@
 # SI-Coder (`sc`)
 
-> A simple tool for AI coding agents to build, connect, publish, and verify web apps from plain-language goals.
+> A simple tool for AI coding agents to build, connect, publish, manage, and verify web apps from plain-language goals.
 
 **SC is a tool, not another platform you need to learn.**
 
-For normal use, you only need to know one thing:
-
-```text
-Tell `sc` what you want to build or change.
-```
-
-Examples:
+For normal use, tell SC what outcome you want:
 
 ```text
 ChatGPT Skill (eligible workspace): @sc Create a booking app for my salon.
-Claude Code : /sc Create a booking app for my salon.
-Natural use : Fix the mobile checkout flow and publish it.
+Claude Code                     : /sc Create a booking app for my salon.
+Existing project                : /sc Fix the checkout flow and publish it.
+Frontend specialist             : /sc-fe --workbench audit this desktop shell.
 ```
 
-SC handles the technical work behind the request: choosing sensible defaults, editing the app, connecting supported services, publishing, and verifying the result.
+SC handles the technical work behind the request: inspecting the current project, choosing sensible defaults, editing the app, connecting supported services, publishing, and verifying the result.
 
-You do **not** need to understand SC's internal skills, provider routing, MCP functions, memory system, recipes, evidence receipts, or release checks to use it.
+You do **not** need to understand SC's internal skill tree, provider routing, MCP functions, memory system, recipes, evidence receipts, or release checks before using it.
 
 ## What SC does
 
 SC gives an AI coding agent a consistent way to:
 
 - build a new web app from a plain-language idea,
-- work on an existing app,
+- work on an existing app without throwing away intentional project conventions,
+- improve frontend UI, UX, DX, and agent experience,
 - connect the accounts/services the app actually needs,
 - publish to an appropriate runtime,
 - connect a domain when requested,
+- manage users, provider definitions, named connections, credentials, and skills,
 - verify the important user flow after a change,
 - keep credentials out of chat and tool payloads,
 - suggest one useful next step after a meaningful milestone.
 
-The default experience is intentionally product-focused. SC should ask about **what the app needs to do**, not make a normal user choose frameworks, databases, DNS records, container strategies, or deployment pipelines.
+The default experience is intentionally product-focused. SC should ask about **what the app needs to do**, not make a normal user choose frameworks, databases, DNS records, container strategies, or deployment pipelines unless that choice materially matters.
+
+## Common use cases
+
+Start from the outcome. The main `/sc` skill can route internally; specialized `/sc-*` skills remain available when you want explicit control.
+
+| Goal | Example | What SC handles |
+|---|---|---|
+| Build a new product | `/sc Build a booking app for a barbershop and publish it.` | product defaults, implementation, data/runtime routing, publish, verification |
+| Improve an existing frontend | `/sc-fe --workbench --density compact audit and improve this desktop shell` | UI + UX + DX + AX audit, existing design-DNA preservation, rendered verification |
+| Apply a design-principle preset | `/sc-fe --apple improve this settings experience` | Apple/HIG-inspired principles without cloning trade dress or replacing coherent project identity |
+| Connect a provider safely | `/sc Connect transactional email for password reset.` | provider routing, required account access, safe credential flow, live verification |
+| Publish and connect a domain | `/sc Publish this app on my existing stack and connect the domain.` | runtime selection, deploy, DNS/domain work, HTTPS and live checks |
+| Work with multiple clients/accounts | `sc user add client-a` then create named connections | isolated user credential stores, project mapping, explicit connection selection |
+| Create a project-specific workflow | `sc skill create release-check --description "Verify release readiness"` | creates `.mso/skills/release-check/SKILL.md`; compatible hosts can invoke `/release-check` |
+| Share one skill vocabulary across tools | type `/skills`, then `/sc-fe ...` in MSO, Control Room, Baton, or another compatible host | discovery, direct slash invocation, exact-id ambiguity handling |
+
+Frontend presets can be composed rather than treated as themes:
+
+```text
+/sc-fe --apple --density compact --motion subtle improve settings
+/sc-fe --workbench --platform desktop --strict audit this project shell
+```
+
+When the project already has a coherent UI, SC preserves its design DNA by default. A preset changes principles and constraints; it is not permission to replace the product with a generic generated aesthetic.
+
+## CRUD model
+
+Operator-owned resources should be manageable as normal resources instead of one-off setup state.
+
+| Resource | Create | Read | Update | Delete |
+|---|---|---|---|---|
+| Users | `sc user add <name>` | `sc user`, `sc user show <name>`, `sc user which` | `sc user rename <old> <new>`, `sc user use <name>`, mapping/owner commands | `sc user rm <name>` |
+| Provider definitions | `sc providers create <id> ...` | `sc providers`, `sc providers show <id>` | `sc providers update <id> ...`, `key-add`, `key-rm` | `sc providers delete <id> --yes` |
+| Named connections | `sc user connection-add <user> <provider> <label> ...` | `sc user connections <user> [provider]`, connection guide/status | label, default, authorize, sync, and migration commands | `sc user connection-rm <user> <provider> <connection> ...` |
+| Credentials | `sc user credential-set <user> <provider> <KEY> --connection <id>` | `credential-status`; plaintext reads are intentionally disabled | run `credential-set` again to rotate | `sc user credential-rm <user> <provider> <KEY> --connection <id>` |
+| Skills | `sc skill create <name> ...` | `sc skills`, `sc skill show <name|exact-id>` | `sc skill update <name|exact-id> ...` | `sc skill delete <name|exact-id> --yes` |
+
+### Skill CRUD
+
+Create a project skill:
+
+```bash
+sc skill create release-check \
+  --description "Verify release, security, rollback, and live health before handoff"
+```
+
+It becomes:
+
+```text
+.mso/skills/release-check/SKILL.md
+```
+
+and is discoverable as:
+
+```text
+/release-check
+```
+
+Create a global operator skill instead:
+
+```bash
+sc skill create release-check \
+  --scope global \
+  --description "Shared release readiness workflow"
+```
+
+Global managed skills live in:
+
+```text
+~/.mso/skills/<name>/SKILL.md
+```
+
+Read, replace, update, and delete:
+
+```bash
+sc skills
+sc skills --json
+sc skill show release-check
+sc skill show release-check --raw
+sc skill update release-check --description "Verify release plus rollback readiness"
+sc skill update release-check --from-file ./SKILL.md
+sc skill delete release-check --yes
+```
+
+For long instructions, prefer `--from-file SKILL.md` instead of putting the full skill body in argv or shell history.
+
+**Bundled SI-Coder skills under `skills/*` are package source and read-only at runtime.** Project skills live in `.mso/skills`; global operator skills live in `~/.mso/skills`. Project scope wins normal same-name resolution, while `/skill <exact-id>` remains the explicit ambiguity escape hatch.
+
+The shared invocation contract is:
+
+```text
+/skills                         discover available skills
+/<skill> [prompt]               invoke the normal resolved skill
+/skill <exact-id> [prompt]      choose an exact project/global skill when needed
+```
 
 ## The normal workflow
 
@@ -85,11 +177,7 @@ sc data export --include-secrets --out users.integration-bundle.enc.json
 sc data import --file users.integration-bundle.json
 ```
 
-Plain JSON contains metadata only. Encrypted transfers prompt locally for a
-passphrase. Import previews conflicts before an explicitly confirmed create-only
-apply; no default, folder mapping or active OAuth session is copied. The browser
-manager also has **Import / export JSON**. Receiving projects use the documented versioned bundle and their own
-import adapter; no other application is required to run SI-Coder.
+Plain JSON contains metadata only. Encrypted transfers prompt locally for a passphrase. Import previews conflicts before an explicitly confirmed create-only apply; no default, folder mapping, or active OAuth session is copied. The browser manager also has **Import / export JSON**. Receiving projects use the documented versioned bundle and their own import adapter; no other application is required to run SI-Coder.
 
 [Data portability and schema](docs/DATA-PORTABILITY.md).
 
@@ -99,11 +187,9 @@ import adapter; no other application is required to run SI-Coder.
 sc setup --web
 ```
 
-The temporary browser hub automatically uses a private Tailscale Serve URL when the VPS is already on a tailnet, with a localhost/SSH fallback. It includes every registered provider, user selection,
-named connections, source/auth methods, official links, expandable instructions,
-masked inputs, and verification before saving. Run it in an interactive terminal.
-For VPS access, use SSH port forwarding rather than exposing the local port.
-See [Secure credential setup](docs/CREDENTIAL-SETUP.md).
+The temporary browser hub automatically uses a private Tailscale Serve URL when the VPS is already on a tailnet, with a localhost/SSH fallback. It includes every registered provider, user selection, named connections, source/auth methods, official links, expandable instructions, masked inputs, and verification before saving. Run it in an interactive terminal.
+
+For VPS access, use SSH port forwarding rather than exposing the local port. See [Secure credential setup](docs/CREDENTIAL-SETUP.md).
 
 ## Installation
 
@@ -166,7 +252,11 @@ bash install.sh --agent claude
 bash install.sh --agent codex
 bash install.sh --agent hermes
 bash install.sh --agent openclaw
+bash install.sh --agent mso
+bash install.sh --agent all
 ```
+
+`--agent mso` installs active/default SC skills into MSO's trusted `~/.mso/skills` root. `--agent all` installs to the supported local registries together.
 
 Use `--with-mcp` only when the local runtime should also register SC's bundled MCP server.
 
@@ -204,13 +294,14 @@ Everything below is optional for normal SC users.
 <details>
 <summary><strong>Local CLI and provider connections</strong></summary>
 
-Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, or diagnostics directly. The Finder root also includes **Import / export JSON**, so portability is discoverable without memorizing `sc data ...` commands. `Esc` goes back one level; inside a credential/metadata input it cancels that input without saving or exiting SC. The lower INFO/PREVIEW/RESULT area expands on taller terminals so setup guidance is easier to read.
+Running `sc` on a TTY opens the local interactive CLI. It is useful for operators who want to inspect users, provider connections, deployment plans, skills, or diagnostics directly. The Finder root also includes **Import / export JSON**, so portability is discoverable without memorizing `sc data ...` commands. `Esc` goes back one level; inside a credential/metadata input it cancels that input without saving or exiting SC. The lower INFO/PREVIEW/RESULT area expands on taller terminals so setup guidance is easier to read.
 
 ```bash
 sc doctor
 sc deploy plan
 sc deploy plan --technical
 sc user connections <user>
+sc skills
 ```
 
 Direct local connections are user/account scoped. External OAuth or connected-account backends keep their provider tokens outside SC and store only safe routing metadata locally.
@@ -260,6 +351,7 @@ SC should remain:
 - **Simple at the surface** — one main tool/skill for normal use.
 - **Product-first** — ask about desired behavior before infrastructure choices.
 - **Agent-friendly** — technical capabilities are machine-readable when an agent needs them.
+- **CRUD-capable for operator-owned resources** — users, provider definitions, connections, credentials, and managed skills can be inspected and changed explicitly.
 - **Safe with credentials** — secrets do not travel through chat/tool payloads; fresh local setup is named-connection-scoped rather than shell-global.
 - **Verifiable** — completion means the important result was actually checked.
 - **Standalone** — this repository owns its runtime contracts and does not require another local project or orchestrator to function.
@@ -270,9 +362,12 @@ SC should remain:
 Only the major surfaces are shown here:
 
 ```text
-skills/sc/               main user-facing skill
-skills/sc-*/             internal/specialized workflows
-bin/sc.js                local CLI
+skills/sc/               main user-facing bundled skill
+skills/sc-*/             bundled specialized workflows
+.mso/skills/             project-managed slash skills
+a ~/.mso/skills/         global operator-managed slash skills
+bin/sc-entry.js          installed CLI entry + portable skill registry/CRUD
+bin/sc.js                mature local control plane + Finder TUI
 machine/functions.json   machine-tool contract
 scripts/sc-mcp.js        MCP server
 docs/                    detailed documentation
