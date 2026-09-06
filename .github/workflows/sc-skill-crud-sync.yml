@@ -1,0 +1,504 @@
+name: SC skill CRUD sync
+
+on:
+  push:
+    branches:
+      - feat/skill-crud-readme-usecases
+    paths:
+      - .github/workflows/sc-skill-crud-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/skill-crud-readme-usecases
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Implement managed skill CRUD and README use cases
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > lib/skill-registry.js <<'EOF'
+          'use strict';
+
+          const fs = require('fs');
+          const os = require('os');
+          const path = require('path');
+
+          const ROOT = path.resolve(__dirname, '..');
+          const SKILLS_ROOT = path.join(ROOT, 'skills');
+          const CATALOG_PATH = path.join(SKILLS_ROOT, 'catalog.json');
+          const SAFE_SLASH_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+          function decodeScalar(raw) {
+            const value = String(raw || '').trim();
+            if (!value) return '';
+            if (value.startsWith('"') && value.endsWith('"')) {
+              try { return JSON.parse(value); } catch { return value.slice(1, -1); }
+            }
+            if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1).replace(/''/g, "'");
+            return value;
+          }
+
+          function readFrontmatter(file) {
+            const text = fs.readFileSync(file, 'utf8');
+            if (!text.startsWith('---\n') && !text.startsWith('---\r\n')) return {};
+            const normalized = text.replace(/\r\n/g, '\n');
+            const end = normalized.indexOf('\n---\n', 4);
+            if (end < 0) return {};
+            const out = {};
+            for (const line of normalized.slice(4, end).split('\n')) {
+              const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+              if (!match) continue;
+              out[match[1]] = decodeScalar(match[2]);
+            }
+            return out;
+          }
+
+          function catalog() {
+            const parsed = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
+            return parsed.skills || {};
+          }
+
+          function bundledSkills(options = {}) {
+            const includeInactive = Boolean(options.includeInactive);
+            const rows = [];
+            for (const [id, state] of Object.entries(catalog())) {
+              const active = state.lifecycle === 'active' && state.installByDefault === true;
+              if (!includeInactive && !active) continue;
+              const skillPath = path.join(SKILLS_ROOT, id);
+              const entry = path.join(skillPath, 'SKILL.md');
+              if (!fs.existsSync(entry)) continue;
+              const meta = readFrontmatter(entry);
+              const declaredName = SAFE_SLASH_NAME.test(meta.name || '') ? meta.name : id;
+              rows.push({
+                id,
+                name: declaredName,
+                description: meta.description || '',
+                invocation: `/${declaredName}`,
+                lifecycle: state.lifecycle,
+                installByDefault: Boolean(state.installByDefault),
+                source: 'si-coder',
+                scope: 'bundled',
+                mutable: false,
+                path: skillPath,
+              });
+            }
+            return rows;
+          }
+
+          function managedRoots(options = {}) {
+            const projectBase = path.resolve(options.projectRoot || process.cwd());
+            const explicitGlobal = options.globalRoot || process.env.SC_SKILLS_ROOT || path.join(os.homedir(), '.mso', 'skills');
+            return [
+              { scope: 'project', source: 'project', root: path.join(projectBase, '.mso', 'skills') },
+              { scope: 'global', source: 'global', root: path.resolve(explicitGlobal) },
+            ];
+          }
+
+          function inside(root, candidate) {
+            const rel = path.relative(path.resolve(root), path.resolve(candidate));
+            return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+          }
+
+          function listManagedSkills(options = {}) {
+            const rows = [];
+            for (const rootInfo of managedRoots(options)) {
+              let entries = [];
+              try { entries = fs.readdirSync(rootInfo.root, { withFileTypes: true }); } catch { continue; }
+              for (const entry of entries) {
+                if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+                const entryPath = path.join(rootInfo.root, entry.name);
+                const skillFile = path.join(entryPath, 'SKILL.md');
+                let realPath;
+                try {
+                  const stat = fs.statSync(skillFile);
+                  if (!stat.isFile() || stat.size > 256_000) continue;
+                  realPath = fs.realpathSync(entryPath);
+                } catch { continue; }
+
+                // install.sh links bundled SC skills into ~/.mso/skills. They are already
+                // represented by the canonical catalog, so do not create duplicate /sc-* rows.
+                if (entry.isSymbolicLink() && inside(SKILLS_ROOT, realPath)) continue;
+
+                const meta = readFrontmatter(skillFile);
+                const name = SAFE_SLASH_NAME.test(meta.name || '') ? meta.name : entry.name;
+                if (!SAFE_SLASH_NAME.test(name)) continue;
+                rows.push({
+                  id: `${rootInfo.scope}:${name}`,
+                  name,
+                  description: meta.description || '',
+                  invocation: `/${name}`,
+                  lifecycle: 'managed',
+                  installByDefault: true,
+                  source: rootInfo.source,
+                  scope: rootInfo.scope,
+                  mutable: !entry.isSymbolicLink(),
+                  path: entryPath,
+                });
+              }
+            }
+            const rank = { project: 0, global: 1 };
+            return rows.sort((a, b) => (rank[a.scope] - rank[b.scope]) || a.name.localeCompare(b.name));
+          }
+
+          function listSkills(options = {}) {
+            return [...listManagedSkills(options), ...bundledSkills(options)];
+          }
+
+          function resolveSkill(name, options = {}) {
+            const clean = String(name || '').trim().replace(/^\//, '');
+            if (!clean) return null;
+            const rows = listSkills(options);
+            const exact = rows.find(row => row.id === clean);
+            if (exact) return exact;
+            return rows.find(row => row.name === clean) || null;
+          }
+
+          module.exports = {
+            ROOT,
+            SKILLS_ROOT,
+            SAFE_SLASH_NAME,
+            readFrontmatter,
+            managedRoots,
+            listManagedSkills,
+            bundledSkills,
+            listSkills,
+            resolveSkill,
+          };
+          EOF
+
+          cat > lib/skill-store.js <<'EOF'
+          'use strict';
+
+          const fs = require('fs');
+          const path = require('path');
+          const Registry = require('./skill-registry');
+          const { verifySkill } = require('./agent/skill-verifier');
+
+          const MAX_SKILL_BYTES = 256_000;
+          const VALID_SCOPES = new Set(['project', 'global']);
+
+          function scopeRoot(scope, options = {}) {
+            if (!VALID_SCOPES.has(scope)) throw new Error(`invalid skill scope "${scope}"; expected project or global`);
+            const row = Registry.managedRoots(options).find(item => item.scope === scope);
+            if (!row) throw new Error(`skill scope root unavailable: ${scope}`);
+            return row.root;
+          }
+
+          function assertName(name) {
+            const clean = String(name || '').trim().replace(/^\//, '');
+            if (!Registry.SAFE_SLASH_NAME.test(clean)) throw new Error('skill name must use letters, numbers, dot, underscore, or dash and may not contain spaces/slashes');
+            return clean;
+          }
+
+          function safeTarget(root, name) {
+            const target = path.resolve(root, name);
+            const rel = path.relative(path.resolve(root), target);
+            if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('unsafe skill path');
+            return target;
+          }
+
+          function quote(value) { return JSON.stringify(String(value)); }
+
+          function template(name, description) {
+            if (!description || !String(description).trim()) throw new Error('--description is required when --from-file is not used');
+            return `---\nname: ${name}\ndescription: ${quote(description)}\nuse_when: ${quote(`Use when the user explicitly invokes /${name} or the task clearly matches this skill.`)}\ndo_not_use_when: ${quote('Do not use when another more specific skill owns the task or when the requested action is outside this skill scope.')}\nrequired_tools: ""\nsecurity_constraints: ${quote('Never place credentials or secret values in SKILL.md, chat, argv, logs, or tool payloads.')}\nreferences: ""\ncompatibility: ${quote('MSO, Control Room, Baton, and Agent Skills-compatible hosts')}\n---\n\n# ${name}\n\n## Purpose\n\n${String(description).trim()}\n\n## Instructions\n\n1. Inspect the current project state before changing anything.\n2. Follow the user request and preserve explicit scope locks.\n3. Verify the result before reporting completion.\n`;
+          }
+
+          function setFrontmatterField(text, key, value) {
+            const normalized = String(text).replace(/\r\n/g, '\n');
+            if (!normalized.startsWith('---\n')) throw new Error('SKILL.md must start with YAML frontmatter');
+            const end = normalized.indexOf('\n---\n', 4);
+            if (end < 0) throw new Error('SKILL.md frontmatter is not closed');
+            const lines = normalized.slice(4, end).split('\n');
+            const prefix = `${key}:`;
+            const next = `${key}: ${quote(value)}`;
+            const index = lines.findIndex(line => line.startsWith(prefix));
+            if (index >= 0) lines[index] = next;
+            else lines.push(next);
+            return `---\n${lines.join('\n')}\n---\n${normalized.slice(end + 5)}`;
+          }
+
+          function readSource(file) {
+            const resolved = path.resolve(String(file || ''));
+            const stat = fs.statSync(resolved);
+            if (!stat.isFile()) throw new Error('--from-file must point to a SKILL.md file');
+            if (stat.size > MAX_SKILL_BYTES) throw new Error(`SKILL.md exceeds ${MAX_SKILL_BYTES} bytes`);
+            return fs.readFileSync(resolved, 'utf8');
+          }
+
+          function writeMarker(dir, scope, previous = {}) {
+            const now = new Date().toISOString();
+            const marker = {
+              version: 1,
+              managedBy: 'si-coder',
+              scope,
+              createdAt: previous.createdAt || now,
+              updatedAt: now,
+            };
+            fs.writeFileSync(path.join(dir, '.sc-managed.json'), JSON.stringify(marker, null, 2) + '\n', { mode: 0o600 });
+            return marker;
+          }
+
+          function readMarker(dir) {
+            try { return JSON.parse(fs.readFileSync(path.join(dir, '.sc-managed.json'), 'utf8')); } catch { return {}; }
+          }
+
+          function validateWritten(file, expectedName, root) {
+            const meta = Registry.readFrontmatter(file);
+            if (meta.name !== expectedName) throw new Error(`SKILL.md name must remain "${expectedName}"`);
+            const result = verifySkill(file, { root, strict: false });
+            if (!result.ok) throw new Error(`invalid SKILL.md: ${result.errors.join('; ')}`);
+            return result;
+          }
+
+          function createSkill(input = {}, options = {}) {
+            const name = assertName(input.name);
+            const scope = input.scope || 'project';
+            const root = scopeRoot(scope, options);
+            const dir = safeTarget(root, name);
+            if (fs.existsSync(dir)) throw new Error(`skill already exists in ${scope} scope: ${name}`);
+            fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+            fs.mkdirSync(dir, { recursive: false, mode: 0o700 });
+            const file = path.join(dir, 'SKILL.md');
+            try {
+              let content = input.fromFile ? readSource(input.fromFile) : template(name, input.description);
+              if (input.description && input.fromFile) content = setFrontmatterField(content, 'description', input.description);
+              fs.writeFileSync(file, content, { mode: 0o600 });
+              validateWritten(file, name, dir);
+              writeMarker(dir, scope);
+            } catch (error) {
+              fs.rmSync(dir, { recursive: true, force: true });
+              throw error;
+            }
+            return Registry.resolveSkill(`${scope}:${name}`, options);
+          }
+
+          function showSkill(query, options = {}) {
+            const row = Registry.resolveSkill(query, options);
+            if (!row) throw new Error(`unknown skill: ${query}`);
+            const result = { ...row };
+            if (options.includeContent) result.content = fs.readFileSync(path.join(row.path, 'SKILL.md'), 'utf8');
+            return result;
+          }
+
+          function mutableSkill(query, options = {}) {
+            const row = Registry.resolveSkill(query, options);
+            if (!row) throw new Error(`unknown skill: ${query}`);
+            if (row.scope === 'bundled') throw new Error(`bundled skill ${row.name} is read-only; create a project/global override instead`);
+            if (!row.mutable) throw new Error(`linked skill ${row.id} is read-only; manage the link with its installer instead`);
+            return row;
+          }
+
+          function updateSkill(query, input = {}, options = {}) {
+            const row = mutableSkill(query, options);
+            if (!input.fromFile && input.description === undefined) throw new Error('skill update requires --description or --from-file');
+            const file = path.join(row.path, 'SKILL.md');
+            const previous = fs.readFileSync(file, 'utf8');
+            let content = input.fromFile ? readSource(input.fromFile) : previous;
+            if (input.description !== undefined) content = setFrontmatterField(content, 'description', input.description);
+            try {
+              fs.writeFileSync(file, content, { mode: 0o600 });
+              validateWritten(file, row.name, row.path);
+              writeMarker(row.path, row.scope, readMarker(row.path));
+            } catch (error) {
+              fs.writeFileSync(file, previous, { mode: 0o600 });
+              throw error;
+            }
+            return Registry.resolveSkill(row.id, options);
+          }
+
+          function deleteSkill(query, options = {}) {
+            const row = mutableSkill(query, options);
+            fs.rmSync(row.path, { recursive: true, force: true });
+            return { id: row.id, name: row.name, scope: row.scope, deleted: true };
+          }
+
+          module.exports = {
+            scopeRoot,
+            createSkill,
+            showSkill,
+            mutableSkill,
+            updateSkill,
+            deleteSkill,
+            setFrontmatterField,
+          };
+          EOF
+
+          cat > test/skill-crud.test.js <<'EOF'
+          'use strict';
+
+          const test = require('node:test');
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const os = require('node:os');
+          const path = require('node:path');
+          const Registry = require('../lib/skill-registry');
+          const Store = require('../lib/skill-store');
+
+          function fixture() {
+            const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-skill-crud-'));
+            return {
+              temp,
+              options: { projectRoot: path.join(temp, 'project'), globalRoot: path.join(temp, 'global-skills') },
+              cleanup: () => fs.rmSync(temp, { recursive: true, force: true }),
+            };
+          }
+
+          test('SKCRUD-1: project skill supports create, read, update and delete', () => {
+            const f = fixture();
+            try {
+              const created = Store.createSkill({ name: 'client-review', description: 'Review client-facing UI before release.' }, f.options);
+              assert.equal(created.id, 'project:client-review');
+              assert.equal(created.mutable, true);
+              assert.equal(Registry.resolveSkill('client-review', f.options).id, 'project:client-review');
+
+              const shown = Store.showSkill('client-review', { ...f.options, includeContent: true });
+              assert.match(shown.content, /Review client-facing UI/);
+
+              const updated = Store.updateSkill('project:client-review', { description: 'Audit client UI, UX, and release readiness.' }, f.options);
+              assert.equal(updated.description, 'Audit client UI, UX, and release readiness.');
+
+              const deleted = Store.deleteSkill('project:client-review', f.options);
+              assert.equal(deleted.deleted, true);
+              assert.equal(Registry.resolveSkill('project:client-review', f.options), null);
+            } finally { f.cleanup(); }
+          });
+
+          test('SKCRUD-2: global managed skill is discoverable and project name wins precedence', () => {
+            const f = fixture();
+            try {
+              Store.createSkill({ name: 'same-name', description: 'Global version.', scope: 'global' }, f.options);
+              Store.createSkill({ name: 'same-name', description: 'Project version.', scope: 'project' }, f.options);
+              const rows = Registry.listSkills(f.options).filter(row => row.name === 'same-name');
+              assert.deepEqual(rows.map(row => row.id), ['project:same-name', 'global:same-name']);
+              assert.equal(Registry.resolveSkill('same-name', f.options).id, 'project:same-name');
+              assert.equal(Registry.resolveSkill('global:same-name', f.options).description, 'Global version.');
+            } finally { f.cleanup(); }
+          });
+
+          test('SKCRUD-3: bundled skills are read-only', () => {
+            assert.throws(() => Store.updateSkill('sc-fe', { description: 'nope' }), /read-only/);
+            assert.throws(() => Store.deleteSkill('sc-fe'), /read-only/);
+          });
+
+          test('SKCRUD-4: invalid replacement rolls back the previous skill', () => {
+            const f = fixture();
+            try {
+              Store.createSkill({ name: 'rollback-test', description: 'Original.' }, f.options);
+              const bad = path.join(f.temp, 'bad.md');
+              fs.writeFileSync(bad, '---\nname: different-name\ndescription: "bad"\n---\n');
+              assert.throws(() => Store.updateSkill('rollback-test', { fromFile: bad }, f.options), /name must remain/);
+              assert.equal(Store.showSkill('rollback-test', f.options).description, 'Original.');
+            } finally { f.cleanup(); }
+          });
+
+          test('SKCRUD-5: symlink to bundled SC skill does not duplicate registry rows', { skip: process.platform === 'win32' }, () => {
+            const f = fixture();
+            try {
+              fs.mkdirSync(f.options.globalRoot, { recursive: true });
+              fs.symlinkSync(path.join(Registry.SKILLS_ROOT, 'sc-fe'), path.join(f.options.globalRoot, 'sc-fe'), 'dir');
+              const rows = Registry.listSkills(f.options).filter(row => row.name === 'sc-fe');
+              assert.equal(rows.length, 1);
+              assert.equal(rows[0].scope, 'bundled');
+            } finally { f.cleanup(); }
+          });
+          EOF
+
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = process.cwd();
+          const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+          const write = (rel, text) => fs.writeFileSync(path.join(root, rel), text);
+          const replaceOnce = (text, from, to, label) => {
+            if (!text.includes(from)) throw new Error(`missing marker: ${label}`);
+            if (text.split(from).length !== 2) throw new Error(`non-unique marker: ${label}`);
+            return text.replace(from, to);
+          };
+
+          let sc = read('bin/sc.js');
+          sc = replaceOnce(
+            sc,
+            "const { listSkills } = require(path.resolve(__dirname, '../lib/skill-registry'));\nconst PKG = require(path.resolve(__dirname, '../package.json'));",
+            "const { listSkills } = require(path.resolve(__dirname, '../lib/skill-registry'));\nconst SkillStore = require(path.resolve(__dirname, '../lib/skill-store'));\nconst PKG = require(path.resolve(__dirname, '../package.json'));",
+            'skill store import',
+          );
+
+          const start = sc.indexOf('function cmdSkillList(args) {');
+          const end = sc.indexOf('\nfunction cmdVerify(args) {', start);
+          if (start < 0 || end < 0) throw new Error('skill command block not found');
+          const skillBlock = `function cmdSkillList(args) {\n  const rows = listSkills({ includeInactive: Boolean(args.all) });\n  if (args.json) {\n    console.log(JSON.stringify({\n      version: 1,\n      source: 'si-coder',\n      contract: { list: '/skills', direct: '/<skill> [prompt]', exact: '/skill <exact-id> [prompt]' },\n      skills: rows,\n    }, null, 2));\n    return;\n  }\n  console.log('\\nSI-Coder skills\\n');\n  for (const row of rows) {\n    let status = '';\n    if (row.scope === 'project' || row.scope === 'global') status = \` [\${row.scope}\${row.mutable ? '' : ' · read-only'}]\`;\n    else if (row.lifecycle !== 'active' || !row.installByDefault) status = \` [\${row.lifecycle}]\`;\n    console.log(\`  \${row.invocation.padEnd(20)} \${row.description}\${status}\`);\n  }\n  console.log('\\nCRUD managed skills with: sc skill create|show|update|delete ...');\n  console.log('Use /<skill> [prompt] in a compatible agent surface.');\n  console.log('Use /skills to discover skills, or /skill <exact-id> [prompt] when a host reports ambiguity.\\n');\n}\n\nasync function cmdSkill(sub, args) {\n  const name = args._[2];\n  if (sub === 'list') return cmdSkillList(args);\n  if (sub === 'show' || sub === 'read' || sub === 'info') {\n    if (!name) die('usage: sc skill show <name|exact-id> [--raw] [--json]');\n    const out = SkillStore.showSkill(name, { includeContent: Boolean(args.raw) });\n    return printJsonOr(out, args, row => {\n      console.log(\`\${row.id}  \${row.scope}  \${row.mutable ? 'mutable' : 'read-only'}\`);\n      console.log(\`path: \${row.path}\`);\n      console.log(\`invoke: \${row.invocation}\`);\n      if (row.description) console.log(\`description: \${row.description}\`);\n      if (args.raw && row.content) console.log(\`\\n\${row.content}\`);\n    });\n  }\n  if (sub === 'create' || sub === 'add') {\n    if (!name) die('usage: sc skill create <name> --description "..." [--scope project|global] [--from-file SKILL.md]');\n    const out = SkillStore.createSkill({\n      name, scope: args.scope || 'project', description: args.description, fromFile: args['from-file'],\n    });\n    audit('skill.create', { id: out.id, name: out.name, scope: out.scope });\n    return printJsonOr(out, args, row => console.log(\`✅ created \${row.id} → \${row.path} · invoke \${row.invocation}\`));\n  }\n  if (sub === 'update' || sub === 'edit') {\n    if (!name) die('usage: sc skill update <name|exact-id> [--description "..."] [--from-file SKILL.md]');\n    const out = SkillStore.updateSkill(name, {\n      description: args.description === undefined ? undefined : String(args.description), fromFile: args['from-file'],\n    });\n    audit('skill.update', { id: out.id, name: out.name, scope: out.scope });\n    return printJsonOr(out, args, row => console.log(\`✅ updated \${row.id} → \${row.path}\`));\n  }\n  if (sub === 'delete' || sub === 'rm' || sub === 'remove') {\n    if (!name) die('usage: sc skill delete <name|exact-id> --yes');\n    const target = SkillStore.mutableSkill(name);\n    if (!args.yes) {\n      if (!isInteractive()) die('refusing to delete a managed skill without --yes on a non-TTY');\n      if (!await confirm(\`Delete managed skill \"\${target.id}\" and its directory?\`)) return console.log('aborted');\n    }\n    const out = SkillStore.deleteSkill(target.id);\n    audit('skill.delete', { id: out.id, name: out.name, scope: out.scope });\n    return printJsonOr(out, args, row => console.log(\`✅ deleted \${row.id}\`));\n  }\n  if (!sub || sub === 'verify') {\n    const out = AgentActions.skillVerifyAction({ strict: Boolean(args.strict) });\n    return printJsonOr(out, args, row => {\n      console.log(\`\${row.ok ? '✅' : '❌'} \${row.skillCount} skill(s) · \${row.errorCount} error(s) · \${row.warningCount} warning(s)\`);\n      for (const skill of row.skills.filter(x => x.errors.length || x.warnings.length)) {\n        console.log(\`  \${skill.relativePath}\`);\n        for (const e of skill.errors) console.log(\`    ERROR: \${e}\`);\n        for (const w of skill.warnings) console.log(\`    warn: \${w}\`);\n      }\n      if (!row.ok) process.exitCode = 1;\n    });\n  }\n  return die(\`unknown: skill \${sub}\`);\n}\n`;
+          sc = sc.slice(0, start) + skillBlock + sc.slice(end);
+
+          sc = replaceOnce(
+            sc,
+            "  sc skills [--all] [--json]            list canonical slash skills for MSO/RC/Baton and compatible hosts\n  sc skill list [--all] [--json]        alias for the machine-readable skill registry\n  sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets",
+            "  sc skills [--all] [--json]            list bundled + managed slash skills for MSO/RC/Baton and compatible hosts\n  sc skill list [--all] [--json]        alias for the machine-readable skill registry\n  sc skill show <name|exact-id> [--raw] inspect a bundled or managed skill; full content is opt-in\n  sc skill create <name> --description ... [--scope project|global] [--from-file SKILL.md]\n                                      create a managed skill in .mso/skills or ~/.mso/skills\n  sc skill update <name|exact-id> [--description ...] [--from-file SKILL.md]\n                                      update only project/global managed skills; bundled skills are read-only\n  sc skill delete <name|exact-id> --yes delete only a mutable project/global managed skill\n  sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets",
+            'usage skill commands',
+          );
+          write('bin/sc.js', sc);
+
+          let readme = read('README.md');
+          const useCases = `## Common use cases\n\nYou do not need to learn the internal skill tree first. Start from the outcome you want:\n\n| Goal | Example | What SC handles |\n|---|---|---|\n| Build a new product | \`/sc Build a booking app for a barbershop and publish it.\` | product defaults, implementation, data/runtime routing, publish, verification |\n| Improve an existing frontend | \`/sc-fe --workbench --density compact audit and improve this desktop shell\` | UI + UX + DX + AX audit, existing design-DNA preservation, rendered verification |\n| Apply a design principle preset | \`/sc-fe --apple improve this settings experience\` | Apple/HIG-style principles without cloning trade dress or replacing coherent project identity |\n| Connect a provider safely | \`/sc Connect transactional email for password reset.\` | chooses the provider path, requests only required access, keeps secrets out of chat, verifies the connection |\n| Publish and connect a domain | \`/sc Publish this app on my existing stack and connect the domain.\` | runtime selection, deployment, DNS/domain work, HTTPS and live checks |\n| Work with several clients/accounts | \`sc user add client-a\` then named connections | isolated user credentials, project mapping, connection selection and verification |\n| Add a project-specific agent workflow | \`sc skill create release-check --description \"Verify release readiness\"\` | creates a managed \`SKILL.md\` under \`.mso/skills\`; invoke it later as \`/release-check\` |\n| Use the same skill from MSO, RC, or Baton | type \`/skills\`, then \`/sc-fe ...\` | shared slash discovery and direct invocation contract |\n\n### CRUD from the CLI\n\nSC exposes the important operator-owned resources as normal CRUD operations instead of hiding them behind one-off setup commands.\n\n| Resource | Create | Read | Update | Delete |\n|---|---|---|---|---|\n| Users | \`sc user add <name>\` | \`sc user\`, \`sc user show <name>\` | \`sc user rename ...\`, \`sc user use ...\`, mapping commands | \`sc user rm <name>\` |\n| Provider definitions | \`sc providers create <id> ...\` | \`sc providers\`, \`sc providers show <id>\` | \`sc providers update <id> ...\`, \`key-add/key-rm\` | \`sc providers delete <id> --yes\` |\n| Named connections | \`sc user connection-add ...\` | \`sc user connections ...\`, connection guide/status | label/default/sync/authorize/migrate operations | \`sc user connection-rm ...\` |\n| Credentials | \`sc user credential-set ...\` | status/source only; plaintext read is intentionally disabled | run credential-set again to rotate | \`sc user credential-rm ...\` |\n| Skills | \`sc skill create <name> ...\` | \`sc skills\`, \`sc skill show ...\` | \`sc skill update ...\` | \`sc skill delete ... --yes\` |\n\nBundled SI-Coder skills under \`skills/*\` are package source and therefore **read-only at runtime**. Project skills live in \`.mso/skills\`; global operator skills live in \`~/.mso/skills\`. A project skill wins over a global/bundled skill with the same name, while \`/skill <exact-id>\` remains the ambiguity escape hatch.\n\n`;
+          if (!readme.includes('## Common use cases')) {
+            readme = replaceOnce(readme, '## The normal workflow\n', useCases + '## The normal workflow\n', 'README workflow section');
+          }
+          write('README.md', readme);
+
+          let cli = read('docs/cli.md');
+          const crudSection = `\n## Resource CRUD\n\nThe CLI uses normal CRUD semantics for operator-owned resources. Bundled package source stays immutable at runtime.\n\n### Skills\n\n\`\`\`bash\nsc skills\nsc skill show release-check\nsc skill create release-check --description "Verify release readiness"\nsc skill update release-check --description "Verify release, security, and rollback readiness"\nsc skill delete release-check --yes\n\`\`\`\n\nThe default scope is \`project\` → \`.mso/skills/<name>/SKILL.md\`. Use \`--scope global\` for \`~/.mso/skills/<name>/SKILL.md\`. Use \`--from-file SKILL.md\` for full-content create/update so long instructions do not belong in argv or shell history. Bundled skills and symlink-installed package skills are read-only; create a managed override instead.\n\nThe registry returned by \`sc skills --json\` includes managed project/global skills plus bundled active/default skills and preserves the shared slash contract: \`/skills\`, \`/<skill> [prompt]\`, and \`/skill <exact-id> [prompt]\`.\n`;
+          if (!cli.includes('## Resource CRUD')) cli += crudSection;
+          write('docs/cli.md', cli);
+
+          const currentDocs = [
+            'README.md','AI_INSTALL.md','references/portable-skills.md','docs/install/README.md',
+            'docs/install/claude-code.md','docs/install/claude-web.md','docs/install/codex.md',
+            'docs/install/chatgpt-skills.md','docs/install/generic-local.md'
+          ];
+          for (const rel of currentDocs) write(rel, read(rel).replaceAll('v0.9.5', 'v0.9.6'));
+
+          const oldRelease = 'docs/releases/v0.9.5.md';
+          let oldText = read(oldRelease);
+          if (!/Historical release record/i.test(oldText)) oldText = oldText.replace(/^# /, '> Historical release record. Current installation links are documented in the latest release.\n\n# ');
+          write(oldRelease, oldText);
+
+          const release = `# SI-Coder v0.9.6\n\nSI-Coder v0.9.6 adds first-class managed skill CRUD and makes the README outcome-oriented with concrete use cases and a resource CRUD map.\n\n## Managed skill CRUD\n\n- \`sc skill create <name> --description ... [--scope project|global] [--from-file SKILL.md]\`\n- \`sc skill show <name|exact-id> [--raw] [--json]\`\n- \`sc skill update <name|exact-id> [--description ...] [--from-file SKILL.md]\`\n- \`sc skill delete <name|exact-id> --yes\`\n- project skills live under \`.mso/skills\`; global operator skills live under \`~/.mso/skills\`; bundled package skills remain read-only.\n- \`sc skills --json\` now includes managed skills while deduplicating SI-Coder skills symlinked into the trusted MSO root.\n\n## README / operator UX\n\nThe README now leads with common product, frontend, provider, deploy, multi-account, custom-skill, and cross-platform slash use cases. It also documents CRUD for users, providers, connections, credentials, and skills.\n\n<!-- INSTALL_MATRIX_GENERATED:BEGIN -->\nplaceholder\n<!-- INSTALL_MATRIX_GENERATED:END -->\n`;
+          write('docs/releases/v0.9.6.md', release);
+
+          for (const rel of ['.claude-plugin/plugin.json', 'plugins/si-coder/.codex-plugin/plugin.json']) {
+            const data = JSON.parse(read(rel));
+            data.version = '0.9.6';
+            write(rel, JSON.stringify(data, null, 2) + '\n');
+          }
+          NODE
+
+          npm version 0.9.6 --no-git-tag-version
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run docs:sync
+          npm run package:skills
+          npm run verify:release
+
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bin/sc.js lib/skill-registry.js lib/skill-store.js test/skill-crud.test.js package.json package-lock.json .claude-plugin/plugin.json plugins/si-coder/.codex-plugin/plugin.json README.md docs/cli.md AI_INSTALL.md references/portable-skills.md docs/install docs/releases/v0.9.5.md docs/releases/v0.9.6.md dist plugins/si-coder
+          git commit -m "feat(cli): add managed skill CRUD and use-case docs"
+          git push origin HEAD:feat/skill-crud-readme-usecases
