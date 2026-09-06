@@ -1,0 +1,114 @@
+name: Validate skill search CLI
+
+on:
+  push:
+    branches:
+      - feat/skill-search-auto-metadata
+    paths:
+      - .github/workflows/validate-skill-search-cli.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/skill-search-auto-metadata
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Link actual CLIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm link
+          command -v sc
+          command -v sc-skill
+          test "$(node -p "require('./package.json').version")" = "0.9.7"
+      - name: Validate search and agent creation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$(mktemp -d)"
+          export HOME="$WORK/home"
+          mkdir -p "$HOME"
+          cd "$WORK"
+
+          sc skills ui --json > skills-ui.json
+          sc-skill ui --json > skill-ui.json
+          sc-skill "accessibility mobile" --json > skill-a11y-mobile.json
+          sc-skill --new > new-contract.json
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const registry = JSON.parse(fs.readFileSync('skills-ui.json', 'utf8'));
+          if (registry.version !== 1 || registry.source !== 'si-coder' || registry.contract?.list !== '/skills') throw new Error('registry envelope drifted');
+          if (!registry.skills.some(row => row.name === 'sc-ui')) throw new Error('sc skills ui missing sc-ui');
+          const direct = JSON.parse(fs.readFileSync('skill-ui.json', 'utf8'));
+          if (!direct.skills.some(row => row.name === 'sc-ui')) throw new Error('sc-skill ui missing sc-ui');
+          const combined = JSON.parse(fs.readFileSync('skill-a11y-mobile.json', 'utf8'));
+          if (!combined.skills.some(row => row.name === 'sc-ux')) throw new Error('multi-token search missing sc-ux');
+          const contract = JSON.parse(fs.readFileSync('new-contract.json', 'utf8'));
+          if (contract.command !== 'sc-skill --new') throw new Error('new contract missing command');
+          if (!contract.automatic?.some(line => /derive search tags/i.test(line))) throw new Error('new contract missing auto-tag behavior');
+          if (fs.existsSync('.mso')) throw new Error('contract-only sc-skill --new must not write project state');
+          NODE
+
+          sc-skill --new "UI Helper" --description "Improve UI styling, responsive layouts, accessibility, and design-system consistency." --json > created.json
+          sc-skill interface --json > interface.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const created = JSON.parse(fs.readFileSync('created.json', 'utf8'));
+          if (created.name !== 'ui-helper') throw new Error(`name was not normalized: ${created.name}`);
+          for (const tag of ['ui','frontend','accessibility','design-system']) if (!created.tags?.includes(tag)) throw new Error(`missing auto tag ${tag}`);
+          const text = fs.readFileSync('.mso/skills/ui-helper/SKILL.md', 'utf8');
+          if (!/sc\.tags:/.test(text) || !/sc\.aliases:/.test(text) || !/sc\.tags-source: "auto-v1"/.test(text)) throw new Error('auto metadata not persisted');
+          const result = JSON.parse(fs.readFileSync('interface.json', 'utf8'));
+          if (!result.skills.some(row => row.name === 'ui-helper')) throw new Error('new skill not searchable by alias');
+          NODE
+      - name: Validate full Agent Skill bundle install
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$(mktemp -d)"
+          export HOME="$WORK/home"
+          mkdir -p "$HOME" "$WORK/project/source/references" "$WORK/project/source/scripts"
+          cd "$WORK/project"
+          cat > source/SKILL.md <<'EOF'
+          ---
+          name: api-inspector
+          description: "Inspect API payloads and integration failures using bundled references and scripts."
+          ---
+
+          # API inspector
+          EOF
+          printf '# API guide\n' > source/references/GUIDE.md
+          printf 'console.log("inspect")\n' > source/scripts/inspect.js
+          sc-skill --new --from-dir ./source --json > installed.json
+          test -f .mso/skills/api-inspector/references/GUIDE.md
+          test -f .mso/skills/api-inspector/scripts/inspect.js
+          node - <<'NODE'
+          const row = require('./installed.json');
+          if (row.name !== 'api-inspector' || !row.tags?.includes('api')) throw new Error('bundle install metadata invalid');
+          NODE
+      - name: Validate fuzzy Finder Skills search
+        shell: bash
+        run: |
+          set -euo pipefail
+          (printf 'skills\r'; sleep 0.5; printf 'interfce'; sleep 1) | timeout 4s script -qfec 'sc' /tmp/sc-fuzzy.raw || true
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          raw = Path('/tmp/sc-fuzzy.raw').read_text(errors='replace')
+          clean = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', raw)
+          clean = re.sub(r'\x1b\][^\x07]*(?:\x07|\x1b\\)', '', clean)
+          print(clean[-16000:])
+          for expected in ['SI-Coder › Skills', 'interfce', '/sc-ui']:
+              if expected not in clean:
+                  raise SystemExit(f'Finder fuzzy search missing {expected!r}')
+          PY
