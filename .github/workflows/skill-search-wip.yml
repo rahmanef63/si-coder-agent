@@ -18,8 +18,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --check lib/skill-metadata.js && node --check lib/skill-search.js && node --check lib/skill-registry.js
-      - run: node - <<'NODE'
+      - run: node --check lib/skill-metadata.js && node --check lib/fuzzy.js && node --check lib/skill-search.js && node --check lib/skill-registry.js && node --check lib/skill-store.js && node --check lib/skill-cli.js && node --check bin/sc-skill.js && node --check bin/sc-entry.js
+      - name: Smoke search index
+        shell: bash
+        run: |
+          node - <<'NODE'
           const R = require('./lib/skill-registry');
           const S = require('./lib/skill-search');
           const rows = R.listSkills();
@@ -27,5 +30,6 @@ jobs:
           console.log('ui', S.searchSkills('ui').slice(0,5).map(x => [x.name,x.tags,x.aliases]));
           if (!S.searchSkills('ui').some(x => x.name === 'sc-ui')) throw new Error('ui search must find sc-ui');
           if (!S.searchSkills('accessibility').some(x => x.name === 'sc-ux')) throw new Error('accessibility search must find sc-ux');
+          if (!S.searchSkills('skill install').some(x => x.name === 'sc-skill')) throw new Error('skill install search must find sc-skill');
           NODE
       - run: npm test
