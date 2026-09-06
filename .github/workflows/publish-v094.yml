@@ -1,0 +1,39 @@
+name: Publish verified v0.9.4
+
+on:
+  push:
+    branches: [feat/slash-skill-registry]
+    paths: [.github/workflows/publish-v094.yml]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'chore(release): publish v0.9.4'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release tag at the verified main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: 3e6d8397bf5c00e44b86621b4f353fc4c42f0529
+          RELEASE_TAG: v0.9.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null || true)"
+          if [ -n "$existing" ]; then
+            test "$existing" = "$RELEASE_SHA"
+            echo "$RELEASE_TAG already points at verified main."
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="$RELEASE_SHA" >/dev/null
+            echo "Created $RELEASE_TAG at $RELEASE_SHA."
+          fi
+
+      - name: Dispatch canonical release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref main -f tag=v0.9.4
