@@ -161,8 +161,18 @@ test('SCCP-6: self-update fast-forwards only and refuses a dirty checkout', () =
   assert.strictEqual(result.changed, true);
   assert.strictEqual(fs.readFileSync(path.join(local, 'file.txt'), 'utf8'), 'two\n');
 
+  fs.writeFileSync(path.join(local, 'file.txt'), 'local overlay\n');
   fs.writeFileSync(path.join(local, 'dirty.txt'), 'dirty\n');
-  assert.throws(() => performUpdate({ repoDir: local }), /refuses source changes/);
+  fs.writeFileSync(path.join(seed, 'remote-only.txt'), 'remote\n');
+  git(seed, ['add', 'remote-only.txt']); git(seed, ['commit', '-m', 'three']); git(seed, ['push']);
+  const preserved = performUpdate({ repoDir: local });
+  assert.strictEqual(preserved.changed, true);
+  assert.strictEqual(preserved.localChangesPreserved, true);
+  assert.strictEqual(preserved.localChangesRestored, true);
+  assert.strictEqual(fs.readFileSync(path.join(local, 'file.txt'), 'utf8'), 'local overlay\n');
+  assert.strictEqual(fs.readFileSync(path.join(local, 'dirty.txt'), 'utf8'), 'dirty\n');
+  assert.strictEqual(fs.readFileSync(path.join(local, 'remote-only.txt'), 'utf8'), 'remote\n');
+  assert.strictEqual(git(local, ['stash', 'list']), '', 'successful restore must drop only the temporary stash');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
