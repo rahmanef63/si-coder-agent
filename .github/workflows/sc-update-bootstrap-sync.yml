@@ -1,0 +1,132 @@
+name: SC update bootstrap sync
+
+on:
+  push:
+    branches:
+      - fix/sc-update-bootstrap
+    paths:
+      - .github/workflows/sc-update-bootstrap-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/sc-update-bootstrap
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Patch legacy CLI bootstrap and update self-heal
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = process.cwd();
+          const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+          const write = (rel, text) => fs.writeFileSync(path.join(root, rel), text);
+          const replaceOnce = (text, from, to, label) => {
+            if (!text.includes(from)) throw new Error(`missing marker: ${label}`);
+            if (text.split(from).length !== 2) throw new Error(`non-unique marker: ${label}`);
+            return text.replace(from, to);
+          };
+
+          let sc = read('bin/sc.js');
+          sc = replaceOnce(
+            sc,
+            "const AgentActions = require(path.resolve(__dirname, '../lib/agent/actions'));\nconst PKG = require(path.resolve(__dirname, '../package.json'));",
+            "const AgentActions = require(path.resolve(__dirname, '../lib/agent/actions'));\nconst { listSkills } = require(path.resolve(__dirname, '../lib/skill-registry'));\nconst PKG = require(path.resolve(__dirname, '../package.json'));",
+            'skill registry import',
+          );
+          sc = replaceOnce(
+            sc,
+            "function cmdSkill(sub, args) {\n  if (!sub || sub === 'verify') {",
+            `function cmdSkillList(args) {\n  const rows = listSkills({ includeInactive: Boolean(args.all) });\n  if (args.json) {\n    console.log(JSON.stringify({\n      version: 1,\n      source: 'si-coder',\n      contract: { list: '/skills', direct: '/<skill> [prompt]', exact: '/skill <exact-id> [prompt]' },\n      skills: rows,\n    }, null, 2));\n    return;\n  }\n  console.log('\\nSI-Coder skills\\n');\n  for (const row of rows) {\n    const status = row.lifecycle === 'active' && row.installByDefault ? '' : \` [\${row.lifecycle}]\`;\n    console.log(\`  \${row.invocation.padEnd(20)} \${row.description}\${status}\`);\n  }\n  console.log('\\nUse /<skill> [prompt] in a compatible agent surface.');\n  console.log('Use /skills to discover skills, or /skill <exact-id> [prompt] when a host reports ambiguity.\\n');\n}\n\nfunction cmdSkill(sub, args) {\n  if (sub === 'list') return cmdSkillList(args);\n  if (!sub || sub === 'verify') {`,
+            'cmdSkill',
+          );
+          sc = replaceOnce(
+            sc,
+            "  sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets",
+            "  sc skills [--all] [--json]            list canonical slash skills for MSO/RC/Baton and compatible hosts\n  sc skill list [--all] [--json]        alias for the machine-readable skill registry\n  sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets",
+            'usage skill verify',
+          );
+          sc = replaceOnce(
+            sc,
+            "    case 'recipe':    return cmdRecipe(sub, arg, args);\n    case 'skill':     return cmdSkill(sub, args);",
+            "    case 'recipe':    return cmdRecipe(sub, arg, args);\n    case 'skills':    return cmdSkillList(args);\n    case 'skill':     return cmdSkill(sub, args);",
+            'skill dispatch',
+          );
+          write('bin/sc.js', sc);
+
+          let update = read('lib/update.js');
+          update = replaceOnce(
+            update,
+            "function performUpdate(options = {}) {",
+            `function refreshCliLink(repoDir) {\n  const r = spawnSync('npm', ['link'], { cwd: repoDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });\n  if (r.error) return { ok: false, reason: r.error.message };\n  if (r.status !== 0) return { ok: false, reason: (r.stderr || r.stdout || 'npm link failed').trim().slice(0, 500) };\n  return { ok: true };\n}\n\nfunction performUpdate(options = {}) {`,
+            'performUpdate',
+          );
+          update = replaceOnce(
+            update,
+            "  if (status.state === 'up-to-date') return { ...status, changed: false };\n  git(status.repoDir, ['merge', '--ff-only', status.remoteRef]);\n  const after = repoInfo(status.repoDir);\n  return { ...status, changed: true, newHead: after.head };",
+            "  if (status.state === 'up-to-date') return { ...status, changed: false, cliLink: refreshCliLink(status.repoDir) };\n  git(status.repoDir, ['merge', '--ff-only', status.remoteRef]);\n  const after = repoInfo(status.repoDir);\n  return { ...status, changed: true, newHead: after.head, cliLink: refreshCliLink(status.repoDir) };",
+            'update result',
+          );
+          update = replaceOnce(
+            update,
+            "module.exports = { DEFAULT_REPO, git, repoInfo, checkUpdate, performUpdate, runtimeArtifact };",
+            "module.exports = { DEFAULT_REPO, git, repoInfo, checkUpdate, performUpdate, refreshCliLink, runtimeArtifact };",
+            'update exports',
+          );
+          write('lib/update.js', update);
+
+          const test = `'use strict';\nconst test = require('node:test');\nconst assert = require('node:assert/strict');\nconst fs = require('node:fs');\nconst os = require('node:os');\nconst path = require('node:path');\nconst { spawnSync } = require('node:child_process');\nconst ROOT = path.resolve(__dirname, '..');\n\ntest('SKBOOT-1: legacy bin/sc.js exposes the same slash registry as the new entry wrapper', () => {\n  for (const entry of ['bin/sc.js', 'bin/sc-entry.js']) {\n    const r = spawnSync(process.execPath, [path.join(ROOT, entry), 'skills', '--json'], { encoding: 'utf8' });\n    assert.equal(r.status, 0, r.stderr);\n    const out = JSON.parse(r.stdout);\n    assert.equal(out.contract.list, '/skills');\n    assert.ok(out.skills.some(row => row.invocation === '/sc-fe'));\n  }\n});\n\ntest('SKBOOT-2: legacy bin/sc.js keeps sc skill verify and adds sc skill list', () => {\n  const list = spawnSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'skill', 'list', '--json'], { encoding: 'utf8' });\n  assert.equal(list.status, 0, list.stderr);\n  assert.ok(JSON.parse(list.stdout).skills.length > 0);\n  const verify = spawnSync(process.execPath, [path.join(ROOT, 'bin/sc.js'), 'skill', 'verify', '--strict', '--json'], { encoding: 'utf8' });\n  assert.equal(verify.status, 0, verify.stderr);\n  assert.equal(JSON.parse(verify.stdout).ok, true);\n});\n\ntest('SKBOOT-3: updated self-heal exposes npm-link result without making fast-forward semantics destructive', () => {\n  const source = fs.readFileSync(path.join(ROOT, 'lib/update.js'), 'utf8');\n  assert.match(source, /refreshCliLink/);\n  assert.match(source, /merge', '--ff-only'/);\n  assert.doesNotMatch(source, /reset', '--hard'/);\n});\n`;
+          write('test/update-bootstrap.test.js', test);
+
+          // Advance all current-version references before docs:sync enforces them.
+          const currentDocs = [
+            'README.md','AI_INSTALL.md','references/portable-skills.md','docs/install/README.md',
+            'docs/install/claude-code.md','docs/install/claude-web.md','docs/install/codex.md',
+            'docs/install/chatgpt-skills.md','docs/install/generic-local.md'
+          ];
+          for (const rel of currentDocs) write(rel, read(rel).replaceAll('v0.9.4', 'v0.9.5'));
+          const oldRelease = 'docs/releases/v0.9.4.md';
+          let oldText = read(oldRelease);
+          if (!/Historical release record/i.test(oldText)) oldText = oldText.replace(/^# /, '> Historical release record. Current installation links are documented in the latest release.\\n\\n# ');
+          write(oldRelease, oldText);
+
+          const release = `# SI-Coder v0.9.5\n\nSI-Coder v0.9.5 makes self-update bootstrap-safe for installations whose global \`sc\` command still points at the pre-0.9.4 \`bin/sc.js\` entry.\n\n## Update compatibility\n\n- \`bin/sc.js\` now exposes \`sc skills\` and \`sc skill list\` directly, matching \`bin/sc-entry.js\`.\n- A single fast-forward update is enough for old global links to gain the slash registry; users do not need a manual relink first.\n- The updated self-updater also runs an idempotent \`npm link\` repair after an update (or when already current) and reports the link result without weakening fast-forward-only safety.\n- \`sc skill verify\` remains unchanged.\n\n## Shared slash contract\n\nThe cross-platform contract remains \`/skills\`, \`/<skill> [prompt]\`, and \`/skill <exact-id> [prompt]\` for MSO, Control Room, Baton, and compatible hosts.\n\n<!-- INSTALL_MATRIX_GENERATED:BEGIN -->\nplaceholder\n<!-- INSTALL_MATRIX_GENERATED:END -->\n`;
+          write('docs/releases/v0.9.5.md', release);
+
+          for (const rel of ['.claude-plugin/plugin.json', 'plugins/si-coder/.codex-plugin/plugin.json']) {
+            const data = JSON.parse(read(rel));
+            data.version = '0.9.5';
+            write(rel, JSON.stringify(data, null, 2) + '\n');
+          }
+          NODE
+
+          npm version 0.9.5 --no-git-tag-version
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run docs:sync
+          npm run package:skills
+          npm run verify:release
+
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bin/sc.js lib/update.js test/update-bootstrap.test.js package.json package-lock.json .claude-plugin/plugin.json plugins/si-coder/.codex-plugin/plugin.json README.md AI_INSTALL.md references/portable-skills.md docs/install docs/releases/v0.9.4.md docs/releases/v0.9.5.md dist plugins/si-coder
+          git commit -m "fix(cli): make sc update bootstrap-safe"
+          git push origin HEAD:fix/sc-update-bootstrap
