@@ -256,6 +256,11 @@ test('SCC-7: bare sc is a Finder-style alternate-screen TUI, not a line-appendin
   assert.doesNotMatch(source, /\$\{ESC\}\[\$\{printed\}A/, 'Finder renderer must not walk upward through scrollback');
   const sc = fs.readFileSync(path.join(ROOT, 'bin/sc.js'), 'utf8');
   assert.match(sc, /enterAlternateScreen\(\)/, 'bare sc must enter one stable TUI frame');
+  assert.match(sc, /id: 'skills', label: 'Skills'/, 'Finder top sections must expose Skills');
+  assert.match(sc, /label: 'Skills'.*registered slash skills/, 'Finder root must expose the skill registry');
+  assert.match(sc, /SkillStore\.createSkill/, 'Finder must create managed skills through the canonical skill store');
+  assert.match(sc, /SkillStore\.updateSkill/, 'Finder must update managed skills through the canonical skill store');
+  assert.match(sc, /SkillStore\.deleteSkill/, 'Finder must delete managed skills through the canonical skill store');
   assert.match(sc, /menuColumns\(stack\)/, 'full breadcrumb stack must become Finder columns');
   assert.match(sc, /Esc\/Left at Home intentionally does not close the CLI/);
   assert.match(sc, /users\/user:/, 'user must be the first identity layer');

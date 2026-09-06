@@ -39,6 +39,7 @@ const { planDeploy } = require(path.resolve(__dirname, '../lib/deploy-route'));
 const { credentialGuide, humanGuideLines, looksLikeExternalCredential, recommendation } = require(path.resolve(__dirname, '../lib/credential-guidance'));
 const AgentActions = require(path.resolve(__dirname, '../lib/agent/actions'));
 const { listSkills } = require(path.resolve(__dirname, '../lib/skill-registry'));
+const SkillStore = require(path.resolve(__dirname, '../lib/skill-store'));
 const PKG = require(path.resolve(__dirname, '../package.json'));
 
 const CUSTOM_OPTIONS = { builtInIds: BUILTIN_PROVIDER_IDS, builtInKeys: BUILTIN_PROVIDER_KEYS };
@@ -1714,6 +1715,7 @@ function menuLayer(stack) {
     { id: 'users',    kind: 'branch', label: 'Users', hint: 'each user owns an isolated provider + credential set' },
     { id: 'transfer', kind: 'branch', label: 'Import / export JSON', hint: 'portable metadata or encrypted direct credentials' },
     { id: 'build',    kind: 'action', label: 'Build / publish', hint: 'plan the simplest suitable route' },
+    { id: 'skills',   kind: 'branch', label: 'Skills', hint: 'registered slash skills; inspect bundled skills and CRUD project/global skills' },
     { id: 'catalog',  kind: 'branch', label: 'Provider catalog', hint: 'available integrations; credentials live under Users' },
     { id: 'system',   kind: 'branch', label: 'System', hint: 'update, history, version, readiness' },
     { id: 'quit',     kind: 'action', label: 'Quit', hint: 'close the SI-Coder menu' },
@@ -1855,6 +1857,41 @@ function menuLayer(stack) {
     { id: 'web-setup', kind: 'action', label: 'Open browser transfer', hint: 'file upload/download UI in the temporary private session' },
   ];
 
+  if (here === 'skills') {
+    const rows = listSkills();
+    return [
+      { id: 'add', kind: 'action', label: 'Add skill', hint: 'create a project or global managed slash skill' },
+      ...rows.map(row => ({
+        id: `skill:${row.id}`,
+        kind: 'branch',
+        pathLabel: row.invocation,
+        label: row.invocation,
+        hint: `${row.scope} · ${row.mutable ? 'editable' : 'read-only'} · ${row.description || 'no description'}`,
+        preview: [
+          `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`,
+          row.description || 'No description.',
+          `id: ${row.id}`,
+          `path: ${row.path}`,
+        ],
+      })),
+    ];
+  }
+
+  const skillNode = [...stack].reverse().find(x => x.id.startsWith('skill:'));
+  if (skillNode && here.startsWith('skills/skill:')) {
+    const skillId = skillNode.id.slice('skill:'.length);
+    const row = SkillStore.showSkill(skillId);
+    return [
+      { id: 'details', kind: 'action', label: 'Skill details', hint: `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`, preview: [row.description || 'No description.', `id: ${row.id}`, `path: ${row.path}`] },
+      ...(row.scope === 'bundled' ? [{ id: 'override', kind: 'action', label: 'Create project override', hint: 'copy this bundled skill into .mso/skills so it becomes project-editable' }] : []),
+      ...(row.mutable ? [
+        { id: 'edit-description', kind: 'action', label: 'Edit description', hint: 'update frontmatter description and revalidate the skill' },
+        { id: 'replace-file', kind: 'action', label: 'Replace from SKILL.md', hint: 'replace the managed skill from a local file with validation + rollback' },
+        { id: 'delete', kind: 'action', label: 'Delete skill', hint: 'remove this managed skill after explicit confirmation' },
+      ] : []),
+    ];
+  }
+
   if (here === 'catalog') {
     return PROVIDERS.map(p => ({ id: `provider:${p.id}`, kind: 'branch', pathLabel: p.id, label: p.id, hint: p.blurb, preview: [`provider ${p.id} — ${p.title}`, p.blurb, `${p.vars.length} credential field(s) · choose a User to manage values`] }));
   }
@@ -1910,6 +1947,7 @@ const MENU_SECTIONS = [
   { id: 'users', label: 'Users' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'build', label: 'Build' },
+  { id: 'skills', label: 'Skills' },
   { id: 'catalog', label: 'Providers' },
   { id: 'system', label: 'System' },
 ];
@@ -1979,6 +2017,62 @@ async function runMenuAction(stack, item) {
       if (item.id === 'remove') return cmdUserCredentialRm(user, provider, credential, { connection });
     }
 
+    if (here === 'skills' && item.id === 'add') {
+      const name = await askVisible('Skill name: ', { escapeCancels: true });
+      if (name === null) return 'cancel';
+      const scope = await selectOne('Skill scope', [
+        { id: 'project', label: 'Project', hint: '.mso/skills · highest normal precedence' },
+        { id: 'global', label: 'Global', hint: '~/.mso/skills · reusable across projects' },
+      ]);
+      if (!scope) return 'cancel';
+      const description = await askVisible('Description: ', { escapeCancels: true });
+      if (description === null) return 'cancel';
+      const created = SkillStore.createSkill({ name, scope, description });
+      console.log(`created ${created.id} -> ${created.path} · invoke ${created.invocation}`);
+      return;
+    }
+
+    const skillNode = [...stack].reverse().find(x => x.id.startsWith('skill:'));
+    if (skillNode && here.startsWith('skills/skill:')) {
+      const skillId = skillNode.id.slice('skill:'.length);
+      const row = SkillStore.showSkill(skillId);
+      if (item.id === 'details') {
+        console.log(`skill: ${row.id}`);
+        console.log(`invoke: ${row.invocation}`);
+        console.log(`scope: ${row.scope}`);
+        console.log(`mode: ${row.mutable ? 'editable' : 'read-only'}`);
+        console.log(`path: ${row.path}`);
+        if (row.description) console.log(`description: ${row.description}`);
+        return;
+      }
+      if (item.id === 'override') {
+        const sourceFile = path.join(row.path, 'SKILL.md');
+        const created = SkillStore.createSkill({ name: row.name, scope: 'project', fromFile: sourceFile });
+        console.log(`created ${created.id} override -> ${created.path}`);
+        return;
+      }
+      if (item.id === 'edit-description') {
+        const description = await askVisible('New description: ', { escapeCancels: true });
+        if (description === null) return 'cancel';
+        const updated = SkillStore.updateSkill(skillId, { description });
+        console.log(`updated ${updated.id}`);
+        return;
+      }
+      if (item.id === 'replace-file') {
+        const fromFile = await askVisible('SKILL.md path: ', { escapeCancels: true });
+        if (fromFile === null) return 'cancel';
+        const updated = SkillStore.updateSkill(skillId, { fromFile });
+        console.log(`updated ${updated.id} from ${fromFile}`);
+        return;
+      }
+      if (item.id === 'delete') {
+        if (!await confirm(`Delete managed skill "${row.id}" and its directory?`)) return 'cancel';
+        const deleted = SkillStore.deleteSkill(row.id);
+        console.log(`deleted ${deleted.id}`);
+        return;
+      }
+    }
+
     if (provider && here === `catalog/provider:${provider}` && item.id === 'details') {
       return cmdProviderDefinition(provider);
     }
@@ -2007,6 +2101,8 @@ function menuActionNeedsTerminal(stack, item) {
   const here = stack.map(x => x.id).join('/');
   const { user, provider, source, connection, credential } = menuContext(stack);
   if (here === 'users' && item.id === 'add') return true;
+  if (here === 'skills' && item.id === 'add') return true;
+  if (here.startsWith('skills/skill:') && ['override', 'edit-description', 'replace-file', 'delete'].includes(item.id)) return true;
   if (here === 'transfer') return true;
   if (user && here === `users/user:${user}` && ['duplicate', 'rename', 'import', 'remove'].includes(item.id)) return true;
   if (user && provider && here === `users/user:${user}/providers/provider:${provider}` && item.id === 'migrate-legacy') return true;
