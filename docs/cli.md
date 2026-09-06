@@ -42,7 +42,7 @@ The frame is painted with **absolute terminal row addressing**, not newline-deli
 ## Finder hierarchy
 
 ```text
-SECTIONS   [ Users ]   Build   Providers   System
+SECTIONS   [ Users ]   Transfer   Build   Skills   Providers   System
 PATH       SI-Coder › Users › rahmanfakhr › Providers › convex-cloud › Connections › Project A
 
 Users                 │ rahmanfakhr            │ Providers               │ convex-cloud
@@ -365,3 +365,19 @@ The Finder TUI is only used when stdin and stdout are both a TTY. Piped/scripted
 Run `sc setup --web` in a TTY for the full User → Provider → Connection → Source → Auth workflow. Optional `--user`, `--provider`, `--connection`, `--auth`, and `--port` preselect the context. The TUI exposes Open browser setup at the relevant levels.
 
 See [Secure credential setup](CREDENTIAL-SETUP.md) for localhost/SSH access, privacy, explicit unverified storage, and external-authorization limits.
+
+
+## Skill registry and CRUD
+
+The Finder has a first-class **Skills** section backed by the same registry as `sc skills --json`. It lists bundled active/default skills plus project/global managed skills, shows scope/source/path/invocation, and exposes CRUD actions for mutable skills.
+
+```text
+Skills
+├─ Add skill
+├─ /sc                 bundled · read-only
+├─ /sc-fe              bundled · read-only
+├─ /release-check      project · editable
+└─ /team-check         global · editable
+```
+
+Bundled package skills stay read-only; choose **Create project override** to copy a bundled skill into `.mso/skills/<name>/SKILL.md` before editing it. Managed skill writes use the canonical skill store with validation and rollback.
