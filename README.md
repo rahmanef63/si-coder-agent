@@ -129,6 +129,42 @@ The shared invocation contract is:
 /skill <exact-id> [prompt]      choose an exact project/global skill when needed
 ```
 
+### Find skills by keyword
+
+Skill discovery is **not tag-only**. SC ranks the canonical name/slash invocation, Agent Skills `description`, derived/declared tags, aliases, and scope/source context. Existing skills remain searchable without a metadata migration because missing search metadata is derived at index time.
+
+```bash
+sc skills ui
+sc skills "accessibility mobile"
+sc-skill ui
+sc-skill "deploy production"
+```
+
+The Finder/TUI uses the same fuzzy, multi-token matcher, so typing `interfce` in **Skills** can still surface interface/UI skills.
+
+For new skills, do not maintain a taxonomy by hand. Use:
+
+```bash
+sc-skill --new
+```
+
+In a non-interactive agent shell, that returns the machine-readable creation/install contract: what is required, what SC derives automatically, and how to verify the new skill. A concise new skill can be created with:
+
+```bash
+sc-skill --new ui-audit \
+  --description "Audit visual hierarchy, spacing, typography, responsive states, accessibility, and design-system consistency."
+```
+
+SC derives `metadata.sc.tags` and `metadata.sc.aliases` from the skill's name, `description`, and `use_when`. Manual `--tags` / `--aliases` are correction tools only. A precise `description` remains the primary discovery/activation metadata.
+
+To install an existing Agent Skill that contains scripts, references, assets, or templates, preserve the whole bundle:
+
+```bash
+sc-skill --new --from-dir ./downloaded-skill
+```
+
+The bundle is inspected/copied without following symlinks, bounded by file/byte limits, validated as a skill, and rolled back on failure. Use `--from-file SKILL.md` only for a truly single-file skill.
+
 ## The normal workflow
 
 ```text
@@ -207,13 +243,13 @@ The canonical source is the `skills/sc/` directory containing `SKILL.md`. Differ
 
 | Surface | What it installs/reads | Recommended SI-Coder link | Invocation |
 |---|---|---|---|
-| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.6/skills/sc) | `/sc` |
-| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.6/sc.zip) | Automatic when relevant |
-| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.6/skills/sc) plus core sibling skills | Client-specific / automatic |
-| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.6/sc.zip) | Automatic or `@sc` |
+| Claude Code | Plugin marketplace, or a skill **directory containing `SKILL.md`** | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) / [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.7/skills/sc) | `/sc` |
+| Claude Web / claude.ai | **ZIP containing the skill folder** | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.7/sc.zip) | Automatic when relevant |
+| Codex CLI / app | GitHub skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.7/skills/sc) plus core sibling skills | Client-specific / automatic |
+| ChatGPT uploaded Skills (eligible workspaces) | Uploaded skill package; canonical content is a folder with `SKILL.md` | [Download `sc.zip`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.7/sc.zip) | Automatic or `@sc` |
 | ChatGPT managed workspace | GitHub plugin marketplace | [GitHub repo](https://github.com/rahmanef63/si-coder-agent) | `@SI-Coder` / plugin picker / automatic |
-| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.6/skills/sc) or `install.sh` | Runtime-specific |
-| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.6/sc.skill) | Client-specific |
+| Hermes / OpenClaw / generic Agent Skills | Skill **directory containing `SKILL.md`** | [sc skill directory](https://github.com/rahmanef63/si-coder-agent/tree/v0.9.7/skills/sc) or `install.sh` | Runtime-specific |
+| Client that explicitly supports `.skill` archives | `.skill` archive containing a normal skill directory | [Download optional `sc.skill`](https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.7/sc.skill) | Client-specific |
 <!-- INSTALL_MATRIX_GENERATED:END -->
 
 Detailed guides:

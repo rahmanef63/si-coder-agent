@@ -1866,10 +1866,13 @@ function menuLayer(stack) {
         kind: 'branch',
         pathLabel: row.invocation,
         label: row.invocation,
-        hint: `${row.scope} · ${row.mutable ? 'editable' : 'read-only'} · ${row.description || 'no description'}`,
+        hint: `${row.scope} · ${row.mutable ? 'editable' : 'read-only'} · ${(row.tags || []).slice(0, 4).map(tag => `#${tag}`).join(' ')} · ${row.description || 'no description'}`,
+        searchText: [row.name, row.invocation, row.description, ...(row.tags || []), ...(row.aliases || []), row.scope, row.source].filter(Boolean).join(' '),
         preview: [
           `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`,
           row.description || 'No description.',
+          `tags: ${(row.tags || []).join(', ') || 'auto-none'}`,
+          `aliases: ${(row.aliases || []).join(', ') || 'none'}`,
           `id: ${row.id}`,
           `path: ${row.path}`,
         ],
@@ -1882,7 +1885,7 @@ function menuLayer(stack) {
     const skillId = skillNode.id.slice('skill:'.length);
     const row = SkillStore.showSkill(skillId);
     return [
-      { id: 'details', kind: 'action', label: 'Skill details', hint: `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`, preview: [row.description || 'No description.', `id: ${row.id}`, `path: ${row.path}`] },
+      { id: 'details', kind: 'action', label: 'Skill details', hint: `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`, preview: [row.description || 'No description.', `tags: ${(row.tags || []).join(', ') || 'auto-none'}`, `aliases: ${(row.aliases || []).join(', ') || 'none'}`, `id: ${row.id}`, `path: ${row.path}`] },
       ...(row.scope === 'bundled' ? [{ id: 'override', kind: 'action', label: 'Create project override', hint: 'copy this bundled skill into .mso/skills so it becomes project-editable' }] : []),
       ...(row.mutable ? [
         { id: 'edit-description', kind: 'action', label: 'Edit description', hint: 'update frontmatter description and revalidate the skill' },
@@ -2043,6 +2046,8 @@ async function runMenuAction(stack, item) {
         console.log(`mode: ${row.mutable ? 'editable' : 'read-only'}`);
         console.log(`path: ${row.path}`);
         if (row.description) console.log(`description: ${row.description}`);
+        if (row.tags?.length) console.log(`tags: ${row.tags.join(', ')}`);
+        if (row.aliases?.length) console.log(`aliases: ${row.aliases.join(', ')}`);
         return;
       }
       if (item.id === 'override') {

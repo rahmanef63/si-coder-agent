@@ -381,3 +381,28 @@ Skills
 ```
 
 Bundled package skills stay read-only; choose **Create project override** to copy a bundled skill into `.mso/skills/<name>/SKILL.md` before editing it. Managed skill writes use the canonical skill store with validation and rollback.
+
+## Fuzzy skill discovery
+
+`sc`, `sc skills`, and `sc-skill` share the same discovery model instead of maintaining separate skill lists.
+
+```bash
+sc skills ui
+sc skills "accessibility mobile"
+sc-skill interface
+sc-skill "deploy production"
+```
+
+The index combines canonical name/invocation, Agent Skills description, `metadata.sc.tags`, `metadata.sc.aliases`, scope, and source. Missing SC metadata is derived dynamically for older skills, so existing installations do not need a manual retag migration.
+
+The Finder filter is fuzzy and multi-token across the current column. Skills additionally expose hidden `searchText` containing their description, tags, aliases, scope, and source. This keeps one search behavior across Users, Providers, Skills, and other Finder sections.
+
+### Creating or installing a skill
+
+```bash
+sc-skill --new
+sc-skill --new ui-audit --description "Audit UI hierarchy, responsive states, and design-system consistency."
+sc-skill --new --from-dir ./downloaded-skill --scope project
+```
+
+`sc-skill --new` without enough non-interactive inputs prints a machine-readable contract for an agent rather than guessing. Tags and aliases are automatic by default; pass `--tags` or `--aliases` only to correct the derived taxonomy.

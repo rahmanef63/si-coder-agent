@@ -49,6 +49,7 @@ Rules:
 | Usability/accessibility/interaction audit | `sc-ux` |
 | Frontend developer-experience audit | `sc-dx` |
 | Agent Experience/tool/project ergonomics audit | `sc-ax` |
+| Find/install/create an Agent Skill by capability | `sc-skill` |
 | Existing app: publish from repo to production | `sc-all` |
 | API/provider credential or account connection | `sc-provider` |
 | Install in Claude Code/Codex/Hermes/OpenClaw | `sc-install` |
