@@ -2,7 +2,7 @@
 
 Run `sc` in a terminal to open the Finder-style interactive console. It owns one alternate-screen frame: moving, filtering, and changing layers repaint that same frame instead of appending lines to terminal scrollback.
 
-The identity model is **user-first**. A user owns an isolated credential store, and every provider/credential is managed underneath that user.
+The identity model is **user-first**. A user owns an isolated credential store, and every provider/credential is managed underneath that user. Skills are a separate operator-owned resource: project skills live with the project, while global skills live in the operator's trusted skill root.
 
 ## Fresh setup
 
@@ -224,6 +224,69 @@ sc user rm old-user
 
 Machine/tool calling requires an explicit `confirm: true` on `sc.user.delete`.
 
+## Managed skill CRUD
+
+Skills are discoverable resources, not hard-coded menu entries. The shared invocation contract is:
+
+```text
+/skills
+/<skill> [prompt]
+/skill <exact-id> [prompt]
+```
+
+List and inspect:
+
+```bash
+sc skills
+sc skills --json
+sc skill show sc-fe
+sc skill show release-check --raw
+```
+
+Create a project-local skill:
+
+```bash
+sc skill create release-check \
+  --description "Verify release, security, rollback, and live health before handoff"
+```
+
+Default project scope writes:
+
+```text
+<project>/.mso/skills/release-check/SKILL.md
+```
+
+Create a global operator skill:
+
+```bash
+sc skill create release-check \
+  --scope global \
+  --description "Shared release readiness workflow"
+```
+
+Global scope writes:
+
+```text
+~/.mso/skills/release-check/SKILL.md
+```
+
+Update metadata or replace the full skill body:
+
+```bash
+sc skill update release-check --description "Verify release plus rollback readiness"
+sc skill update release-check --from-file ./SKILL.md
+```
+
+Delete explicitly:
+
+```bash
+sc skill delete release-check --yes
+```
+
+For long instructions, `--from-file SKILL.md` is preferred so the body does not enter shell history. Create/update validates the resulting `SKILL.md` before keeping it; invalid writes are rolled back.
+
+Bundled SI-Coder skills under `skills/*` are read-only package source. Project scope normally wins same-name resolution over global/bundled scope. When the same display name exists in more than one scope, use the exact id such as `project:release-check` or `global:release-check`. Installer symlinks that point back to bundled SC skills are deduplicated from `sc skills` rather than appearing as a second mutable copy.
+
 ## Agent workflow commands
 
 For repository work, classify risk before broad changes and retrieve memory only when it can help:
@@ -299,8 +362,6 @@ The Finder TUI is only used when stdin and stdout are both a TTY. Piped/scripted
 
 ## Browser connection hub
 
-Run `sc setup --web` in a TTY for the full User → Provider → Connection → Source → Auth
-workflow. Optional `--user`, `--provider`, `--connection`, `--auth`, and `--port`
-preselect the context. The TUI exposes Open browser setup at the relevant levels.
-See [Secure credential setup](CREDENTIAL-SETUP.md) for localhost/SSH access,
-privacy, explicit unverified storage, and external-authorization limits.
+Run `sc setup --web` in a TTY for the full User → Provider → Connection → Source → Auth workflow. Optional `--user`, `--provider`, `--connection`, `--auth`, and `--port` preselect the context. The TUI exposes Open browser setup at the relevant levels.
+
+See [Secure credential setup](CREDENTIAL-SETUP.md) for localhost/SSH access, privacy, explicit unverified storage, and external-authorization limits.
