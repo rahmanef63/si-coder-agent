@@ -1,0 +1,46 @@
+name: Apply skill search TUI integration
+
+on:
+  push:
+    branches:
+      - feat/skill-search-auto-metadata
+    paths:
+      - .github/workflows/apply-skill-search-tui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/skill-search-auto-metadata
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply and verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/tmp-apply-skill-search-tui.py
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --check lib/skill-metadata.js
+          node --check lib/fuzzy.js
+          node --check lib/finder-tui.js
+          node --check lib/skill-search.js
+          node --check lib/skill-store.js
+          node --check bin/sc.js
+          npm test
+      - name: Commit permanent patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/skill-metadata.js lib/skill-store.js lib/finder-tui.js bin/sc.js test/skill-search.test.js package-lock.json
+          git commit -m "feat(skills): add fuzzy metadata discovery to SC Finder"
+          git push origin HEAD:feat/skill-search-auto-metadata
