@@ -36,7 +36,8 @@
   },
   "bin": {
     "si-coder-onboard": "bin/onboard.js",
-    "sc": "bin/sc-entry.js"
+    "sc": "bin/sc-entry.js",
+    "sc-skill": "bin/sc-skill.js"
   },
   "files": [
     "references/",
