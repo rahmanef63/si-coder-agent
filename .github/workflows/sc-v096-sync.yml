@@ -35,7 +35,10 @@ jobs:
           from pathlib import Path
           root = Path('.')
           readme = root / 'README.md'
-          text = readme.read_text().replace('a ~/.mso/skills/         global operator-managed slash skills', '~/.mso/skills/          global operator-managed slash skills')
+          text = readme.read_text()
+          text = text.replace('a ~/.mso/skills/         global operator-managed slash skills', '~/.mso/skills/          global operator-managed slash skills')
+          text = text.replace('type `/skills`, then `/sc-fe ...` in MSO, Control Room, Baton, or another compatible host', 'type `/skills`, then `/sc-fe ...` in any compatible agent host')
+          text = text.replace("`--agent mso` installs active/default SC skills into MSO's trusted `~/.mso/skills` root.", "`--agent mso` installs active/default SC skills into the trusted `~/.mso/skills` root.")
           readme.write_text(text)
           current_docs = ['README.md','AI_INSTALL.md','references/portable-skills.md','docs/install/README.md','docs/install/claude-code.md','docs/install/claude-web.md','docs/install/codex.md','docs/install/chatgpt-skills.md','docs/install/generic-local.md']
           for rel in current_docs:
