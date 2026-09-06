@@ -216,7 +216,7 @@ sc update --check
 sc update
 ```
 
-`sc update` only performs a Git fast-forward. It refuses dirty, ahead, diverged, and detached checkouts; it never resets, stashes, rebases, or discards local changes.
+`sc update` remains fast-forward-only. Dirty tracked/untracked work is auto-preserved in a temporary local stash, the fast-forward is applied, then the work is restored. The temporary stash is dropped only after a clean restore; on conflict it is kept for recovery. Ahead, diverged, and detached checkouts are still refused, and SC never resets or discards local changes.
 
 ## Audit
 
