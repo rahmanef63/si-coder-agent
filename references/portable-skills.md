@@ -29,12 +29,12 @@ Canonical source: `skills/sc/`. The Agent Skills specification does not define `
 | Generic local Agent Skills | skill directory containing `SKILL.md` |
 | Explicit `.skill`-aware clients | optional `.skill` ZIP-format archive |
 
-## Current release links — v0.9.3
+## Current release links — v0.9.4
 
-- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.9.3/skills/sc`
-- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.3/skills/sc/SKILL.md`
-- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.zip`
-- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.3/sc.skill`
+- Source directory: `https://github.com/rahmanef63/si-coder-agent/tree/v0.9.4/skills/sc`
+- Raw entry point: `https://raw.githubusercontent.com/rahmanef63/si-coder-agent/v0.9.4/skills/sc/SKILL.md`
+- ZIP upload package: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.4/sc.zip`
+- Optional `.skill` archive: `https://github.com/rahmanef63/si-coder-agent/releases/download/v0.9.4/sc.skill`
 
 ## Rule for agents
 
@@ -46,4 +46,4 @@ The current SI-Coder local CLI/installer requires **Node.js 22, 24, or 26**. Ful
 
 ## Distribution availability
 
-Treat a pushed tag, a GitHub Release, and an npm publication as separate states. Before presenting a public download as usable, verify the destination without maintainer authentication. The v0.9.3 release workflow fails closed if GitHub/raw tagged source is not publicly reachable and can be rerun for the same existing tag after visibility is restored.
+Treat a pushed tag, a GitHub Release, and an npm publication as separate states. Before presenting a public download as usable, verify the destination without maintainer authentication. The v0.9.4 release workflow fails closed if GitHub/raw tagged source is not publicly reachable and can be rerun for the same existing tag after visibility is restored.

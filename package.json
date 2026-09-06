@@ -1,6 +1,6 @@
 {
   "name": "si-coder-agent",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Build and publish web apps from plain-language goals: SI-Coder hides infrastructure complexity, connects accounts safely, configures hosting/domain/data, and verifies the live app.",
   "keywords": [
     "claude-code",
@@ -36,7 +36,7 @@
   },
   "bin": {
     "si-coder-onboard": "bin/onboard.js",
-    "sc": "bin/sc.js"
+    "sc": "bin/sc-entry.js"
   },
   "files": [
     "references/",
@@ -63,7 +63,7 @@
   ],
   "scripts": {
     "onboard": "node bin/sc.js setup",
-    "sc": "node bin/sc.js",
+    "sc": "node bin/sc-entry.js",
     "doctor": "node bin/sc.js doctor",
     "deploy": "node scripts/deploy.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
