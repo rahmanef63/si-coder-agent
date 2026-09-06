@@ -1,0 +1,38 @@
+name: Publish verified v0.9.7
+
+on:
+  push:
+    branches:
+      - feat/skill-search-auto-metadata
+    paths:
+      - .github/workflows/publish-v097.yml
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or verify v0.9.7 tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: 263789f6512c3175414e36dd8e1ab5ee8666d8bc
+          RELEASE_TAG: v0.9.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null)"; then
+            test "$existing" = "$RELEASE_SHA"
+            echo "$RELEASE_TAG already points at verified main."
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${RELEASE_TAG}" \
+              -f sha="$RELEASE_SHA" >/dev/null
+            echo "Created $RELEASE_TAG at $RELEASE_SHA."
+          fi
+      - name: Dispatch canonical release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag=v0.9.7
