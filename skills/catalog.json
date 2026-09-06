@@ -15,6 +15,7 @@
     "sc-help": { "lifecycle": "active", "installByDefault": true },
     "sc-git": { "lifecycle": "active", "installByDefault": true },
     "sc-dokploy": { "lifecycle": "active", "installByDefault": true },
+    "sc-doku": { "lifecycle": "active", "installByDefault": true },
     "sc-convex": { "lifecycle": "active", "installByDefault": true },
     "sc-convex-cloud": { "lifecycle": "active", "installByDefault": true },
     "sc-vercel": { "lifecycle": "active", "installByDefault": true },

@@ -1907,6 +1907,71 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "sc.doku.mcp.tools",
+      "description": "Discover the current DOKU MCP tool catalog through an explicit direct DOKU MCP connection. Credential values remain inside SI-Coder and are never returned.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "doku.mcp.tools"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "connection"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutMs": 30000
+    },
+    {
+      "name": "sc.doku.mcp.call",
+      "description": "Invoke one discovered DOKU MCP tool using an explicit direct DOKU MCP connection. Every remote invocation requires confirm=true; credentials never enter tool JSON.",
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "doku.mcp.call"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string"
+          },
+          "connection": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "user",
+          "connection",
+          "tool",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutMs": 30000
     }
   ]
 }

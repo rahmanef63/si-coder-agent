@@ -75,6 +75,37 @@ async function main() {
   inspect(input);
 
   switch (ACTION) {
+    case 'doku.mcp.tools': {
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const connectionId = assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+      const connection = C.get(user, 'doku', connectionId);
+      if (connection.source !== 'sc' || connection.authMethod !== 'mcp-api-key') {
+        throw new Error('DOKU MCP requires a direct source=sc connection using auth method mcp-api-key');
+      }
+      const D = require('../lib/doku-mcp');
+      const values = C.readValues(user, 'doku', connection.id);
+      const response = await D.tools(values);
+      const tools = Array.isArray(response.result?.tools) ? response.result.tools : [];
+      process.stdout.write(`${JSON.stringify({ user, connection: connection.id, environment: response.environment, tools }, null, 2)}\n`);
+      return;
+    }
+    case 'doku.mcp.call': {
+      if (input.confirm !== true) throw new Error('confirm=true is required for every DOKU MCP tool invocation');
+      const user = assertString(input.user, 'user', /^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+      const connectionId = assertString(input.connection, 'connection', /^[a-z0-9][a-z0-9._-]{0,63}$/);
+      const tool = assertString(input.tool, 'tool', /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
+      const toolArgs = input.arguments === undefined ? {} : input.arguments;
+      if (!toolArgs || typeof toolArgs !== 'object' || Array.isArray(toolArgs)) throw new Error('arguments must be an object');
+      const connection = C.get(user, 'doku', connectionId);
+      if (connection.source !== 'sc' || connection.authMethod !== 'mcp-api-key') {
+        throw new Error('DOKU MCP requires a direct source=sc connection using auth method mcp-api-key');
+      }
+      const D = require('../lib/doku-mcp');
+      const values = C.readValues(user, 'doku', connection.id);
+      const response = await D.call(values, tool, toolArgs);
+      process.stdout.write(`${JSON.stringify({ user, connection: connection.id, environment: response.environment, tool, result: response.result }, null, 2)}\n`);
+      return;
+    }
     case 'hostinger.mail.orders': {
       const H=require('../lib/hostinger-mail');process.stdout.write(`${JSON.stringify(await H.orders(input.user,input.connection), null, 2)}\n`);return;
     }

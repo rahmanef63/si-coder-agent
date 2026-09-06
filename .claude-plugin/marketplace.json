@@ -26,6 +26,7 @@
         "./skills/sc-help",
         "./skills/sc-git",
         "./skills/sc-dokploy",
+        "./skills/sc-doku",
         "./skills/sc-convex",
         "./skills/sc-convex-cloud",
         "./skills/sc-vercel",

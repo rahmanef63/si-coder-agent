@@ -2394,6 +2394,80 @@ function cmdVerify(args) {
 }
 
 // ---------------------------------------------------------------------------
+function dokuMcpSelection(args = {}) {
+  const user = typeof args.user === 'string' ? args.user : null;
+  const connectionId = typeof args.connection === 'string' ? args.connection : null;
+  if (!user) die('DOKU MCP requires --user <SC user> so the credential owner is explicit.');
+  if (!connectionId) die('DOKU MCP requires --connection <named connection>.');
+  if (!P.profileExists(user)) die(`no such user "${user}"`);
+  const connection = C.get(user, 'doku', connectionId);
+  if (connection.source !== 'sc' || connection.authMethod !== 'mcp-api-key') {
+    die('selected DOKU connection must use source=sc and auth method mcp-api-key');
+  }
+  return { user, connection, values: C.readValues(user, 'doku', connection.id) };
+}
+
+async function readDokuToolArguments(args = {}) {
+  let text = '';
+  if (typeof args['input-file'] === 'string') {
+    const file = path.resolve(args['input-file']);
+    const stat = fs.statSync(file);
+    if (!stat.isFile() || stat.size > 256 * 1024) die('DOKU MCP --input-file must be a JSON file no larger than 256 KiB.');
+    text = fs.readFileSync(file, 'utf8');
+  } else if (!process.stdin.isTTY) {
+    for await (const chunk of process.stdin) {
+      text += chunk;
+      if (Buffer.byteLength(text, 'utf8') > 256 * 1024) die('DOKU MCP JSON input exceeds 256 KiB.');
+    }
+  }
+  if (!text.trim()) return {};
+  let value;
+  try { value = JSON.parse(text); } catch (e) { die(`invalid DOKU MCP JSON input: ${e.message}`); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) die('DOKU MCP tool input must be one JSON object.');
+  const inspect = (node, prefix = '') => {
+    if (!node || typeof node !== 'object') return;
+    for (const [key, child] of Object.entries(node)) {
+      const field = prefix ? `${prefix}.${key}` : key;
+      if (/^(value|secret|secretValue|token|tokenValue|password|passphrase|apiKey|apiKeyValue)$/i.test(key)) {
+        die(`field ${field} is credential-shaped; DOKU credentials must stay in the selected SC connection.`);
+      }
+      inspect(child, field);
+    }
+  };
+  inspect(value);
+  return value;
+}
+
+async function cmdDoku(sub, arg, args = {}) {
+  if (sub !== 'mcp') return die('usage: sc doku mcp tools|call ...');
+  const action = arg;
+  const selected = dokuMcpSelection(args);
+  const D = require(path.resolve(__dirname, '../lib/doku-mcp'));
+  if (action === 'tools') {
+    const response = await D.tools(selected.values);
+    const tools = Array.isArray(response.result?.tools) ? response.result.tools : [];
+    const out = { user: selected.user, connection: selected.connection.id, environment: response.environment, tools };
+    if (args.json) console.log(JSON.stringify(out, null, 2));
+    else {
+      console.log(`\nDOKU MCP · ${selected.user}/${selected.connection.label} · ${response.environment}`);
+      if (!tools.length) console.log('  no tools returned');
+      for (const tool of tools) console.log(`  ${tool.name}${tool.description ? ` — ${tool.description}` : ''}`);
+      console.log('');
+    }
+    return out;
+  }
+  if (action === 'call') {
+    const tool = args._[3];
+    if (!tool) die('usage: sc doku mcp call <tool> --user <user> --connection <id> --confirm [--input-file path]');
+    if (args.confirm !== true) die('DOKU MCP remote calls require --confirm. Discover and inspect the tool first with `sc doku mcp tools`.');
+    const input = await readDokuToolArguments(args);
+    const response = await D.call(selected.values, tool, input);
+    console.log(JSON.stringify({ user: selected.user, connection: selected.connection.id, environment: response.environment, tool, result: response.result }, null, 2));
+    return response;
+  }
+  return die('usage: sc doku mcp tools|call ...');
+}
+
 function usage() {
   console.log(`
 sc — SI-Coder interactive console + secret control plane
@@ -2579,6 +2653,7 @@ async function main() {
     case 'skills':    return cmdSkillList(args);
     case 'skill':     return cmdSkill(sub, args);
     case 'verify':    return cmdVerify(args);
+    case 'doku':      return cmdDoku(sub, arg, args);
     case 'user':      return cmdUser(sub, arg, args._[3], args);
     case 'env':       return cmdEnv(args);
     case 'run':       return cmdRun(args);
