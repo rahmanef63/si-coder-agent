@@ -13,17 +13,19 @@ function run(...args) {
   return execFileSync(process.execPath, [ENTRY, ...args], { cwd: ROOT, encoding: 'utf8' });
 }
 
-test('SKREG-1: catalog-backed registry exposes active/default slash skills', () => {
+test('SKREG-1: registry exposes active/default bundled slash skills', () => {
   const rows = listSkills();
-  const names = rows.map(row => row.name);
+  const bundled = rows.filter(row => row.scope === 'bundled');
+  const names = bundled.map(row => row.name);
   for (const required of ['sc', 'sc-all', 'sc-ui', 'sc-ux', 'sc-dx', 'sc-ax', 'sc-fe']) {
     assert.ok(names.includes(required), required);
   }
-  for (const row of rows) {
+  for (const row of bundled) {
     assert.strictEqual(row.lifecycle, 'active');
     assert.strictEqual(row.installByDefault, true);
     assert.strictEqual(row.invocation, `/${row.name}`);
     assert.strictEqual(row.source, 'si-coder');
+    assert.strictEqual(row.mutable, false);
   }
   assert.ok(!names.includes('sc-resend'));
   assert.strictEqual(resolveSkill('/sc-fe').name, 'sc-fe');
