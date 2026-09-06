@@ -23,11 +23,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if existing="$(gh api --repo "${GITHUB_REPOSITORY}" "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null)"; then
+          if existing="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --jq '.object.sha' 2>/dev/null)"; then
             test "$existing" = "$RELEASE_SHA"
             echo "$RELEASE_TAG already points at verified main."
           else
-            gh api --repo "${GITHUB_REPOSITORY}" --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
               -f ref="refs/tags/${RELEASE_TAG}" \
               -f sha="$RELEASE_SHA" >/dev/null
             echo "Created $RELEASE_TAG at $RELEASE_SHA."
