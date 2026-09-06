@@ -33,59 +33,26 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           root = Path('.')
           readme = root / 'README.md'
-          text = readme.read_text()
-          text = text.replace('a ~/.mso/skills/         global operator-managed slash skills', '~/.mso/skills/          global operator-managed slash skills')
+          text = readme.read_text().replace('a ~/.mso/skills/         global operator-managed slash skills', '~/.mso/skills/          global operator-managed slash skills')
           readme.write_text(text)
-
-          current_docs = [
-              'README.md', 'AI_INSTALL.md', 'references/portable-skills.md', 'docs/install/README.md',
-              'docs/install/claude-code.md', 'docs/install/claude-web.md', 'docs/install/codex.md',
-              'docs/install/chatgpt-skills.md', 'docs/install/generic-local.md'
-          ]
+          current_docs = ['README.md','AI_INSTALL.md','references/portable-skills.md','docs/install/README.md','docs/install/claude-code.md','docs/install/claude-web.md','docs/install/codex.md','docs/install/chatgpt-skills.md','docs/install/generic-local.md']
           for rel in current_docs:
               p = root / rel
               p.write_text(p.read_text().replace('v0.9.5', 'v0.9.6'))
-
           old = root / 'docs/releases/v0.9.5.md'
           old_text = old.read_text()
           if 'Historical release record' not in old_text:
-              old_text = old_text.replace('# ', '> Historical release record. Current installation links are documented in the latest release.\n\n# ', 1)
-              old.write_text(old_text)
-
-          release = root / 'docs/releases/v0.9.6.md'
-          release.write_text('''# SI-Coder v0.9.6
-
-SI-Coder v0.9.6 adds first-class managed skill CRUD and makes the primary README outcome-oriented with concrete use cases and a resource CRUD map.
-
-## Managed skill CRUD
-
-- `sc skills` / `sc skills --json` discovers bundled plus managed project/global skills.
-- `sc skill show <name|exact-id> [--raw] [--json]` inspects a skill.
-- `sc skill create <name> --description "..." [--scope project|global] [--from-file SKILL.md]` creates a managed skill.
-- `sc skill update <name|exact-id> [--description "..."] [--from-file SKILL.md]` updates a managed skill with validation and rollback.
-- `sc skill delete <name|exact-id> --yes` removes a mutable managed skill.
-
-Project skills live in `.mso/skills`; global operator skills live in `~/.mso/skills`. Bundled package skills remain read-only. Project scope wins normal same-name resolution and `/skill <exact-id>` remains the explicit ambiguity escape hatch. Installer symlinks that point back to bundled SI-Coder skills are deduplicated from the registry.
-
-## README / operator UX
-
-The README now starts from real use cases: building a product, improving an existing frontend with `sc-fe`, applying presets such as `--apple` or `--workbench`, connecting providers, deploying/domains, multi-client identities, custom skills, and cross-platform slash invocation. It also includes a CRUD matrix for users, provider definitions, connections, credentials, and skills.
-
-<!-- INSTALL_MATRIX_GENERATED:BEGIN -->
-placeholder
-<!-- INSTALL_MATRIX_GENERATED:END -->
-''')
-
-          for rel in ['.claude-plugin/plugin.json', 'plugins/si-coder/.codex-plugin/plugin.json']:
+              old.write_text(old_text.replace('# ', '> Historical release record. Current installation links are documented in the latest release.\n\n# ', 1))
+          release_text = "# SI-Coder v0.9.6\n\nSI-Coder v0.9.6 adds first-class managed skill CRUD and makes the primary README outcome-oriented with concrete use cases and a resource CRUD map.\n\n## Managed skill CRUD\n\n- `sc skills` / `sc skills --json` discovers bundled plus managed project/global skills.\n- `sc skill show <name|exact-id> [--raw] [--json]` inspects a skill.\n- `sc skill create <name> --description \\\"...\\\" [--scope project|global] [--from-file SKILL.md]` creates a managed skill.\n- `sc skill update <name|exact-id> [--description \\\"...\\\"] [--from-file SKILL.md]` updates a managed skill with validation and rollback.\n- `sc skill delete <name|exact-id> --yes` removes a mutable managed skill.\n\nProject skills live in `.mso/skills`; global operator skills live in `~/.mso/skills`. Bundled package skills remain read-only. Project scope wins normal same-name resolution and `/skill <exact-id>` remains the explicit ambiguity escape hatch. Installer symlinks that point back to bundled SI-Coder skills are deduplicated from the registry.\n\n## README / operator UX\n\nThe README now starts from real use cases: building a product, improving an existing frontend with `sc-fe`, applying presets such as `--apple` or `--workbench`, connecting providers, deploying/domains, multi-client identities, custom skills, and cross-platform slash invocation. It also includes a CRUD matrix for users, provider definitions, connections, credentials, and skills.\n\n<!-- INSTALL_MATRIX_GENERATED:BEGIN -->\nplaceholder\n<!-- INSTALL_MATRIX_GENERATED:END -->\n"
+          (root / 'docs/releases/v0.9.6.md').write_text(release_text)
+          for rel in ['.claude-plugin/plugin.json','plugins/si-coder/.codex-plugin/plugin.json']:
               p = root / rel
               data = json.loads(p.read_text())
               data['version'] = '0.9.6'
               p.write_text(json.dumps(data, indent=2) + '\n')
           PY
-
           npm version 0.9.6 --no-git-tag-version
           npm ci --ignore-scripts --no-audit --no-fund
           npm run docs:sync
