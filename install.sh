@@ -94,12 +94,12 @@ if [[ "${SC_SKIP_NPM_LINK:-0}" != "1" ]]; then
       npm_link_failed=1
       echo "⚠️ Skills were installed, but npm could not link the global 'sc' command." >&2
       echo "   npm said: $(printf '%s' "$npm_link_output" | tail -n 2 | tr '\n' ' ')" >&2
-      echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js'" >&2
+      echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js' (delegates normal commands to node '$REPO_DIR/bin/sc.js')" >&2
     fi
   else
     npm_link_failed=1
     echo "⚠️ npm is not available, so the global 'sc' command was not linked." >&2
-    echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js'" >&2
+    echo "   You can still run: node '$REPO_DIR/bin/sc-entry.js' (delegates normal commands to node '$REPO_DIR/bin/sc.js')" >&2
   fi
 fi
 
