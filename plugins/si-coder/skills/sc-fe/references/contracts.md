@@ -67,3 +67,24 @@ route exclusions. Test delayed cache writes while consuming the response.
 For anonymous VM/telemetry stacks, identify the script's origin before patching
 the product. Compare deployed assets and a clean browser. Do not hide errors or
 patch browser prototypes to silence a browser-extension/DevTools problem.
+
+## Operational integration screens
+
+Use a shared provider registry for names, auth methods, capabilities and setup
+links. Private forms, account cards and resource pickers consume that contract.
+Once a provider is connected, expose supported real actions and resource discovery;
+do not leave users manually retyping identifiers that the provider can list.
+Separate personal connection capabilities from shared workspace administration,
+and apply that same distinction in navigation as well as server authorization.
+
+Use concise service descriptions, balanced responsive columns and real status
+counts with accessible chart labels. Keep metadata-only references distinct from
+verified credentials. Never invent percentages or success states to fill space.
+Associate actual content with tabs; visually adjacent empty panels are insufficient.
+
+For local browser verification, configure the preview's own origin and public demo
+settings explicitly. Keep CSRF protections enabled. A read-only fixture must be
+able to reach the screen while writes remain server-denied. Separate compilation,
+unit/security checks, browser acceptance, remote CI and the live release. Investigate
+a concrete failure, fix it and rerun the affected gate; do not repeat unrelated
+checks or expand scope while the user is waiting for a release.
