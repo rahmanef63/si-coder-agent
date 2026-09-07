@@ -102,7 +102,12 @@ Follow `/sc-all` for the runtime-first deployment, connected-account, domain, an
 - Local runtime → infer existing server configuration; if genuinely unknown, ask in plain language whether the user wants to use their own server or the easiest managed option.
 - Never ask the user to copy secret values between services when a connector/server-side path can do it.
 
-A publish is complete only after the public app and domain/HTTPS path are verified.
+A publish is complete only after the public app, domain/HTTPS and requested
+account/email flows are verified. Include required recovery, OAuth consent/legal
+pages and release automation in the initial acceptance criteria.
+Use the main sc delivery workflow (`../sc/references/delivery.md`, or
+`references/delivery.md` in its standalone package) through sc-all. Preserve
+existing auth/hosting choices and record configured/deployed/verified separately.
 
 ## Permission/access handoff
 

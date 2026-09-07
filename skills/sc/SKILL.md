@@ -63,6 +63,15 @@ Ask one question at a time. Prefer a useful default over asking the user to make
 
 For existing products, preserve coherent UI/UX design DNA by default. Do not replace it with a generic preset unless the user asks for a redesign or explicit preset.
 
+## Project initiation through CI/CD
+
+For launch, domain migration, auth/email setup or CI/CD, read
+[the delivery workflow](references/delivery.md) before following the selected
+sub-skill. It covers the complete requested outcome, including backend release,
+OAuth/legal pages, transactional email, exact revision verification and handoff.
+Apply only the services/features the project needs. Resume verified work and
+preserve existing architecture and the user's prior authorization.
+
 ## Completion contract
 
 A "done" result means the requested user-facing outcome works. For a published app this normally includes the app, data path, public URL/domain, HTTPS, frontend quality verification when applicable, and a basic functional verification.

@@ -49,10 +49,20 @@ ssh -i ~/.ssh/<your_key> <user>@<your-dokploy-host> 'sudo -n rm /etc/dokploy/tra
 
 ## CORE RULES
 
-1. **Idempotency**: `domain.create` may 4xx on duplicate; treat that as a no-op, not an error.
+1. **Idempotency**: after a duplicate error, inspect the existing domain and confirm host, service and port match. Only that verified duplicate is a no-op; do not swallow other 4xx errors.
 2. **Don't delete domains blindly**: only delete domains via `audit.js`'s `selectDomainsToDelete` — keep the desired canonical host, drop `*.traefik.me` and duplicates.
 3. **Never rename the Dokploy control host**: whatever hostname is in `DOKPLOY_API_URL` is the control plane. Never rewrite it inside scripts — read it from env.
 4. **`x-api-key` header, not Bearer**: Dokploy uses `x-api-key`, NOT `Authorization: Bearer`.
+
+## Release source and evidence
+
+Prefer the repository's release function over generic deploy calls. Inspect
+Dokploy source mode: Git and drop-source releases have different contracts.
+For drop source, Git push alone does not update the source directory. Publish a
+clean archive of the verified commit, preserve server-managed env, project the
+revision metadata and queue one rollout. Serialize concurrent agent deployments.
+Require terminal rollout status and live health matching that commit.
+Follow the main sc delivery workflow for domain/auth/email and CI/CD acceptance.
 
 ## Scripts
 
@@ -138,4 +148,4 @@ For a port-exposed managed service or webapp that can run without DNS, domain co
 2. If no domain is configured, do not block a healthy install solely for DNS. Keep the declared public port reachable on the server public IP when the app's security model allows it, and report `http://<public-ip>:<port>` as the fallback.
 3. When both exist, the domain is the primary UI/embedded origin; public IP is fallback/diagnostic only.
 4. Domain provider automation runs only for an explicit desired domain or an existing project domain that needs repair. Missing Hostinger/Cloudflare credentials must not cause an unrelated port-based runtime install to fail.
-5. Existing-domain creation errors are idempotent no-ops. Do not delete or recreate a working route merely to make the automation own it.
+5. Verify an existing-domain conflict against the intended host/service/port before treating it as a no-op. Do not delete or recreate a working route merely to make automation own it.

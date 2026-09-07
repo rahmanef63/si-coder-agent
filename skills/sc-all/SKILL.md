@@ -71,6 +71,19 @@ Rules:
 6. Presets are principle references only; do not copy proprietary assets or pixel-clone another product.
 7. Frontend completion requires rendered/interaction verification when the runtime provides browser/screenshot capability; compilation alone is not sufficient evidence.
 
+## Delivery contract and existing-project precedence
+
+Read [the delivery workflow](../sc/references/delivery.md) before provisioning.
+In the standalone web package it is `references/delivery.md` under the main
+`sc` directory. Follow its applicable checkpoints from initiation through CI/CD.
+Existing project configuration and available authorized tools override the
+new-project routing defaults below: preserve managed Convex with a VPS frontend,
+the current auth provider, package manager and deployment source mode.
+A browser-hosted conversation with an authorized VPS runner can use that
+runner directly. Composio is one option, not a mandatory intermediary.
+Required login/recovery/email/legal/CI flows belong to the requested delivery,
+not an optional recommendation after declaring the app complete.
+
 # 0. FIRST BRANCH — where is the agent running?
 
 This decision happens **before credential routing**.
@@ -112,7 +125,7 @@ The script is a portable policy reference; a hosted chat does **not** need the l
 6. Reuse identifiers returned by earlier steps (repo, project, deployment, domain) rather than searching ambiguously again.
 7. Verify the public result.
 
-If Composio itself is unavailable, the hosted route is **blocked**. Offer to connect/enable Composio; do not fall back to asking the user to paste provider API keys into chat.
+If Composio is unavailable, discover other authorized provider connectors or a connected VPS runner. Report a missing-access blocker only when no available route can perform the needed operation safely; never ask for provider API keys in chat.
 
 If a hosted user explicitly asks to deploy to their VPS/Dokploy, explain that this requires a connected VPS runner/MCP or a local SI-Coder runtime. Never silently replace an explicit VPS request with Vercel.
 
@@ -209,7 +222,7 @@ Use SC/direct GitHub identity. Protect `.env*`, keys, certificates and other sec
 ## VPS route
 
 1. Ensure/reuse Dokploy project.
-2. Provision/reuse self-hosted Convex unless `hybrid` was explicitly selected.
+2. Preserve the existing backend. For a new VPS project, use the selected self-hosted or managed route; never reprovision an existing managed backend merely because the frontend is on a VPS.
 3. Ensure/reuse Dokploy application.
 4. Inject only required public/build values.
 5. Deploy and poll to success/failure.
@@ -234,7 +247,8 @@ Do not invent a replacement subdomain when a canonical domain already exists.
 
 A deployment is complete only when applicable checks pass:
 
-- source/repository is correct,
+- source/repository and live revision match the verified release,
+- the applicable auth/legal/email and CI/CD checkpoints in the delivery workflow have evidence or an explicit unresolved status,
 - backend is reachable,
 - frontend deployment succeeded,
 - user-facing frontend passed the applicable `sc-fe` quality/interaction verification,
@@ -258,7 +272,7 @@ After a successful milestone, offer **exactly one** high-value next action.
 
 Pattern:
 
-> Deployment is live. The next useful step is transactional email so password reset/invites work. I can configure Resend next. It needs a Resend account plus a verified sender domain. Want me to set that up?
+> Deployment and all requested flows are verified. Offer only an optional improvement outside the completed scope; never defer requested password reset, invitations, or CI/CD as a recommendation.
 
 Rules:
 

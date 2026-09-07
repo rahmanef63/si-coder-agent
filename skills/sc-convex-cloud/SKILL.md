@@ -34,7 +34,7 @@ The plain `node scripts/...` examples below describe the script interface. Do no
 
 ## NEVER ask the user to run Convex CLI by hand
 
-All Convex Cloud deploys go through `scripts/deploy-cloud.js`. **Do not** instruct the user to run `npx convex deploy` interactively, nor to hand-set `NEXT_PUBLIC_CONVEX_URL`. The deploy key is passed via the script's `env` and never echoed. If a deploy fails, debug it with `scripts/check-cloud.js` and fix root cause — do not punt the Convex CLI call to the user.
+Prefer an existing project-owned release wrapper because it owns environment isolation, custom domains and verification. Otherwise use `scripts/deploy-cloud.js`. **Do not** instruct the user to run `npx convex deploy` interactively, nor to hand-set `NEXT_PUBLIC_CONVEX_URL`. The deploy key is passed via the script's `env` and never echoed. If a deploy fails, debug it with `scripts/check-cloud.js` and fix root cause — do not punt the Convex CLI call to the user.
 
 ## Pre-requisites
 - `CONVEX_DEPLOY_KEY` — production (or preview) deploy key for the Cloud deployment. **Required.**
@@ -44,11 +44,21 @@ If `CONVEX_DEPLOY_KEY` is missing, route the user to `/sc-onboarding`.
 
 ## CORE MANDATES (LEARNED LESSONS)
 
-1. **Coupled build is the source of truth for the URL**: let `npx convex deploy --cmd '<build>'` inject `NEXT_PUBLIC_CONVEX_URL` at build time. Never hardcode the URL in two places — the `--cmd` injection wins.
-2. **Next.js needs the `NEXT_PUBLIC_` prefix override**: the default injected var is `CONVEX_URL`, which never reaches the browser. ALWAYS pass `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`.
+1. **Respect the project's URL contract**: a coupled build may inject a deployment URL, but must not silently replace verified custom API/Auth domains. Read the active frontend adapter and release wrapper first.
+2. **Use the actual adapter's public variable**: Next.js uses `NEXT_PUBLIC_CONVEX_URL`; other frameworks may use `PUBLIC_CONVEX_URL` or a compatibility bridge. Set `--cmd-url-env-var-name` only to the actual consumer.
 3. **Deploy key is a secret**: never log/echo it. Pass it via the process `env`, never interpolate it into a shell command string.
 4. **Set `CONVEX_DEPLOY_KEY` only on the matching env**: a prod key → Production only; a preview key → Preview only. Never set `CONVEX_DEPLOYMENT` in CI.
 5. **Project + key creation is human-one-time**: there is no anonymous Cloud-project create API. Mint keys headlessly only after a first interactive login (`npx convex deployment token create <name> --prod --save-env`).
+
+## Production selection and feature verification
+
+Read the main sc delivery workflow for auth/email or domain changes.
+Convex function env is separate from frontend-host env. Verify the exact
+deployment and use `--prod` for production env/run operations that support it.
+Do not shell-source dotenv or let ambient self-hosted/dev selectors override the
+project release credential. Never dump env values during diagnosis.
+Deploy the backend provider code, then verify a production capability query and
+the actual UI/provider flow; redeploying only the frontend is insufficient.
 
 ## Required env vars
 

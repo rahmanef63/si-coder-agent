@@ -34,6 +34,7 @@ test('DIST-2: web skill package is a ZIP-format .skill with one self-contained s
     'with zipfile.ZipFile(sys.argv[1]) as z: print(json.dumps(z.namelist()))',
   ].join('\n'), skill], { encoding: 'utf8' }));
   assert.ok(names.includes('sc/SKILL.md'));
+  assert.ok(names.includes('sc/references/delivery.md'), 'end-to-end delivery must survive standalone packaging');
   assert.ok(names.includes('sc/agents/openai.yaml'));
   assert.ok(names.includes('sc/references/si-coder/sc-build.md'));
   assert.ok(names.includes('sc/references/si-coder/sc-all.md'));
@@ -112,6 +113,13 @@ test('DIST-6: OpenAI repository marketplace exposes a web-compatible skill-only 
     const source = fs.readFileSync(path.join(ROOT, `skills/${name}/SKILL.md`));
     assert.deepStrictEqual(generated, source, `${name} OpenAI plugin copy drifted from source`);
   }
+});
+
+test('DIST-6b: delivery reference survives the generated plugin', () => {
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(ROOT, 'plugins/si-coder/skills/sc/references/delivery.md')),
+    fs.readFileSync(path.join(ROOT, 'skills/sc/references/delivery.md')),
+  );
 });
 
 test('DIST-7: per-surface install docs exist and keep invocation claims surface-specific', () => {
