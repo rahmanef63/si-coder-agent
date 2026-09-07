@@ -5,7 +5,7 @@ use_when: "Use for any substantial frontend build, redesign, desktop shell/workb
 do_not_use_when: "Do not use for backend/infrastructure-only work with no user-facing or frontend developer/agent surface. Provider/deployment mechanics remain owned by sc-all and provider skills."
 required_tools: []
 security_constraints: "Never request or expose credentials. Named presets are principle references only: do not copy proprietary assets, brand trade dress, or pixel-clone another product."
-references: ["references/profiles.md"]
+references: ["references/profiles.md", "references/contracts.md"]
 compatibility: "Standalone SI-Coder; host invocation syntax and available tools may vary."
 ---
 
@@ -78,6 +78,10 @@ When a project already has UI/UX and the user has not asked for a new direction:
 6. fix inconsistencies against that system instead of importing a new template.
 
 `--save-profile <name>` stores the extracted contract at `.sc/frontend/profiles/<name>.json` when project writes are allowed. Never store screenshots, copyrighted assets, secrets, or huge generated dumps in the profile.
+
+For repeated-control inconsistencies, workbench responsiveness or Svelte runtime
+migrations, read [shared frontend contracts](references/contracts.md). Resolve
+registry, component, state and token ownership before editing individual screens.
 
 ## Scope lock
 Treat user exclusions as hard boundaries. Example: if the user says `mobile nav dock jangan disentuh`, do not edit it, its styles, its behavior, or shared abstractions in a way that changes it. If a required shared change risks the excluded surface, isolate the implementation or report the conflict.

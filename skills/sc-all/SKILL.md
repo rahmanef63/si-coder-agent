@@ -84,6 +84,15 @@ runner directly. Composio is one option, not a mandatory intermediary.
 Required login/recovery/email/legal/CI flows belong to the requested delivery,
 not an optional recommendation after declaring the app complete.
 
+## Existing MSO execution route
+
+When an authorized MSO runner is connected, use its discovered project functions,
+private integrations and project MCP composition before hosted defaults below.
+Read [the modular MCP workflow](../sc/references/composed-mcp.md). The conversation's
+browser location does not require Composio or a second plugin when MSO already
+provides the needed capability. Missing downstream authorization still requires
+the target account's secure connection; MSO access does not imply app identity.
+
 # 0. FIRST BRANCH — where is the agent running?
 
 This decision happens **before credential routing**.

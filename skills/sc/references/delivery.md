@@ -88,6 +88,19 @@ Existing launch approval may authorize publishing; do not ask again reflexively.
 Report provider review still pending even if publishing succeeded. Never claim
 an OAuth login succeeded from configuration or a capability boolean alone.
 
+### Separate-account OAuth acceptance
+
+Include a first-time account distinct from the app owner, an existing account,
+sign-out/reload, and cancellation/retry in the acceptance matrix. Reaching the
+Google account chooser proves handoff only. A successful callback HTTP redirect
+still does not prove a persisted session and access to the user's workspace.
+Preserve the user's failed manual result as unresolved evidence. Determine where
+it fails: provider audience/policy, callback exchange, cookie/session propagation,
+account linking or onboarding. Read bounded sanitized logs on the correct
+production deployment. Never broaden scopes or weaken account linking to make
+a different account pass. Display a safe recovery message for callback failure;
+never reflect raw provider descriptions, OAuth codes, verifiers or tokens.
+
 ## 5. Verify transactional email through the real app
 
 Choose the intended Resend account and verified sending domain; do not infer the
@@ -152,10 +165,15 @@ Rollback means the last known-good app artifact plus compatible backend/config;
 do not assume rolling back the frontend reverts data migrations or provider state.
 Do not retry an unchanged failed rollout indefinitely.
 
-the project control plane is the planning/evidence layer; host credential service/SC or provider tools execute authorized
+The project control plane is the planning/evidence layer; MSO/SC or provider tools execute authorized
 infrastructure operations. Bind resources and secret references, never secret
 values. Update existing setup/QA/runbook records under project RBAC. Do not mark
-Shipped from a build alone or invent a the project control plane tool that is absent from discovery.
+Shipped from a build alone or invent a project control-plane tool that is absent from discovery.
+
+For frontend changes, use sc-fe's shared frontend contracts. For one-plugin
+execution across modular MCPs, use [composed MCP](composed-mcp.md). Record real
+repository diagrams by immutable revision and actual dependency evidence; label
+bounded static analysis and unsupported/private-repo access explicitly.
 
 ## Sources to recheck when implementing
 
