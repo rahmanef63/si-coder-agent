@@ -47,7 +47,11 @@ Use opaque references in tool arguments; never return, copy into chat or forward
 another user's secret. Per-user connection management must remain available to
 ordinary members independently of shared-workspace administrator privileges.
 Keep sanitized commit/deployment/status evidence in the existing project records.
-CI dispatch is queued work, not a verified deployment; confirm the terminal result.
+CI dispatch is queued work, not a verified deployment; confirm exact-commit check
+results through a scoped provider read. Do not export a stored token to inspect CI.
+Probe new server actions in the actual target runtime: a Node-based test runner
+can hide missing globals in Convex V8. Prefer portable Web APIs and add a runtime
+regression test when the deployed result contradicts local green checks.
 
 Verify actual authenticated tool discovery, one harmless application read, the
 intended project role, write denial for a read token, and revocation refusal.
