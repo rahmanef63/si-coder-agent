@@ -88,3 +88,18 @@ able to reach the screen while writes remain server-denied. Separate compilation
 unit/security checks, browser acceptance, remote CI and the live release. Investigate
 a concrete failure, fix it and rerun the affected gate; do not repeat unrelated
 checks or expand scope while the user is waiting for a release.
+
+For apparent auth/SSR failures, separate the redirect, HTML document, JavaScript
+imports and hydration evidence. A correct 200 document followed by 502 assets
+requires transport investigation, not speculative auth changes. Compare one
+controlled variable (for example the same browser sequence with HTTP/3 versus
+HTTP/2, or a separate proxy) before shipping a mitigation. Diagnostic browser
+flags or a self-signed local proxy are not production acceptance.
+
+Keep transport mitigations at the owning layer and application scope. A proxy may
+append its own headers after application code; verify final headers on documents
+and immutable assets, including duplicate values and existing browser caches.
+Version the policy with the application and synchronize it through the same
+verified-SHA deployment entry. Re-run the failing sequence with ordinary browser
+settings. Record the remaining root-cause uncertainty rather than declaring the
+whole release green from a single isolated retry.
