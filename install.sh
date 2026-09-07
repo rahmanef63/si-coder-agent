@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install.sh — portable Agent Skills installer for SI-Coder.
-# One skills/ SSOT; symlink into the runtime's user skills directory.
+# One skills/ SSOT; materialize MSO bundles, link compatible runtime registries.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,7 +81,11 @@ for dst in "${dirs[@]}"; do
   echo "📦 Installing SI-Coder Agent Skills into $dst"
   for src in "${skill_dirs[@]}"; do
     [[ -f "$src/SKILL.md" ]] || continue
-    link_skill "$src" "$dst"
+    if [[ "$dst" == "$HOME/.mso/skills" ]]; then
+      node "$REPO_DIR/scripts/install-mso-skill.js" "$src" "$dst"
+    else
+      link_skill "$src" "$dst"
+    fi
   done
 done
 

@@ -25,7 +25,7 @@ For another runtime:
 bash install.sh --skills-dir /path/to/runtime/skills
 ```
 
-The installer reads `skills/catalog.json` and links only **active/default** skills into the selected user skills location. Stub and legacy skills remain in the repository but are not installed/routed by default. It does not copy provider credentials. If `npm link` cannot expose the global `sc` command, the installer reports that failure instead of hiding it.
+The installer reads `skills/catalog.json` and installs only **active/default** skills into the selected user skills location. Stub and legacy skills remain in the repository but are not installed/routed by default. It does not copy provider credentials. If `npm link` cannot expose the global `sc` command, the installer reports that failure instead of hiding it.
 
 ## Add tool calling
 
@@ -51,3 +51,5 @@ The `.skill` extension is not part of the core Agent Skills directory specificat
 ## Invocation
 
 Invocation syntax is runtime-specific. The skill identity is `sc`; do not assume every product uses Claude's `/sc` syntax.
+
+MSO does not discover directory symlinks. Its installer writes complete managed bundles, including references, into `~/.mso/skills`. `skills/` remains the source of truth; rerun `bash install.sh --agent mso --no-onboard` after updating the repository. The installer migrates only links to this exact source and refuses to overwrite local edits or unrelated skills. Other compatible runtime registries keep source links.

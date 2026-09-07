@@ -294,6 +294,9 @@ bash install.sh --agent all
 
 `--agent mso` installs active/default SC skills into the trusted `~/.mso/skills` root. `--agent all` installs to the supported local registries together.
 
+MSO does not discover directory symlinks. Its installer writes complete managed bundles, including references, into `~/.mso/skills`. `skills/` remains the source of truth; rerun `bash install.sh --agent mso --no-onboard` after updating the repository. The installer migrates only links to this exact source and refuses to overwrite local edits or unrelated skills. Other compatible runtime registries keep source links.
+
+
 Use `--with-mcp` only when the local runtime should also register SC's bundled MCP server.
 
 ## Accounts and credentials
