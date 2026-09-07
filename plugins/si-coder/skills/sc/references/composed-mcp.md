@@ -48,3 +48,11 @@ claim one-plugin access complete while the downstream connection is unconfigured
 For parallel work, inspect shared-resource ownership, use isolated worktrees and
 one rollout owner. Prepare exact commits/evidence while another agent deploys;
 only send a handoff message when the user has authorized contacting that agent.
+
+## Verify the installed skill, not only its source
+
+After updating SC, regenerate its distributions, commit the source and install the
+bundle with the runtime's supported transport. MSO ignores directory symlinks:
+use SC's managed-bundle installer for its operator skill root. Re-read `sc` through
+the active MSO plugin and verify its referenced resources exist. A Git push or an
+updated source file alone does not prove that the agent can discover the new skill.
