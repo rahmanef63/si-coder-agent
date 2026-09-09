@@ -15,3 +15,6 @@ __pycache__/
 # Local integration transfers are personal data, not repository source
 *.integration-bundle.json
 *.integration-bundle.enc.json
+
+# Local MSO runtime state — never commit
+.mso/
