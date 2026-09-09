@@ -46,7 +46,7 @@ Start from the outcome. The main `/sc` skill can route internally; specialized `
 | Connect a provider safely | `/sc Connect transactional email for password reset.` | provider routing, required account access, safe credential flow, live verification |
 | Publish and connect a domain | `/sc Publish this app on my existing stack and connect the domain.` | runtime selection, deploy, DNS/domain work, HTTPS and live checks |
 | Work with multiple clients/accounts | `sc user add client-a` then create named connections | isolated user credential stores, project mapping, explicit connection selection |
-| Create a project-specific workflow | `sc skill create release-check --description "Verify release readiness"` | creates `.mso/skills/release-check/SKILL.md`; compatible hosts can invoke `/release-check` |
+| Create a project-specific workflow | `sc skill create release-check --description "Verify release readiness"` | creates `.si-coder/skills/release-check/SKILL.md`; compatible hosts can invoke `/release-check` |
 | Share one skill vocabulary across tools | type `/skills`, then `/sc-fe ...` in any compatible agent host | discovery, direct slash invocation, exact-id ambiguity handling |
 
 Frontend presets can be composed rather than treated as themes:
@@ -82,7 +82,7 @@ sc skill create release-check \
 It becomes:
 
 ```text
-.mso/skills/release-check/SKILL.md
+.si-coder/skills/release-check/SKILL.md
 ```
 
 and is discoverable as:
@@ -102,7 +102,7 @@ sc skill create release-check \
 Global managed skills live in:
 
 ```text
-~/.mso/skills/<name>/SKILL.md
+~/.si-coder/skills/<name>/SKILL.md
 ```
 
 Read, replace, update, and delete:
@@ -119,7 +119,7 @@ sc skill delete release-check --yes
 
 For long instructions, prefer `--from-file SKILL.md` instead of putting the full skill body in argv or shell history.
 
-**Bundled SI-Coder skills under `skills/*` are package source and read-only at runtime.** Project skills live in `.mso/skills`; global operator skills live in `~/.mso/skills`. Project scope wins normal same-name resolution, while `/skill <exact-id>` remains the explicit ambiguity escape hatch.
+**Bundled SI-Coder skills under `skills/*` are package source and read-only at runtime.** Project skills live in `.si-coder/skills`; global operator skills live in `~/.si-coder/skills`. Project scope wins normal same-name resolution, while `/skill <exact-id>` remains the explicit ambiguity escape hatch.
 
 The shared invocation contract is:
 
@@ -288,13 +288,9 @@ bash install.sh --agent claude
 bash install.sh --agent codex
 bash install.sh --agent hermes
 bash install.sh --agent openclaw
-bash install.sh --agent mso
+See [optional host adapters](docs/integrations/plugins/README.md) for host-specific integrations.
 bash install.sh --agent all
 ```
-
-`--agent mso` installs active/default SC skills into the trusted `~/.mso/skills` root. `--agent all` installs to the supported local registries together.
-
-MSO does not discover directory symlinks. Its installer writes complete managed bundles, including references, into `~/.mso/skills`. `skills/` remains the source of truth; rerun `bash install.sh --agent mso --no-onboard` after updating the repository. The installer migrates only links to this exact source and refuses to overwrite local edits or unrelated skills. Other compatible runtime registries keep source links.
 
 
 Use `--with-mcp` only when the local runtime should also register SC's bundled MCP server.
@@ -403,8 +399,8 @@ Only the major surfaces are shown here:
 ```text
 skills/sc/               main user-facing bundled skill
 skills/sc-*/             bundled specialized workflows
-.mso/skills/             project-managed slash skills
-~/.mso/skills/          global operator-managed slash skills
+.si-coder/skills/             project-managed slash skills
+~/.si-coder/skills/          global operator-managed slash skills
 bin/sc-entry.js          installed CLI entry + portable skill registry/CRUD
 bin/sc.js                mature local control plane + Finder TUI
 machine/functions.json   machine-tool contract

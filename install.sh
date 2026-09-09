@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install.sh — portable Agent Skills installer for SI-Coder.
-# One skills/ SSOT; materialize MSO bundles, link compatible runtime registries.
+# One skills/ SSOT; link compatible runtime registries. Host adapters are optional.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,8 +24,7 @@ Usage: bash install.sh [options]
   --with-mcp                                     register local SC MCP where supported
   --no-onboard                                   skip interactive credential setup
 
-MSO installs into ~/.mso/skills, MSO's trusted local skill root, so /sc-* triggers
-remain executable without weakening MSO's trust rules for generic agent registries.
+`--agent mso` is an optional deprecated compatibility adapter; it is not included by `--agent all`.
 
 Claude plugin mode needs no symlink install:
   claude --plugin-dir /path/to/si-coder-agent
@@ -51,7 +50,7 @@ case "$agent" in
   hermes) dirs=("$HOME/.hermes/skills") ;;
   openclaw) dirs=("$HOME/.openclaw/workspace/skills") ;;
   mso) dirs=("$HOME/.mso/skills") ;;
-  all) dirs=("$HOME/.mso/skills" "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.hermes/skills" "$HOME/.openclaw/workspace/skills") ;;
+  all) dirs=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.hermes/skills" "$HOME/.openclaw/workspace/skills") ;;
   custom) dirs=("$custom_dir") ;;
   *) echo "❌ unknown --agent $agent" >&2; exit 1 ;;
 esac
@@ -77,12 +76,13 @@ mapfile -t skill_names < <(node -e '
 ' "$catalog")
 skill_dirs=()
 for name in "${skill_names[@]}"; do skill_dirs+=("$REPO_DIR/skills/$name"); done
+if [[ "$agent" == "mso" ]]; then echo "⚠️ --agent mso is deprecated and delegates to the optional plugins/mso adapter." >&2; fi
 for dst in "${dirs[@]}"; do
   echo "📦 Installing SI-Coder Agent Skills into $dst"
   for src in "${skill_dirs[@]}"; do
     [[ -f "$src/SKILL.md" ]] || continue
-    if [[ "$dst" == "$HOME/.mso/skills" ]]; then
-      node "$REPO_DIR/scripts/install-mso-skill.js" "$src" "$dst"
+    if [[ "$agent" == "mso" ]]; then
+      node "$REPO_DIR/plugins/mso/install-skill.js" "$src" "$dst"
     else
       link_skill "$src" "$dst"
     fi

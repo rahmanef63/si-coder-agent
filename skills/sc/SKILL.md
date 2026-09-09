@@ -72,13 +72,6 @@ OAuth/legal pages, transactional email, exact revision verification and handoff.
 Apply only the services/features the project needs. Resume verified work and
 preserve existing architecture and the user's prior authorization.
 
-## Composing project MCPs through MSO
-
-When MSO is the available entry point and a project has its own MCP, read
-[the modular MCP workflow](references/composed-mcp.md). Discover and call the
-project's tools through MSO with an explicit private connection. Do not require
-another installed plugin when the authorized MSO route already supports it.
-
 ## Completion contract
 
 A "done" result means the requested user-facing outcome works. For a published app this normally includes the app, data path, public URL/domain, HTTPS, frontend quality verification when applicable, and a basic functional verification.

@@ -1,0 +1,7 @@
+{
+  "adapterVersion": 1,
+  "host": "MSO",
+  "pluginManifest": "../si-coder/plugin.json",
+  "materialization": {"skillsInstaller":"install-skill.js","skillsRoot":"~/.mso/skills"},
+  "surfaces": ["mcp", "agent-skills"]
+}

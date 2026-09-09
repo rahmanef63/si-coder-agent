@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 
+// Optional MSO adapter only; core SI-Coder never imports this module.
+
 // MSO ignores directory symlinks. Materialize reviewed package sources with
 // provenance, bounded bundle copying and local-edit protection.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { bundleEntries, copyBundle } = require('../lib/skill-store');
+const { bundleEntries, copyBundle } = require('../../lib/skill-store');
 
 const MARKER = '.si-coder-install.json';
 function snapshot(dir) {

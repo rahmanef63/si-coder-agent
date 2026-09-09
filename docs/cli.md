@@ -253,7 +253,7 @@ sc skill create release-check \
 Default project scope writes:
 
 ```text
-<project>/.mso/skills/release-check/SKILL.md
+<project>/.si-coder/skills/release-check/SKILL.md
 ```
 
 Create a global operator skill:
@@ -267,7 +267,7 @@ sc skill create release-check \
 Global scope writes:
 
 ```text
-~/.mso/skills/release-check/SKILL.md
+~/.si-coder/skills/release-check/SKILL.md
 ```
 
 Update metadata or replace the full skill body:
@@ -380,7 +380,7 @@ Skills
 └─ /team-check         global · editable
 ```
 
-Bundled package skills stay read-only; choose **Create project override** to copy a bundled skill into `.mso/skills/<name>/SKILL.md` before editing it. Managed skill writes use the canonical skill store with validation and rollback.
+Bundled package skills stay read-only; choose **Create project override** to copy a bundled skill into `.si-coder/skills/<name>/SKILL.md` before editing it. Managed skill writes use the canonical skill store with validation and rollback.
 
 ## Fuzzy skill discovery
 

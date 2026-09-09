@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-plugin:manifest:v1",
+  "title": "Portable agent plugin manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "version", "id", "metadata"],
+  "properties": {
+    "$schema": { "const": "urn:agent-plugin:manifest:v1" },
+    "schemaVersion": { "const": 1 },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "homepage": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://[^?#]+$"
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(?!.*\\.\\.)[A-Za-z0-9][A-Za-z0-9._/-]*SKILL\\.md$"
+          }
+        }
+      }
+    },
+    "mcp": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["transport"],
+        "properties": {
+          "transport": { "enum": ["stdio", "https"] },
+          "entrypoint": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(?!.*\\.\\.)[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          },
+          "catalog": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(?!.*\\.\\.)[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          },
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^https://[^?#]+$"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": { "transport": { "const": "stdio" } },
+            "required": ["entrypoint", "catalog"],
+            "not": { "required": ["endpoint"] }
+          },
+          {
+            "properties": { "transport": { "const": "https" } },
+            "required": ["endpoint"],
+            "not": { "anyOf": [{ "required": ["entrypoint"] }, { "required": ["catalog"] }] }
+          }
+        ]
+      }
+    }
+  }
+}

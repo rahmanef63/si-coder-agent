@@ -51,5 +51,3 @@ The `.skill` extension is not part of the core Agent Skills directory specificat
 ## Invocation
 
 Invocation syntax is runtime-specific. The skill identity is `sc`; do not assume every product uses Claude's `/sc` syntax.
-
-MSO does not discover directory symlinks. Its installer writes complete managed bundles, including references, into `~/.mso/skills`. `skills/` remains the source of truth; rerun `bash install.sh --agent mso --no-onboard` after updating the repository. The installer migrates only links to this exact source and refuses to overwrite local edits or unrelated skills. Other compatible runtime registries keep source links.

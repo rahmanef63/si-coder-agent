@@ -165,15 +165,14 @@ Rollback means the last known-good app artifact plus compatible backend/config;
 do not assume rolling back the frontend reverts data migrations or provider state.
 Do not retry an unchanged failed rollout indefinitely.
 
-The project control plane is the planning/evidence layer; MSO/SC or provider tools execute authorized
+The project control plane is the planning/evidence layer; authorized provider tools execute
 infrastructure operations. Bind resources and secret references, never secret
 values. Update existing setup/QA/runbook records under project RBAC. Do not mark
 Shipped from a build alone or invent a project control-plane tool that is absent from discovery.
 
-For frontend changes, use sc-fe's shared frontend contracts. For one-plugin
-execution across modular MCPs, use [composed MCP](composed-mcp.md). Record real
-repository diagrams by immutable revision and actual dependency evidence; label
-bounded static analysis and unsupported/private-repo access explicitly.
+For frontend changes, use sc-fe's shared frontend contracts. Record real repository
+diagrams by immutable revision and actual dependency evidence; label bounded static
+analysis and unsupported/private-repo access explicitly.
 
 ## Sources to recheck when implementing
 

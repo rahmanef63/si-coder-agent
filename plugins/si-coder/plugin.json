@@ -1,0 +1,24 @@
+{
+  "$schema": "urn:agent-plugin:manifest:v1",
+  "schemaVersion": 1,
+  "version": "0.9.8",
+  "id": "si-coder",
+  "metadata": {
+    "name": "SI-Coder",
+    "description": "Portable Agent Skills and MCP tools for building and publishing web applications.",
+    "homepage": "https://github.com/rahmanef63/si-coder-agent"
+  },
+  "skills": [
+    {
+      "id": "si-coder-skills",
+      "path": "skills/sc/SKILL.md"
+    }
+  ],
+  "mcp": [
+    {
+      "transport": "stdio",
+      "entrypoint": "scripts/sc-mcp.js",
+      "catalog": "machine/functions.json"
+    }
+  ]
+}

@@ -45,23 +45,23 @@ test('MSO-INSTALL-1: --agent mso installs active skills into the trusted ~/.mso/
   }
 });
 
-test('MSO-INSTALL-2: --agent all includes MSO alongside the other supported registries', () => {
+test('MSO-INSTALL-2: --agent all excludes the optional MSO adapter', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-all-home-'));
   try {
     install('all', home);
     for (const root of [
-      path.join(home, '.mso', 'skills'),
+
       path.join(home, '.claude', 'skills'),
       path.join(home, '.agents', 'skills'),
       path.join(home, '.hermes', 'skills'),
       path.join(home, '.openclaw', 'workspace', 'skills'),
-    ]) assertInstalled(root, root === path.join(home, '.mso', 'skills'));
+    ]) assertInstalled(root, false);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
 
-const { installMsoSkill } = require('../scripts/install-mso-skill');
+const { installMsoSkill } = require('../plugins/mso/install-skill');
 function fixture(fn) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-mso-bundle-'));
   const source = path.join(root, 'source', 'example');

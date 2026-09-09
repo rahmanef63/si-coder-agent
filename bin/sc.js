@@ -1886,7 +1886,7 @@ function menuLayer(stack) {
     const row = SkillStore.showSkill(skillId);
     return [
       { id: 'details', kind: 'action', label: 'Skill details', hint: `${row.invocation} · ${row.scope} · ${row.mutable ? 'editable' : 'read-only'}`, preview: [row.description || 'No description.', `tags: ${(row.tags || []).join(', ') || 'auto-none'}`, `aliases: ${(row.aliases || []).join(', ') || 'none'}`, `id: ${row.id}`, `path: ${row.path}`] },
-      ...(row.scope === 'bundled' ? [{ id: 'override', kind: 'action', label: 'Create project override', hint: 'copy this bundled skill into .mso/skills so it becomes project-editable' }] : []),
+      ...(row.scope === 'bundled' ? [{ id: 'override', kind: 'action', label: 'Create project override', hint: 'copy this bundled skill into .si-coder/skills so it becomes project-editable' }] : []),
       ...(row.mutable ? [
         { id: 'edit-description', kind: 'action', label: 'Edit description', hint: 'update frontmatter description and revalidate the skill' },
         { id: 'replace-file', kind: 'action', label: 'Replace from SKILL.md', hint: 'replace the managed skill from a local file with validation + rollback' },
@@ -2024,8 +2024,8 @@ async function runMenuAction(stack, item) {
       const name = await askVisible('Skill name: ', { escapeCancels: true });
       if (name === null) return 'cancel';
       const scope = await selectOne('Skill scope', [
-        { id: 'project', label: 'Project', hint: '.mso/skills · highest normal precedence' },
-        { id: 'global', label: 'Global', hint: '~/.mso/skills · reusable across projects' },
+        { id: 'project', label: 'Project', hint: '.si-coder/skills · highest normal precedence' },
+        { id: 'global', label: 'Global', hint: '~/.si-coder/skills · reusable across projects' },
       ]);
       if (!scope) return 'cancel';
       const description = await askVisible('Description: ', { escapeCancels: true });
@@ -2528,7 +2528,7 @@ sc — SI-Coder interactive console + secret control plane
   sc recipe verify <id> --yes          mark a repeated recipe verified
   sc recipe promote <id> --script scripts/name.js --yes
                                       bind a verified recipe to a deterministic executable script
-  sc skills [--all] [--json]            list canonical slash skills for MSO/RC/Baton and compatible hosts
+  sc skills [--all] [--json]            list canonical slash skills for compatible hosts
   sc skill list [--all] [--json]        alias for the machine-readable skill registry
   sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets
   sc verify [--json] [--no-record]    full regression/docs/skills/secret verification + evidence/test memory

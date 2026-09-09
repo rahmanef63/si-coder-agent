@@ -2,6 +2,7 @@
 'use strict';
 
 const SkillStore = require('../lib/skill-store');
+const Plugins = require('../lib/plugin-registry');
 const SkillCLI = require('../lib/skill-cli');
 const { confirm, isInteractive } = require('../lib/prompt');
 
@@ -80,6 +81,12 @@ async function handleSkill(argv) {
 
 async function main() {
   const argv = process.argv.slice(2);
+  if (argv[0] === 'plugins' || (argv[0] === 'plugin' && argv[1] === 'list')) {
+    const rows = Plugins.listPlugins();
+    if (has('--json', argv)) return printJson({ version: 1, source: 'si-coder', plugins: rows });
+    for (const row of rows) console.log(`${row.id}  ${row.version}  ${row.metadata.description}`);
+    return;
+  }
   if (argv[0] === 'skills') return SkillCLI.listOrSearch(argv.slice(1), { registryEnvelope: true });
   if (argv[0] === 'skill') return handleSkill(argv);
   // Preserve the mature SC CLI unchanged for providers, users, connections, deploy,
