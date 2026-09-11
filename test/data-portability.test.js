@@ -16,7 +16,7 @@ test('malformed KDF parameters are rejected before expensive derivation',async()
 test('imports refuse symlinked destination directories and preserve orphan files',async()=>{
   const user=seed(),bundle=await exportData({users:[user]});
   const target='unsafe-'+user,dir=path.join(C.CONNECTIONS_DIR,target),outside=path.join(root,'outside');fs.mkdirSync(outside,{mode:0o700});fs.mkdirSync(C.CONNECTIONS_DIR,{recursive:true,mode:0o700});fs.symlinkSync(outside,dir);
-  await assert.rejects(()=>importData(bundle,{prefix:'unsafe-'}),/unsafe_store_path/);fs.unlinkSync(dir);
+  await assert.rejects(()=>importData(bundle,{prefix:'unsafe-'}),/unsafe_store_path: .*symlink not allowed/);fs.unlinkSync(dir);
   const orphanUser='orphan-'+user,file=C.connectionPath(orphanUser,'github','work');fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});fs.writeFileSync(file,'not-to-overwrite',{mode:0o600});
   const preview=await importData(bundle,{prefix:'orphan-'});assert.equal(preview.connections[0].reason,'orphan_destination_preserved');assert.equal(fs.readFileSync(file,'utf8'),'not-to-overwrite');
 });
@@ -60,6 +60,6 @@ test('MSO Hostinger scoped Mail connections map to SI-Coder mail-api-token witho
 
 test('data --help is accepted and Finder portability helper is wired without plaintext arguments',()=>{
   const {spawnSync}=require('node:child_process'),cli=path.join(__dirname,'../bin/sc.js');
-  const h=spawnSync(process.execPath,[cli,'data','--help'],{encoding:'utf8',env:process.env});assert.equal(h.status,0);assert.match(h.stdout,/sc data export/);assert.match(h.stdout,/sc data import/);
+  const h=spawnSync(process.execPath,[cli,'data','--help'],{encoding:'utf8',env:process.env});assert.equal(h.status,0);assert.match(h.stdout,/Credential portability/);assert.match(h.stdout,/not the same as `sc user import`/);assert.match(h.stdout,/Preview an import/);assert.match(h.stdout,/unsafe_store_path/);
   const source=fs.readFileSync(path.join(__dirname,'../lib/portability/menu.js'),'utf8');assert.doesNotMatch(source,/--passphrase|--password/);assert.match(source,/includeSecrets/);
 });

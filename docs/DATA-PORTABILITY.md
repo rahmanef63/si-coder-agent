@@ -29,18 +29,59 @@ can still be confidential. Exported local files use 0600 and must not be committ
 
 ## SC terminal
 
+### Quick backup and restore
+
+There are two unrelated commands named "import" in SI-Coder:
+
+- `sc user import USER` imports missing **legacy shell/profile** values into one SC user. It is not a portable backup restore.
+- `sc data export` / `sc data import` is the versioned JSON portability workflow described here.
+
+Metadata-only backup (connection identities and configured/not-configured state, **no values**):
+
 ```sh
-sc data export --out profiles.integration-bundle.json
-sc data export --user my-user --include-secrets --out profiles.integration-bundle.enc.json
-sc data import --file profiles.integration-bundle.enc.json --prefix imported-
+sc data export --user my-user --out my-user.integration-bundle.json
 ```
 
-The last command previews only. Review the plan, then rerun with
-`--apply --confirm PREVIEW_ID`. Encrypted imports prompt for the passphrase again.
-Use `--accept-warnings` only after reviewing skipped connections, unmapped fields,
-and external-authorization warnings. `--policy error` makes conflicts block the
-import; the default `skip` preserves existing connections. A prefix creates a
-separately named copy instead of replacing the original identity.
+Full direct-credential backup (values are encrypted; run from your own interactive terminal):
+
+```sh
+sc data export --user my-user --include-secrets --out my-user.integration-bundle.enc.json
+# SI-Coder prompts for a transfer passphrase twice. It is never accepted as a CLI flag.
+```
+
+Restore is intentionally two-phase. First preview with the exact options you intend to apply:
+
+```sh
+sc data import --file my-user.integration-bundle.enc.json --prefix restored-
+# Enter the passphrase when prompted. Copy the returned planId/PREVIEW_ID after reviewing the plan.
+```
+
+Then apply the same file and options with that preview ID:
+
+```sh
+sc data import --file my-user.integration-bundle.enc.json --prefix restored- --apply --confirm PREVIEW_ID
+# If the preview listed warnings you intentionally accept, append: --accept-warnings
+```
+
+Encrypted import prompts for the passphrase again. The preview hash covers the bundle, options, and destination state, so changing the prefix/policy or changing the destination store requires a fresh preview. `--policy error` makes conflicts block the import; the default `skip` preserves existing connections. A prefix creates a separately named copy instead of replacing the original identity.
+
+### Troubleshooting `unsafe_store_path`
+
+Portability fails closed if **any** path in the SI-Coder credential store is group/other-accessible, symlinked, or owned by another user. This check covers the whole store even when exporting only one user. Directories must be mode `700`; credential/metadata files must be `600`.
+
+Inspect unsafe directories without reading credential values:
+
+```sh
+find "$HOME/.config/si-coder" -type d -perm /077 -printf '%m %p\n'
+```
+
+For directories you own and have reviewed, harden them before retrying:
+
+```sh
+find "$HOME/.config/si-coder" -type d -perm /077 -exec chmod 700 {} +
+```
+
+If the error reports an owner mismatch or symlink, do not bypass it with broad permissions; inspect that path first.
 
 The safe machine functions `sc.data.export` and `sc.data.import` use this same
 core, but handle **metadata-only** files. Export requires `confirm: true`; import

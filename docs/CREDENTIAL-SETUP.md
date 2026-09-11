@@ -106,10 +106,21 @@ tokens are verified through the PAT-authenticated read-only endpoint
 
 ## Import / export
 
-The connection manager now includes **Import / export JSON**. Choose metadata-only
-or encrypted direct credentials, then review the destination import plan. Existing
-IDs/labels are preserved, not overwritten; use a user prefix for a separate copy.
-Details: [Data portability](DATA-PORTABILITY.md).
+The connection manager includes **Import / export JSON**. The CLI equivalent is `sc data export` / `sc data import` (not `sc user import`, which only imports legacy shell/profile values).
+
+```sh
+# metadata only
+sc data export --user YOUR_USER --out backup.integration-bundle.json
+
+# encrypted direct credentials; requires a local interactive terminal
+sc data export --user YOUR_USER --include-secrets --out backup.integration-bundle.enc.json
+
+# preview first, then apply exactly that preview
+sc data import --file backup.integration-bundle.enc.json --prefix restored-
+sc data import --file backup.integration-bundle.enc.json --prefix restored- --apply --confirm PREVIEW_ID
+```
+
+Encrypted export/import prompts for the transfer passphrase; the passphrase is never accepted in argv, chat, or agent tool JSON. Existing IDs/labels are preserved, not overwritten; use a user prefix for a separate copy. If `unsafe_store_path` appears, inspect [Data portability](DATA-PORTABILITY.md#troubleshooting-unsafe_store_path) for the required owner-only store permissions.
 
 ## Hostinger Mail
 
