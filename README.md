@@ -5,7 +5,7 @@
 **SC is a tool for AI agents — not another platform to learn.**
 
 ```text
-@sc / /sc   →   build · connect · publish · verify
+@sc  ·  /sc   →   build · connect · publish · verify
 ```
 
 ## Why everyone should use SC
