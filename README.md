@@ -225,21 +225,7 @@ The bundle is inspected/copied without following symlinks, bounded by file/byte 
 
 ## The normal workflow
 
-```text
-Your goal
-   ↓
-  sc
-   ↓
-understand the product
-   ↓
-build or change it
-   ↓
-connect only what is needed
-   ↓
-publish
-   ↓
-verify the real result
-```
+Same path as the diagram above — goal → understand → build → connect → publish → verify.
 
 For a vague new idea, SC may ask a small number of product questions. If it can infer a reasonable default, it should continue instead of turning the request into a requirements workshop.
 
