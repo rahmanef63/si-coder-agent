@@ -1,38 +1,96 @@
 # SI-Coder (`sc`)
 
-> A simple tool for AI coding agents to build, connect, publish, manage, and verify web apps from plain-language goals.
+> One plain-language goal in. A working, verified app out.
 
-**SC is a tool, not another platform you need to learn.**
-
-For normal use, tell SC what outcome you want:
+**SC is a tool for AI agents — not another platform to learn.**
 
 ```text
-ChatGPT Skill (eligible workspace): @sc Create a booking app for my salon.
-Claude Code                     : /sc Create a booking app for my salon.
-Existing project                : /sc Fix the checkout flow and publish it.
-Frontend specialist             : /sc-fe --workbench audit this desktop shell.
+@sc / /sc   →   build · connect · publish · verify
 ```
 
-SC handles the technical work behind the request: inspecting the current project, choosing sensible defaults, editing the app, connecting supported services, publishing, and verifying the result.
+## Why everyone should use SC
 
-You do **not** need to understand SC's internal skill tree, provider routing, MCP functions, memory system, recipes, evidence receipts, or release checks before using it.
+Most agent stacks force you to juggle prompts, secrets, providers, deploy scripts, and ten tool calls per change. SC collapses that into **one skill / one CLI / one MCP surface**.
+
+```mermaid
+flowchart LR
+  You["You: plain-language goal"] --> SC["sc"]
+  SC --> App["Working app"]
+  SC --> Live["Published URL"]
+  SC --> OK["Verified result"]
+```
+
+| Without SC | With SC |
+|---|---|
+| Pick stack, DNS, DB, CI yourself | SC chooses defaults; you decide product behavior |
+| Paste API keys into chat | Named connections + local vault; secrets never in chat/tools |
+| 8–15 agent tool calls per deploy | One `/sc` or `sc flow run` with props |
+| Different habits per agent host | Same `sc` / `@sc` / `/sc` contract everywhere |
+| “Looks done” in the transcript | Live verify + evidence when it matters |
+
+**Simple on purpose:** one entry point (`sc`). Internals (skills, providers, MCP, flows, memory) stay progressive — use them when you need power, ignore them when you do not.
+
+## Why SC wins
+
+```mermaid
+flowchart TB
+  subgraph Surface["Simple surface"]
+    A["/sc · @sc · sc CLI"]
+  end
+  subgraph Engine["Does the hard work"]
+    B["Skills router"]
+    C["Providers + named connections"]
+    D["sc flow DAG · parallel / recursive"]
+    E["MCP machine tools"]
+  end
+  subgraph Safe["Stays safe"]
+    F["Secrets out of chat"]
+    G["Verify live result"]
+  end
+  A --> B --> C --> D --> E
+  C --> F
+  D --> G
+```
+
+- **Product-first** — asks what the app should do, not which container strategy you prefer.
+- **Secret-safe** — credentials live in user/connection stores (`0600`); agents get status, not plaintext.
+- **Multi-account** — isolated users + labeled connections for clients/projects.
+- **One vocabulary** — build, frontend quality (`sc-fe`), providers, deploy, skills CRUD.
+- **Efficient agents** — `sc flow` turns multi-provider steps into one call with custom props (parallel DAG, recursive subflows).
+- **Host-portable** — Claude, ChatGPT, Codex, Hermes, OpenClaw, local CLI; same intent.
+
+## 30-second start
+
+```text
+ChatGPT:  @sc Create a booking app for my salon and publish it.
+Claude:   /sc Fix checkout and verify login.
+CLI:      sc doctor   ·   sc flow list   ·   sc flow run provider-health --dry-run
+```
+
+You do **not** need the skill tree, provider matrix, or MCP catalog before your first win.
 
 ## What SC does
 
 SC gives an AI coding agent a consistent way to:
 
 - build a new web app from a plain-language idea,
-- work on an existing app without throwing away intentional project conventions,
-- improve frontend UI, UX, DX, and agent experience,
-- connect the accounts/services the app actually needs,
-- publish to an appropriate runtime,
-- connect a domain when requested,
-- manage users, provider definitions, named connections, credentials, and skills,
-- verify the important user flow after a change,
-- keep credentials out of chat and tool payloads,
-- suggest one useful next step after a meaningful milestone.
+- improve an existing app without erasing intentional design DNA,
+- raise frontend UI / UX / DX / AX quality,
+- connect only the services the product needs,
+- publish + attach a domain,
+- manage users, providers, connections, credentials, and skills as CRUD resources,
+- verify the important user flow,
+- keep secrets out of chat and tool payloads,
+- suggest **one** useful next step after a milestone.
 
-The default experience is intentionally product-focused. SC should ask about **what the app needs to do**, not make a normal user choose frameworks, databases, DNS records, container strategies, or deployment pipelines unless that choice materially matters.
+```mermaid
+flowchart TD
+  G[Goal] --> U[Understand product]
+  U --> B[Build / change]
+  B --> C[Connect only what is needed]
+  C --> P[Publish]
+  P --> V[Verify real result]
+```
 
 ## Common use cases
 
@@ -167,21 +225,7 @@ The bundle is inspected/copied without following symlinks, bounded by file/byte 
 
 ## The normal workflow
 
-```text
-Your goal
-   ↓
-  sc
-   ↓
-understand the product
-   ↓
-build or change it
-   ↓
-connect only what is needed
-   ↓
-publish
-   ↓
-verify the real result
-```
+Same path as the diagram above — goal → understand → build → connect → publish → verify.
 
 For a vague new idea, SC may ask a small number of product questions. If it can infer a reasonable default, it should continue instead of turning the request into a requirements workshop.
 
