@@ -308,6 +308,9 @@ sc recipe list
 sc recipe observe release-candidate-check --steps "syntax|tests|docs|catalog|skills|repository-secret-scan"
 sc recipe verify release-candidate-check --yes
 sc recipe promote release-candidate-check --script scripts/release-candidate-check.js --yes
+
+sc flow list
+sc flow run provider-health --dry-run --json
 ```
 
 Quality and verification:

@@ -172,6 +172,45 @@ async function main() {
       process.stdout.write(`${JSON.stringify(AgentActions.recipePromoteAction(input), null, 2)}\n`);
       return;
     }
+    case 'flow.list': {
+      const Flow = require('../lib/flow');
+      process.stdout.write(`${JSON.stringify({ flows: Flow.listFlows({ root: process.cwd() }) }, null, 2)}\n`);
+      return;
+    }
+    case 'flow.show': {
+      const Flow = require('../lib/flow');
+      const id = assertString(input.id || input.path, 'id');
+      const doc = Flow.loadFlow(id, { root: process.cwd() });
+      const { _source, ...rest } = doc;
+      process.stdout.write(`${JSON.stringify({ ...rest, path: _source || null }, null, 2)}\n`);
+      return;
+    }
+    case 'flow.validate': {
+      const Flow = require('../lib/flow');
+      const id = assertString(input.id || input.path, 'id');
+      const doc = Flow.loadFlow(id, { root: process.cwd() });
+      Flow.validateFlow(doc);
+      process.stdout.write(`${JSON.stringify({ ok: true, id: doc.id, path: doc._source || null, stepCount: doc.steps.length }, null, 2)}\n`);
+      return;
+    }
+    case 'flow.run': {
+      const Flow = require('../lib/flow');
+      const id = assertString(input.id || input.path, 'id');
+      const props = input.props === undefined ? {} : input.props;
+      if (!props || typeof props !== 'object' || Array.isArray(props)) throw new Error('props must be an object');
+      const parallel = input.parallel === undefined ? 4 : Number(input.parallel);
+      if (!Number.isFinite(parallel) || parallel < 1) throw new Error('parallel must be a positive number');
+      const dryRun = input.dryRun === true;
+      const out = await Flow.runFlow(Flow.loadFlow(id, { root: process.cwd() }), {
+        props,
+        parallel,
+        dryRun,
+        root: path.resolve(__dirname, '..'),
+      });
+      process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+      process.exitCode = out.ok ? 0 : 1;
+      return;
+    }
     case 'verify': {
       const out = AgentActions.repositoryVerifyAction(input);
       process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);

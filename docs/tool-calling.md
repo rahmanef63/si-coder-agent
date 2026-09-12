@@ -249,6 +249,10 @@ or:
 bash install.sh --agent openclaw --with-mcp
 ```
 
+## Flow runner (MVP)
+
+`sc flow` collapses multi-step provider/MCP work into one declarative DAG. Packaged flows live in `flows/*.json`; projects may overlay `.si-coder/flows/*.json`. Steps may use `sc.fn` (agent verbs via `scripts/sc-agent.js`), `sc.cli` (argv-only `bin/sc-entry.js`), `provider.mcp` (`doku` / `hostinger` mail with `confirm=true`), or recursive `flow` subflows (max depth 5). Templates support `{{props.*}}` and `{{steps.<id>.*}}`. Machine tools: `sc.flow.list`, `sc.flow.show`, `sc.flow.validate`, `sc.flow.run` (`timeoutMs` 120000 for run). Never put plaintext credentials in flow props.
+
 ## Safety contract
 
 - Machine schemas contain no plaintext-secret input field.

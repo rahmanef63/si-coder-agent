@@ -1,0 +1,33 @@
+{
+  "id": "provider-health",
+  "title": "Provider health",
+  "description": "Run sc version and doctor in parallel for selected providers.",
+  "props": {
+    "type": "object",
+    "properties": {
+      "providers": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": ["github", "dokploy"]
+      }
+    },
+    "additionalProperties": false
+  },
+  "steps": [
+    {
+      "id": "version",
+      "uses": "sc.fn",
+      "with": { "name": "version" }
+    },
+    {
+      "id": "doctor",
+      "uses": "sc.fn",
+      "with": {
+        "name": "doctor",
+        "input": {
+          "providers": "{{props.providers}}"
+        }
+      }
+    }
+  ]
+}
