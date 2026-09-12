@@ -5,7 +5,6 @@ Declarative DAGs that collapse multi-step `sc` / provider MCP work into one run.
 ## CLI
 
 ```bash
-export PATH="/home/rahman/.local/bin:$PATH"
 sc flow list
 sc flow show provider-health
 sc flow validate provider-health

@@ -265,6 +265,10 @@ sc.recipe.list
 sc.recipe.observe
 sc.recipe.verify
 sc.recipe.promote
+sc.flow.list
+sc.flow.show
+sc.flow.validate
+sc.flow.run
 sc.skill.verify
 sc.verify
 ```

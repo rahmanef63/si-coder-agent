@@ -58,6 +58,8 @@ test('template interpolates dotted paths and preserves object/array whole-string
 test('listFlows discovers packaged provider-health', () => {
   const rows = listFlows({ root: ROOT });
   assert.ok(rows.some(r => r.id === 'provider-health'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(pkg.files.includes('flows/'), 'packaged flow DAGs must ship in the npm package');
 });
 
 test('dry-run provider-health returns structured parallel step results', async () => {

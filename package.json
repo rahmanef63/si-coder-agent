@@ -43,6 +43,7 @@
     "references/",
     ".mcp.json",
     "machine/",
+    "flows/",
     ".claude-plugin/",
     "lib/",
     "scripts/",
