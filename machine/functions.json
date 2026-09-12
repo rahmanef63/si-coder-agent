@@ -1972,6 +1972,105 @@
         "additionalProperties": false
       },
       "timeoutMs": 30000
+    },
+    {
+      "name": "sc.flow.list",
+      "description": "List packaged and project-local SI-Coder flow DAGs without executing them.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "flow.list"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.flow.show",
+      "description": "Show one SI-Coder flow document by id or path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "flow.show"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.flow.validate",
+      "description": "Validate one SI-Coder flow schema and DAG by id or path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "flow.validate"
+      ],
+      "timeoutMs": 10000
+    },
+    {
+      "name": "sc.flow.run",
+      "description": "Run one SI-Coder flow DAG with custom props, optional parallelism, and optional dry-run. Recursive subflows are depth-limited. Never accepts plaintext secrets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "props": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "parallel": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 32
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "command": [
+        "node",
+        "scripts/sc-agent.js",
+        "flow.run"
+      ],
+      "timeoutMs": 120000
     }
   ]
 }

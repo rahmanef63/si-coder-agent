@@ -2345,6 +2345,79 @@ function cmdRecipe(sub, arg, args) {
   return die(`unknown: recipe ${sub}`);
 }
 
+
+function cmdFlow(sub, arg, args) {
+  const Flow = require('../lib/flow');
+  if (!sub || sub === 'list') {
+    const flows = Flow.listFlows({ root: process.cwd() });
+    const out = { flows };
+    return printJsonOr(out, args, row => {
+      if (!row.flows.length) return console.log('(no flows)');
+      for (const f of row.flows) {
+        const title = f.title ? `  ${f.title}` : '';
+        console.log(`${f.id}${title}  steps=${f.stepCount}`);
+      }
+    });
+  }
+  if (sub === 'show') {
+    if (!arg) die('usage: sc flow show <id|path>');
+    const doc = Flow.loadFlow(arg, { root: process.cwd() });
+    const { _source, ...rest } = doc;
+    const out = { ...rest, path: _source || null };
+    return printJsonOr(out, args, row => {
+      console.log(`${row.id}${row.title ? ` — ${row.title}` : ''}`);
+      if (row.description) console.log(row.description);
+      if (row.path) console.log(`path: ${row.path}`);
+      console.log('steps:');
+      for (const step of row.steps) {
+        const needs = step.needs?.length ? ` needs=[${step.needs.join(',')}]` : '';
+        console.log(`  - ${step.id} uses=${step.uses}${needs}`);
+      }
+    });
+  }
+  if (sub === 'validate') {
+    if (!arg) die('usage: sc flow validate <id|path>');
+    const doc = Flow.loadFlow(arg, { root: process.cwd() });
+    Flow.validateFlow(doc);
+    const out = { ok: true, id: doc.id, path: doc._source || null, stepCount: doc.steps.length };
+    return printJsonOr(out, args, row => console.log(`✅ flow ${row.id} valid (${row.stepCount} steps)`));
+  }
+  if (sub === 'run') {
+    if (!arg) die('usage: sc flow run <id|path> [--props JSON] [--props-file PATH] [--parallel N] [--dry-run] [--json]');
+    let props = {};
+    if (typeof args['props-file'] === 'string') {
+      const file = path.resolve(args['props-file']);
+      try { props = JSON.parse(fs.readFileSync(file, 'utf8')); }
+      catch (e) { die(`invalid --props-file: ${e.message}`); }
+    }
+    if (typeof args.props === 'string') {
+      try { props = { ...props, ...JSON.parse(args.props) }; }
+      catch (e) { die(`invalid --props JSON: ${e.message}`); }
+    }
+    if (!props || typeof props !== 'object' || Array.isArray(props)) die('--props must be a JSON object');
+    const parallel = args.parallel === undefined ? 4 : Number(args.parallel);
+    if (!Number.isFinite(parallel) || parallel < 1) die('--parallel must be a positive number');
+    const dryRun = Boolean(args['dry-run']);
+    return Flow.runFlow(Flow.loadFlow(arg, { root: process.cwd() }), {
+      props,
+      parallel,
+      dryRun,
+      root: path.resolve(__dirname, '..'),
+    }).then(out => {
+      printJsonOr(out, args, row => {
+        console.log(`${row.ok ? '✅' : '❌'} flow ${row.id}${row.dryRun ? ' (dry-run)' : ''}`);
+        for (const [id, step] of Object.entries(row.steps || {})) {
+          const mark = step.ok ? 'ok' : (step.continued ? 'continued' : 'fail');
+          console.log(`  ${id}: ${mark} ${step.ms}ms${step.error ? ` — ${step.error}` : ''}`);
+        }
+        if (!row.ok) process.exitCode = 1;
+      });
+      if (args.json && !out.ok) process.exitCode = 1;
+    });
+  }
+  return die(`unknown: flow ${sub}`);
+}
+
 function cmdSkillList(args) {
   const rows = listSkills({ includeInactive: Boolean(args.all) });
   if (args.json) {
@@ -2528,6 +2601,11 @@ sc — SI-Coder interactive console + secret control plane
   sc recipe verify <id> --yes          mark a repeated recipe verified
   sc recipe promote <id> --script scripts/name.js --yes
                                       bind a verified recipe to a deterministic executable script
+  sc flow [list]                       list packaged/project flow DAGs
+  sc flow show <id|path>               show one flow document
+  sc flow validate <id|path>           validate flow schema/DAG
+  sc flow run <id|path> [--props JSON] [--props-file PATH] [--parallel N] [--dry-run] [--json]
+                                      run a flow with custom props + parallel DAG execution
   sc skills [--all] [--json]            list canonical slash skills for compatible hosts
   sc skill list [--all] [--json]        alias for the machine-readable skill registry
   sc skill verify [--strict] [--json] validate skill metadata, trigger quality, references, tools, and secrets
@@ -2650,6 +2728,7 @@ async function main() {
     case 'task':      return cmdTask(sub, arg, args);
     case 'memory':    return cmdMemory(sub, arg, args);
     case 'recipe':    return cmdRecipe(sub, arg, args);
+    case 'flow':      return cmdFlow(sub, arg, args);
     case 'skills':    return cmdSkillList(args);
     case 'skill':     return cmdSkill(sub, args);
     case 'verify':    return cmdVerify(args);
