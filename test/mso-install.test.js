@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { supportedNodePath } = require('../test-support/node-shim');
 
 const ROOT = path.resolve(__dirname, '..');
 const INSTALL = path.join(ROOT, 'install.sh');
@@ -18,7 +19,7 @@ function install(agent, home) {
   return execFileSync('bash', [INSTALL, '--agent', agent, '--no-onboard'], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, HOME: home, SC_SKIP_NPM_LINK: '1' },
+    env: { ...process.env, HOME: home, PATH: supportedNodePath(home), SC_SKIP_NPM_LINK: '1' },
   });
 }
 
