@@ -10,6 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { scrubSecrets, scrubDeep } = require('../lib/redact-env');
+const { annotationsFor, validateArgs } = require('../lib/mcp-contract');
 
 const ROOT = path.resolve(__dirname, '..');
 const PKG = require('../package.json');
@@ -52,10 +54,11 @@ function execute(fn, args) {
     maxBuffer: 1024 * 1024,
     timeout: Math.max(1000, Number(fn.timeoutMs) || 30000),
   });
-  const stdout = (r.stdout || '').trim();
-  const stderr = (r.stderr || '').trim();
+  // Never relay a raw secret value from child output to the MCP client.
+  const stdout = scrubSecrets((r.stdout || '').trim());
+  const stderr = scrubSecrets((r.stderr || '').trim());
   let parsed = null;
-  if (stdout) { try { parsed = JSON.parse(stdout); } catch { /* text result */ } }
+  if (stdout) { try { parsed = scrubDeep(JSON.parse(stdout)); } catch { /* text result */ } }
   const text = stdout || stderr || (r.status === 0 ? 'ok' : `command failed with exit ${r.status}`);
   return {
     content: [{ type: 'text', text }],
@@ -97,14 +100,17 @@ function handle(msg) {
   }
   if (method === 'ping') return ok(id, {}, msg);
   if (method === 'tools/list') {
-    return ok(id, { tools: FUNCTIONS.map(f => ({ name: f.name, description: f.description, inputSchema: f.inputSchema })) }, msg);
+    return ok(id, { tools: FUNCTIONS.map(f => ({ name: f.name, description: f.description, inputSchema: f.inputSchema, annotations: annotationsFor(f) })) }, msg);
   }
   if (method === 'tools/call') {
     const name = msg.params?.name;
     const fn = BY_NAME.get(name);
     if (!fn) return err(id, -32602, `unknown tool ${JSON.stringify(name)}`);
-    try { return ok(id, execute(fn, msg.params?.arguments || {}), msg); }
-    catch (e) { return err(id, -32603, e.message); }
+    const args = msg.params?.arguments || {};
+    const problems = validateArgs(fn.inputSchema, args);
+    if (problems.length) return err(id, -32602, `invalid arguments for ${name}`, { problems: problems.slice(0, 10) });
+    try { return ok(id, execute(fn, args), msg); }
+    catch (e) { return err(id, -32603, scrubSecrets(String(e.message || e)).slice(0, 500)); }
   }
   if (method === 'resources/list') return ok(id, { resources: [] }, msg);
   if (method === 'prompts/list') return ok(id, { prompts: [] }, msg);

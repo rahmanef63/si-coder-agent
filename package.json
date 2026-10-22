@@ -68,7 +68,7 @@
     "sc": "node bin/sc-entry.js",
     "doctor": "node bin/sc.js doctor",
     "deploy": "node scripts/deploy.js",
-    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "test": "node --test --test-concurrency=1 test/",
     "route": "node scripts/route-plan.js",
     "mcp": "node scripts/sc-mcp.js",
     "package:skills": "python3 scripts/package-web-skill.py",

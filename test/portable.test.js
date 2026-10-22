@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync, execFileSync } = require('child_process');
 
+const { supportedNodePath } = require('../test-support/node-shim');
 const ROOT = path.resolve(__dirname, '..');
 const { planDeploy } = require('../lib/deploy-route');
 
@@ -186,7 +187,7 @@ test('SCPORT-10: portable installer targets local Agent Skills runtimes from one
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sc-install-'));
   try {
     execFileSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'all', '--no-onboard'], {
-      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, SC_SKIP_NPM_LINK: '1' },
+      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: supportedNodePath(home), SC_SKIP_NPM_LINK: '1' },
     });
     const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills/catalog.json'), 'utf8')).skills;
     const active = Object.entries(catalog).filter(([, row]) => row.lifecycle === 'active' && row.installByDefault).map(([name]) => name);
@@ -212,7 +213,7 @@ test('SCPORT-10b: installer reports npm-link failure instead of silently claimin
   fs.writeFileSync(npm, '#!/bin/sh\necho "simulated npm link failure" >&2\nexit 42\n', { mode: 0o755 });
   try {
     const r = spawnSync('bash', [path.join(ROOT, 'install.sh'), '--agent', 'codex', '--no-onboard'], {
-      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${process.env.PATH}` },
+      cwd: ROOT, encoding: 'utf8', env: { ...process.env, HOME: home, PATH: `${fakeBin}:${supportedNodePath(home)}` },
     });
     assert.strictEqual(r.status, 0, r.stderr);
     assert.match(r.stderr, /could not link the global 'sc' command/i);
